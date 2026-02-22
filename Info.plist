@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>thirdscreen</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>thirdscreen</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>thirdscreen.googleoauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.YOUR_GOOGLE_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
+	<key>GoogleCalendarClientID</key>
+	<string>YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com</string>
+	<key>GoogleCalendarRedirectURI</key>
+	<string>com.googleusercontent.apps.YOUR_GOOGLE_CLIENT_ID:/oauth2redirect/google</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Third Screen uses Bluetooth access to read battery levels for connected accessories like AirPods.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Third Screen needs calendar access to show your events in the schedule view.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Third Screen uses reminders to keep your to-dos synced with Apple Reminders.</string>
+	<key>SpotifyClientID</key>
+	<string>YOUR_SPOTIFY_CLIENT_ID</string>
+</dict>
+</plist>

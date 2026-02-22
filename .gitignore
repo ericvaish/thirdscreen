@@ -1,0 +1,18 @@
+# Build
+DerivedData/
+DerivedDataSandbox/
+build/
+*.xcuserstate
+
+# Credentials (use Info.plist or xcconfig for your own client IDs)
+client_*.plist
+*.credentials.plist
+
+# macOS
+.DS_Store
+
+plan.md
+
+THEMING_ARCHITECTURE.md
+settings-window-notes.md
+xcuserdata/
