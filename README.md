@@ -1,7 +1,9 @@
 # Third Screen
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&height=220&color=0:111827,100:0B3D2E&text=THIRD%20SCREEN&fontColor=F9FAFB&fontSize=52&animation=fadeIn&fontAlignY=38&desc=Ambient%20intelligence%20for%20your%20desktop.&descSize=16&descAlignY=58" alt="Third Screen banner" />
+  <img src="https://capsule-render.vercel.app/api?type=waving&height=220&color=0:111827,100:0B3D2E&text=THIRD%20SCREEN&fontColor=F9FAFB&fontSize=52&animation=fadeIn&fontAlignY=38&desc=Your%20day%2C%20at%20a%20glance%2C%20in%20a%20single%20dashboard.&descSize=16&descAlignY=58" alt="Third Screen banner" />
+  <br/>
+  <img src="assets/thirdscreen_logo.svg" alt="Third Screen app logo" width="56" />
 </p>
 
 <p align="center">
@@ -21,6 +23,11 @@
 <p align="center">
   <img src="assets/third_screen_demo.png" alt="Third Screen demo" width="92%">
 </p>
+
+## Features
+
+- Resizable cards for a customizable dashboard layout
+- Add multiple cards (including multiple instances of the same card type)
 
 
 ## Integrations
@@ -43,5 +50,3 @@ Third Screen is built as a **native macOS app** (SwiftUI + Apple frameworks), so
 - Native permissions for Calendar and Reminders
 - Native windowing, menus, and keyboard behavior
 - Tight OS integration for Bluetooth battery and Apple Shortcuts
-
-
