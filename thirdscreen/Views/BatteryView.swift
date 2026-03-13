@@ -7,9 +7,9 @@ struct BatteryView: View {
         VStack(alignment: .leading, spacing: 14) {
             if let internalBattery = snapshot.internalBattery {
                 internalBatterySection(internalBattery)
-            } else {
-                bluetoothBatterySection
             }
+
+            bluetoothBatterySection
 
             Spacer(minLength: 0)
 
@@ -54,9 +54,9 @@ struct BatteryView: View {
 
     private var bluetoothBatterySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Bluetooth Device Batteries", systemImage: "dot.radiowaves.left.and.right")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
+            Text("Bluetooth Devices")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
 
             if snapshot.bluetoothBatteries.isEmpty {
                 Text("No connected Bluetooth device batteries were found.")
@@ -64,12 +64,12 @@ struct BatteryView: View {
                     .foregroundStyle(.secondary)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 12)], spacing: 12) {
                         ForEach(snapshot.bluetoothBatteries) { device in
-                            bluetoothDeviceRow(device)
+                            BatteryGaugeView(info: device)
                         }
                     }
                     .padding(.vertical, 2)
@@ -78,39 +78,24 @@ struct BatteryView: View {
         }
     }
 
-    private func bluetoothDeviceRow(_ device: BluetoothBatteryInfo) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text(device.name)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                Text("\(device.percent)%")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            ProgressView(value: Double(device.percent), total: 100)
-                .progressViewStyle(.linear)
-        }
-        .padding(10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
-    }
-
     private func refreshLoop() async {
-        await refreshSnapshot()
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(45))
-            guard !Task.isCancelled else { break }
-            await refreshSnapshot()
-        }
-    }
-
-    private func refreshSnapshot() async {
+        // Trigger initial BLE scan
+        BatteryService.ensureBluetoothPermission()
+        // Wait for BLE scan to complete (~4s scan + buffer)
+        try? await Task.sleep(for: .seconds(6))
         snapshot = BatteryService.snapshot()
+
+        while !Task.isCancelled {
+            // Trigger new BLE scan
+            BatteryService.ensureBluetoothPermission()
+            // Wait for scan to complete, then read results
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { break }
+            snapshot = BatteryService.snapshot()
+            // Wait remaining interval before next scan
+            try? await Task.sleep(for: .seconds(39))
+            guard !Task.isCancelled else { break }
+        }
     }
 
     private func iconName(for battery: InternalBatteryInfo) -> String {
@@ -138,13 +123,13 @@ struct BatteryView: View {
 
         if battery.isCharging {
             if let duration = formattedDuration(minutes: battery.timeToFullMinutes) {
-                return "Charging • \(duration) until full"
+                return "Charging \u{2022} \(duration) until full"
             }
             return "Charging"
         }
 
         if let duration = formattedDuration(minutes: battery.timeToEmptyMinutes) {
-            return "On battery • \(duration) remaining"
+            return "On battery \u{2022} \(duration) remaining"
         }
 
         return battery.isOnACPower ? "On AC power" : "On battery power"
@@ -161,6 +146,97 @@ struct BatteryView: View {
             return "\(hours)h"
         }
         return "\(hours)h \(remainder)m"
+    }
+}
+
+// MARK: - Battery Gauge View
+
+private struct BatteryGaugeView: View {
+    let info: BluetoothBatteryInfo
+
+    private var ringColor: Color {
+        switch info.percent {
+        case 41...: return .green
+        case 21...40: return .yellow
+        default: return .red
+        }
+    }
+
+    private var iconName: String {
+        switch info.deviceType {
+        case .earbudLeft:
+            return "airpodpro.left"
+        case .earbudRight:
+            return "airpodpro.right"
+        case .chargingCase:
+            return "airpods.chargingcase.fill"
+        case .mouse:
+            return "computermouse.fill"
+        case .keyboard:
+            return "keyboard.fill"
+        case .headphones:
+            return "headphones"
+        case .generic:
+            return "dot.radiowaves.left.and.right"
+        }
+    }
+
+    private var shortLabel: String {
+        let name = info.name
+        if name.hasSuffix(" Left") { return "Left" }
+        if name.hasSuffix(" Right") { return "Right" }
+        if name.hasSuffix(" Case") { return "Case" }
+        // For non-AirPods devices, truncate if needed
+        if name.count > 12 {
+            return String(name.prefix(10)) + "\u{2026}"
+        }
+        return name
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                // Background ring
+                Circle()
+                    .stroke(ringColor.opacity(0.2), lineWidth: 4)
+
+                // Progress ring
+                Circle()
+                    .trim(from: 0, to: CGFloat(info.percent) / 100)
+                    .stroke(ringColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: ringColor.opacity(0.4), radius: 4)
+
+                // Icon
+                Image(systemName: iconName)
+                    .font(.system(size: 18))
+                    .foregroundStyle(ringColor)
+
+                // Charging bolt overlay
+                if info.isCharging {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.yellow)
+                        .background(
+                            Circle()
+                                .fill(.black.opacity(0.6))
+                                .frame(width: 14, height: 14)
+                        )
+                        .offset(x: 20, y: -20)
+                }
+            }
+            .frame(width: 52, height: 52)
+
+            Text("\(info.percent)%")
+                .font(.caption.weight(.bold).monospacedDigit())
+                .foregroundStyle(.primary)
+
+            Text(shortLabel)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.vertical, 6)
     }
 }
 

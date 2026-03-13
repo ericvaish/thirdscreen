@@ -225,6 +225,7 @@ struct MediaView: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
+                    .appScaledSystemFont(size: 17)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -372,9 +373,12 @@ struct MediaView: View {
         }
     }
 
+    @AppStorage("lyricsOffsetMs") private var lyricsOffsetMs: Int = 0
+
     private var currentLyricsLineId: LyricsLine.ID? {
         guard let progress = spotify.progressMs else { return nil }
-        let idx = spotify.lyricsLines.lastIndex { $0.startMs <= progress }
+        let adjusted = progress + lyricsOffsetMs
+        let idx = spotify.lyricsLines.lastIndex { $0.startMs <= adjusted }
         return idx.map { spotify.lyricsLines[$0].id }
     }
 

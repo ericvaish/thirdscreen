@@ -65,7 +65,11 @@ final class SpotifyService {
 
     private var refreshTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
+    private var progressTimer: Timer?
+    private var anchorProgressMs: Int = 0
+    private var anchorDate: Date = .now
     private var lastLyricsTrackKey: String?
+    let lyricsCache = LyricsCache()
     private var activeDeviceId: String?
     private var cachedAccessToken: String?
     private var cachedRefreshToken: String?
@@ -376,6 +380,7 @@ final class SpotifyService {
         }
 
         await MainActor.run {
+            let wasPlaying = isPlaying
             currentTrack = track
             currentArtist = artist
             currentAlbum = album
@@ -386,6 +391,15 @@ final class SpotifyService {
             shuffleState = shuffleVal
             repeatState = repeatVal
             activeDeviceId = deviceId
+
+            // Re-anchor the local progress timer
+            if let progressVal {
+                anchorProgressMs = progressVal
+                anchorDate = .now
+            }
+            if isPlayingVal != wasPlaying {
+                if isPlayingVal { startProgressTimer() } else { stopProgressTimer() }
+            }
         }
 
         if let track, let artist, let album, let durationMs, durationMs > 0 {
@@ -410,6 +424,18 @@ final class SpotifyService {
     }
 
     private func fetchLyrics(track: String, artist: String, album: String, durationSeconds: Int, forKey key: String) async {
+        // Check cache first
+        if let cached = await lyricsCache.lookup(track: track, artist: artist, album: album) {
+            await MainActor.run {
+                guard lastLyricsTrackKey == key else {
+                    isLoadingLyrics = false
+                    return
+                }
+                applyLyrics(instrumental: cached.instrumental, synced: cached.syncedLyrics, plain: cached.plainLyrics)
+            }
+            return
+        }
+
         var components = URLComponents(string: "https://lrclib.net/api/get")!
         components.queryItems = [
             URLQueryItem(name: "track_name", value: track),
@@ -440,29 +466,39 @@ final class SpotifyService {
         let plain = json["plainLyrics"] as? String
         let synced = json["syncedLyrics"] as? String
 
+        // Cache the result
+        await lyricsCache.store(
+            track: track, artist: artist, album: album,
+            lyrics: CachedLyrics(instrumental: instrumental, syncedLyrics: synced, plainLyrics: plain)
+        )
+
         await MainActor.run {
             guard lastLyricsTrackKey == key else {
                 isLoadingLyrics = false
                 return
             }
-            isLoadingLyrics = false
-            if instrumental {
-                lyricsLines = []
-                plainLyrics = "Instrumental"
-                isInstrumental = true
-            } else if let synced, !synced.isEmpty {
-                lyricsLines = parseLRCLyrics(synced)
-                plainLyrics = nil
-                isInstrumental = false
-            } else if let plain, !plain.isEmpty {
-                lyricsLines = []
-                plainLyrics = stripTimestampsFromText(plain)
-                isInstrumental = false
-            } else {
-                lyricsLines = []
-                plainLyrics = nil
-                isInstrumental = false
-            }
+            applyLyrics(instrumental: instrumental, synced: synced, plain: plain)
+        }
+    }
+
+    private func applyLyrics(instrumental: Bool, synced: String?, plain: String?) {
+        isLoadingLyrics = false
+        if instrumental {
+            lyricsLines = []
+            plainLyrics = "Instrumental"
+            isInstrumental = true
+        } else if let synced, !synced.isEmpty {
+            lyricsLines = parseLRCLyrics(synced)
+            plainLyrics = nil
+            isInstrumental = false
+        } else if let plain, !plain.isEmpty {
+            lyricsLines = []
+            plainLyrics = stripTimestampsFromText(plain)
+            isInstrumental = false
+        } else {
+            lyricsLines = []
+            plainLyrics = nil
+            isInstrumental = false
         }
     }
 
@@ -503,7 +539,31 @@ final class SpotifyService {
         }
     }
 
+    @MainActor
+    private func startProgressTimer() {
+        stopProgressTimer()
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isPlaying else { return }
+                let elapsed = Int(Date.now.timeIntervalSince(self.anchorDate) * 1000)
+                let interpolated = self.anchorProgressMs + elapsed
+                if let duration = self.trackDurationMs {
+                    self.progressMs = min(interpolated, duration)
+                } else {
+                    self.progressMs = interpolated
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+    }
+
     func disconnect() {
+        stopProgressTimer()
         pollTask?.cancel()
         pollTask = nil
         isConnected = false
@@ -631,6 +691,8 @@ final class SpotifyService {
         Task { @MainActor in
             _ = await apiRequest("/me/player/seek?position_ms=\(positionMs)", method: "PUT")
             progressMs = positionMs
+            anchorProgressMs = positionMs
+            anchorDate = .now
             try? await Task.sleep(for: .milliseconds(200))
             await fetchPlaybackState()
         }

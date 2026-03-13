@@ -13,6 +13,12 @@ enum DashboardSection: String, Codable, CaseIterable {
     case battery
     case calendar
     case todos
+    case notes
+    case icloudNotes
+    case localNotes
+    case medicines
+    case aiChat
+    case calories
 
     var displayTitle: String {
         switch self {
@@ -22,6 +28,12 @@ enum DashboardSection: String, Codable, CaseIterable {
         case .battery: return "Battery"
         case .calendar: return "Shortcuts"
         case .todos: return "To-Dos"
+        case .notes: return "Notes"
+        case .icloudNotes: return "iCloud Notes"
+        case .localNotes: return "Local Notes"
+        case .medicines: return "Medicines"
+        case .aiChat: return "AI Chat"
+        case .calories: return "Food Tracking"
         }
     }
 }
@@ -122,6 +134,14 @@ struct DashboardLayout: Codable {
             return SectionLayout(id: section, colSpan: 12, rowSpan: 6)
         case .calendar, .todos:
             return SectionLayout(id: section, colSpan: 24, rowSpan: 8)
+        case .notes, .icloudNotes, .localNotes:
+            return SectionLayout(id: section, colSpan: 12, rowSpan: 6)
+        case .medicines:
+            return SectionLayout(id: section, colSpan: 12, rowSpan: 8)
+        case .aiChat:
+            return SectionLayout(id: section, colSpan: 12, rowSpan: 8)
+        case .calories:
+            return SectionLayout(id: section, colSpan: 12, rowSpan: 8)
         }
     }
 }

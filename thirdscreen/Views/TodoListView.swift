@@ -12,6 +12,18 @@ struct DurationPickerView: View {
 
     var body: some View {
         Menu {
+            Button {
+                duration = 0
+            } label: {
+                HStack {
+                    Text("All Day")
+                    Spacer()
+                    if duration == 0 {
+                        Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                    }
+                }
+            }
+            Divider()
             ForEach(Array(durationPresets.enumerated()), id: \.offset) { _, mins in
                 Button {
                     duration = mins
@@ -27,9 +39,9 @@ struct DurationPickerView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "hourglass")
+                Image(systemName: duration == 0 ? "sun.max" : "hourglass")
                     .foregroundStyle(.secondary)
-                Text("\(duration)m")
+                Text(duration == 0 ? "All Day" : "\(duration)m")
                 Image(systemName: "chevron.down")
                     .appScaledSystemFont(size: 12, weight: .semibold)
                     .foregroundStyle(.secondary)

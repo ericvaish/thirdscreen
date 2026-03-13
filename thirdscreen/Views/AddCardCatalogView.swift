@@ -23,38 +23,37 @@ struct AddCardCatalogView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(DashboardSection.allCases, id: \.self) { section in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: iconName(for: section))
-                                .font(.title3)
+            List {
+                ForEach(DashboardSection.allCases, id: \.self) { section in
+                    HStack(spacing: 10) {
+                        Image(systemName: iconName(for: section))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(section.displayTitle)
+                                .font(.body.weight(.medium))
+                            Text(description(for: section))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .frame(width: 24)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(section.displayTitle)
-                                    .font(.body.weight(.semibold))
-                                Text(description(for: section))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Button("Add") {
-                                onAdd(section)
-                            }
-                            .buttonStyle(.borderedProminent)
                         }
-                        .padding(10)
-                        .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
+
+                        Spacer()
+
+                        Button {
+                            onAdd(section)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.circle)
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(12)
             }
+            .listStyle(.inset)
         }
-        .frame(minWidth: 460, minHeight: 420)
+        .frame(minWidth: 460, idealHeight: 700)
     }
 
     private func iconName(for section: DashboardSection) -> String {
@@ -71,6 +70,16 @@ struct AddCardCatalogView: View {
             return "command"
         case .todos:
             return "checklist"
+        case .notes, .localNotes:
+            return "note.text"
+        case .icloudNotes:
+            return "icloud"
+        case .medicines:
+            return "pills.fill"
+        case .aiChat:
+            return "sparkles"
+        case .calories:
+            return "flame.fill"
         }
     }
 
@@ -88,6 +97,18 @@ struct AddCardCatalogView: View {
             return "Shortcut actions and quick launch tiles."
         case .todos:
             return "Tasks, reminders, and completion flow."
+        case .notes:
+            return "Quick notes and checklists."
+        case .icloudNotes:
+            return "Notes and checklists synced via iCloud."
+        case .localNotes:
+            return "Notes and checklists stored locally on this device."
+        case .medicines:
+            return "Track medicines, schedules, and reminders with iCloud sync."
+        case .aiChat:
+            return "Chat with local AI models on-device."
+        case .calories:
+            return "Track food intake, calories, and daily water consumption."
         }
     }
 }

@@ -139,6 +139,16 @@ private struct ManageCardRow: View {
             return "command"
         case .todos:
             return "checklist"
+        case .notes, .localNotes:
+            return "note.text"
+        case .icloudNotes:
+            return "icloud"
+        case .medicines:
+            return "pills.fill"
+        case .aiChat:
+            return "sparkles"
+        case .calories:
+            return "flame.fill"
         }
     }
 }

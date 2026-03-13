@@ -45,6 +45,7 @@ struct ScheduleView: View {
     @Bindable var todoStore: TodoStore
     @Bindable var calendarService: CalendarService
     @Bindable var googleCalendarService: GoogleCalendarService
+    @Environment(\.appTextScale) private var appTextScale
     @AppStorage("schedulePrimaryStartHour") private var primaryStartHour = 6
     @AppStorage("schedulePrimaryEndHour") private var primaryEndHour = 22
     @AppStorage("scheduleAutoRecenterIntervalSeconds") private var autoRecenterIntervalSeconds = 60
@@ -62,8 +63,9 @@ struct ScheduleView: View {
     @State private var forceRecenterToken = UUID()
     @State private var hasAlignedTimeline = false
 
-    private let hourHeight: CGFloat = 32
-    private let minBlockHeight: CGFloat = 36
+    private var scaleFactor: CGFloat { CGFloat(AppTextScale.clamp(appTextScale)) }
+    private var hourHeight: CGFloat { 32 * scaleFactor }
+    private var minBlockHeight: CGFloat { 36 * scaleFactor }
     private let listModeThreshold: CGFloat = 420
     private let timelinePadding: CGFloat = 16
     private let recenterTolerance: CGFloat = 20
@@ -135,7 +137,7 @@ struct ScheduleView: View {
                 VStack(spacing: 20) {
                     Text("Add Scheduled To-Do").font(.title2)
                     TextField("Title", text: $newTodoTitle).textFieldStyle(.roundedBorder)
-                    DatePicker("Start", selection: $newTodoStart, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("Start", selection: $newTodoStart, displayedComponents: newTodoDuration == 0 ? [.date] : [.date, .hourAndMinute])
                         .datePickerStyle(.compact)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Duration").font(.caption).foregroundStyle(.secondary)
@@ -148,7 +150,14 @@ struct ScheduleView: View {
                         }
                         .buttonStyle(.bordered)
                         Button("Add") {
-                            todoStore.add(TodoItem(title: newTodoTitle, scheduledStart: newTodoStart, durationMinutes: newTodoDuration))
+                            let start = newTodoDuration == 0
+                                ? Calendar.current.startOfDay(for: newTodoStart)
+                                : newTodoStart
+                            todoStore.add(TodoItem(
+                                title: newTodoTitle,
+                                scheduledStart: start,
+                                durationMinutes: newTodoDuration == 0 ? nil : newTodoDuration
+                            ))
                             activeModal = nil
                             resetNewTodo()
                         }
@@ -229,74 +238,30 @@ struct ScheduleView: View {
         .padding(24)
     }
 
+    @State private var weekOffset: Int = 0
+
+
     private var scheduleContent: some View {
         GeometryReader { geo in
             let items = scheduleItems(for: selectedDate)
             let upcoming = upcomingCalls(from: items, now: Date())
-            let baseHeaderHeight: CGFloat = 54
+            let baseHeaderHeight: CGFloat = 90
             let upcomingStripHeight: CGFloat = isToday && !upcoming.isEmpty ? 96 : 0
             let legendHeight: CGFloat = 26
             let scrollHeight = max(0, geo.size.height - baseHeaderHeight - upcomingStripHeight - legendHeight)
             let useListMode = geo.size.width < listModeThreshold
 
             VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button {
-                        selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-                    } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    Button {
-                        showDatePicker = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(selectedDate.formatted(date: .abbreviated, time: .omitted))
-                            Image(systemName: "calendar")
-                                .font(.caption2)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
-                        IOSCalendarDatePicker(selectedDate: $selectedDate)
-                    }
-
-                    Button {
-                        selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                    } label: {
-                        Image(systemName: "chevron.right")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    Button {
-                        if !isToday {
-                            selectedDate = Date()
-                        }
-                        forceRecenterToken = UUID()
-                    } label: {
-                        Image(systemName: "scope")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    Button { activeModal = .addTodo } label: { Label("Add To-Do", systemImage: "plus") }
-                        .buttonStyle(.borderedProminent)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                scheduleHeader
 
                 if isToday && !upcoming.isEmpty {
                     upcomingCallsStrip(calls: upcoming)
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 8)
                 }
 
-                Divider()
+                Divider().padding(.horizontal, 10)
+
                 if useListMode {
                     scheduleListView(scrollHeight: scrollHeight, items: items)
                 } else {
@@ -310,6 +275,44 @@ struct ScheduleView: View {
         .clipped()
         .onAppear {
             ensureHourRangeDefaultsAreValid()
+        }
+    }
+
+    private var scheduleHeader: some View {
+        WeekStripView(selectedDate: $selectedDate, weekOffset: $weekOffset) {
+            Button {
+                if !isToday {
+                    selectedDate = Date()
+                    weekOffset = 0
+                }
+                forceRecenterToken = UUID()
+            } label: {
+                Image(systemName: "scope")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Recenter timeline")
+
+            Button {
+                showDatePicker = true
+            } label: {
+                Image(systemName: "calendar")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Pick a date")
+            .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+                IOSCalendarDatePicker(selectedDate: $selectedDate)
+            }
+
+            Button {
+                activeModal = .addTodo
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Add to-do")
         }
     }
 
@@ -361,7 +364,7 @@ struct ScheduleView: View {
                 ScrollView {
                     ZStack(alignment: .topLeading) {
                         GeometryReader { timelineGeo in
-                            let labelWidth: CGFloat = 52
+                            let labelWidth: CGFloat = 52 * scaleFactor
                             let labelGap: CGFloat = 10
                             let eventsStartX = labelWidth + labelGap
                             let eventsWidth = max(0, timelineGeo.size.width - eventsStartX)
@@ -370,14 +373,13 @@ struct ScheduleView: View {
                             ZStack(alignment: .topLeading) {
                                 VStack(spacing: 0) {
                                     ForEach(hourRange, id: \.self) { hour in
-                                        HStack(alignment: .top, spacing: labelGap) {
+                                        HStack(spacing: labelGap) {
                                             timelineHourLabel(hour)
                                                 .frame(width: labelWidth, alignment: .trailing)
-
                                             Rectangle()
                                                 .fill(Color.primary.opacity(0.16))
                                                 .frame(height: 1)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .frame(maxWidth: .infinity)
                                         }
                                         .frame(height: hourHeight, alignment: .top)
                                         .id(hour)
@@ -675,7 +677,10 @@ struct ScheduleView: View {
 
         for todo in todoStore.items.filter({ $0.scheduledStart != nil && !$0.isCompleted }) {
             guard let start = todo.scheduledStart, cal.isDate(start, inSameDayAs: date) else { continue }
-            let end = todo.endDate ?? start.addingTimeInterval(TimeInterval((todo.durationMinutes ?? 30) * 60))
+            let isAllDay = todo.durationMinutes == nil
+            let end = todo.endDate ?? (isAllDay
+                ? cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: start))!
+                : start.addingTimeInterval(TimeInterval((todo.durationMinutes ?? 30) * 60)))
             items.append(
                 ScheduleItem(
                     id: todo.id.uuidString,
@@ -693,7 +698,7 @@ struct ScheduleView: View {
                     attendees: [],
                     eventURL: nil,
                     status: todo.isCompleted ? "Completed" : "Planned",
-                    isAllDay: false
+                    isAllDay: isAllDay
                 )
             )
         }

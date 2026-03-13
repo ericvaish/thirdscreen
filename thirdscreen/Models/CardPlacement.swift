@@ -12,11 +12,15 @@ struct CardLayoutPolicy {
     let maxW: Int
     let maxH: Int
 
-    static func policy(for section: DashboardSection) -> CardLayoutPolicy {
+    static func policy(for section: DashboardSection, timeCardMode: TimeCardMode? = nil) -> CardLayoutPolicy {
         switch section {
         case .timer:
-            // Timer has the tallest minimum content footprint due to segmented controls + large clock.
-            return CardLayoutPolicy(minW: 8, minH: 5, maxW: 24, maxH: 24)
+            switch timeCardMode {
+            case .clock:
+                return CardLayoutPolicy(minW: 8, minH: 3, maxW: 24, maxH: 24)
+            case .timer, .alarm, nil:
+                return CardLayoutPolicy(minW: 8, minH: 5, maxW: 24, maxH: 24)
+            }
         case .media:
             return CardLayoutPolicy(minW: 6, minH: 4, maxW: 24, maxH: 24)
         case .schedule:
@@ -27,6 +31,14 @@ struct CardLayoutPolicy {
             return CardLayoutPolicy(minW: 8, minH: 4, maxW: 24, maxH: 24)
         case .battery:
             return CardLayoutPolicy(minW: 6, minH: 4, maxW: 24, maxH: 24)
+        case .notes, .icloudNotes, .localNotes:
+            return CardLayoutPolicy(minW: 8, minH: 5, maxW: 24, maxH: 24)
+        case .medicines:
+            return CardLayoutPolicy(minW: 8, minH: 4, maxW: 24, maxH: 24)
+        case .aiChat:
+            return CardLayoutPolicy(minW: 8, minH: 6, maxW: 24, maxH: 24)
+        case .calories:
+            return CardLayoutPolicy(minW: 8, minH: 6, maxW: 24, maxH: 24)
         }
     }
 
@@ -68,9 +80,6 @@ struct CardPlacement: Codable, Equatable, Identifiable {
     var minH: Int
     var maxW: Int
     var maxH: Int
-    var isLocked: Bool
-    var aspectLock: Double?
-
     var id: UUID { instanceID }
 
     var trimmedTitle: String? {
@@ -91,9 +100,7 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         minW: Int = 4,
         minH: Int = 4,
         maxW: Int = 24,
-        maxH: Int = 20,
-        isLocked: Bool = false,
-        aspectLock: Double? = nil
+        maxH: Int = 20
     ) {
         self.instanceID = instanceID
         self.kind = kind
@@ -108,8 +115,6 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         self.minH = max(1, minH)
         self.maxW = max(self.minW, maxW)
         self.maxH = max(self.minH, maxH)
-        self.isLocked = isLocked
-        self.aspectLock = aspectLock
     }
 
     // Backward-compatible convenience initializer with previous argument label.
@@ -122,9 +127,7 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         minW: Int = 4,
         minH: Int = 4,
         maxW: Int = 24,
-        maxH: Int = 20,
-        isLocked: Bool = false,
-        aspectLock: Double? = nil
+        maxH: Int = 20
     ) {
         self.init(
             kind: id,
@@ -135,9 +138,7 @@ struct CardPlacement: Codable, Equatable, Identifiable {
             minW: minW,
             minH: minH,
             maxW: maxW,
-            maxH: maxH,
-            isLocked: isLocked,
-            aspectLock: aspectLock
+            maxH: maxH
         )
     }
 
@@ -168,14 +169,6 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         return next
     }
 
-    func applyingAspectLockIfNeeded() -> CardPlacement {
-        guard let ratio = aspectLock, ratio > 0 else { return self }
-        var next = self
-        let inferredHeight = Int(round(Double(next.w) / ratio))
-        next.h = max(next.minH, min(next.maxH, inferredHeight))
-        return next
-    }
-
     private enum CodingKeys: String, CodingKey {
         case instanceID
         case kind
@@ -189,6 +182,8 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         case minH
         case maxW
         case maxH
+
+        // Legacy keys kept for backward-compatible decoding.
         case isLocked
         case aspectLock
 
@@ -214,8 +209,6 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         self.minH = try container.decode(Int.self, forKey: .minH)
         self.maxW = try container.decode(Int.self, forKey: .maxW)
         self.maxH = try container.decode(Int.self, forKey: .maxH)
-        self.isLocked = try container.decode(Bool.self, forKey: .isLocked)
-        self.aspectLock = try container.decodeIfPresent(Double.self, forKey: .aspectLock)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -232,8 +225,6 @@ struct CardPlacement: Codable, Equatable, Identifiable {
         try container.encode(minH, forKey: .minH)
         try container.encode(maxW, forKey: .maxW)
         try container.encode(maxH, forKey: .maxH)
-        try container.encode(isLocked, forKey: .isLocked)
-        try container.encodeIfPresent(aspectLock, forKey: .aspectLock)
     }
 }
 

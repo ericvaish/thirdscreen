@@ -8,7 +8,8 @@ import AppKit
 
 struct TimerView: View {
     @Binding var config: TimeCardConfig
-    @State private var timerMode: TimerMode = .clock
+    let timerService: TimerService
+    @Environment(ToastManager.self) private var toastManager
 
     private var clockPresentationRaw: String {
         get { config.clockPresentationRaw }
@@ -45,18 +46,17 @@ struct TimerView: View {
         nonmutating set { config.worldTimeZoneIDsRaw = newValue }
     }
 
-    @State private var timerSeconds: Int = 0
-    @State private var timerIsRunning = false
-    @State private var timer: Timer?
     @State private var alarmDate = Date()
     @State private var alarmEnabled = false
     @State private var alarmFired = false
 
-    enum TimerMode: String, CaseIterable {
-        case clock = "Clock"
-        case timer = "Timer"
-        case alarm = "Alarm"
-    }
+    // Editable timer segments
+    enum TimerSegment: CaseIterable { case hours, minutes, seconds }
+    @State private var editingSegment: TimerSegment? = nil
+    @State private var inputHours: Int = 0
+    @State private var inputMinutes: Int = 0
+    @State private var inputSeconds: Int = 0
+    @State private var segmentText: String = ""
 
     private var clockPresentation: TimeCardClockPresentation {
         TimeCardClockPresentation(rawValue: clockPresentationRaw) ?? .digital
@@ -83,15 +83,7 @@ struct TimerView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Picker("Mode", selection: $timerMode) {
-                ForEach(TimerMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 300)
-
-            switch timerMode {
+            switch config.mode {
             case .clock:
                 clockContent
             case .timer:
@@ -105,6 +97,11 @@ struct TimerView: View {
         .clipped()
         .onAppear {
             normalizeStoredClockSettings()
+        }
+        .onChange(of: timerService.isRunning) { _, newValue in
+            if newValue && config.mode != .timer {
+                config.modeRaw = TimeCardMode.timer.rawValue
+            }
         }
         .onChange(of: selectedTimeZoneID) { _, _ in
             normalizeStoredClockSettings()
@@ -404,45 +401,178 @@ struct TimerView: View {
     }
 
     private var timerContent: some View {
-        VStack(spacing: 24) {
-            Text(formattedTime)
-                .appScaledSystemFont(size: 64, weight: .light, design: .monospaced)
+        VStack(spacing: 20) {
+            if timerService.isRunning {
+                Text(timerService.formattedTime)
+                    .appScaledSystemFont(size: 64, weight: .light, design: .monospaced)
+                    .monospacedDigit()
+            } else {
+                timerSegmentEditor
+            }
 
-            Group {
-                if timerIsRunning {
-                    Color.clear
-                } else {
-                    HStack(spacing: 12) {
-                        ForEach([5, 15, 25, 60], id: \.self) { mins in
-                            Button("\(mins)m") {
-                                timerSeconds = mins * 60
-                            }
-                            .buttonStyle(.borderedProminent)
+            if !timerService.isRunning {
+                HStack(spacing: 12) {
+                    ForEach([5, 15, 25, 60], id: \.self) { mins in
+                        Button("\(mins)m") {
+                            commitSegmentEdit()
+                            inputHours = 0
+                            inputMinutes = mins
+                            inputSeconds = 0
+                            editingSegment = nil
+                            syncInputToService()
                         }
+                        .buttonStyle(.borderedProminent)
                     }
                 }
             }
-            .frame(height: 36)
 
             HStack(spacing: 16) {
-                if timerIsRunning {
+                if timerService.isRunning {
                     Button("Stop") {
-                        stopTimer()
+                        timerService.stop()
+                        syncServiceToInput()
                     }
                     .buttonStyle(.bordered)
                 }
-                Button(timerIsRunning ? "Pause" : "Start") {
-                    if timerIsRunning {
-                        timer?.invalidate()
-                        timer = nil
-                        timerIsRunning = false
+                Button(timerService.isRunning ? "Pause" : "Start") {
+                    if timerService.isRunning {
+                        timerService.pause()
                     } else {
-                        startTimer()
+                        commitSegmentEdit()
+                        syncInputToService()
+                        timerService.start()
+                        let totalSecs = timerService.remainingSeconds
+                        let h = totalSecs / 3600
+                        let m = (totalSecs % 3600) / 60
+                        let s = totalSecs % 60
+                        var label = ""
+                        if h > 0 { label += "\(h)h " }
+                        if m > 0 { label += "\(m)m " }
+                        if s > 0 || label.isEmpty { label += "\(s)s" }
+                        toastManager.show(ToastItem(
+                            icon: "timer",
+                            iconColor: .orange,
+                            title: "Timer Started",
+                            subtitle: label.trimmingCharacters(in: .whitespaces)
+                        ))
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(timerSeconds == 0 && !timerIsRunning)
+                .disabled(totalInputSeconds == 0 && !timerService.isRunning)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if editingSegment != nil {
+                commitSegmentEdit()
+            }
+        }
+    }
+
+    private var totalInputSeconds: Int {
+        inputHours * 3600 + inputMinutes * 60 + inputSeconds
+    }
+
+    private func syncInputToService() {
+        let total = totalInputSeconds
+        timerService.stop()
+        timerService.remainingSeconds = total
+    }
+
+    private func syncServiceToInput() {
+        let total = timerService.remainingSeconds
+        inputHours = total / 3600
+        inputMinutes = (total % 3600) / 60
+        inputSeconds = total % 60
+    }
+
+    private func commitSegmentEdit() {
+        guard let segment = editingSegment else { return }
+        let value = Int(segmentText) ?? 0
+        switch segment {
+        case .hours: inputHours = min(max(value, 0), 99)
+        case .minutes: inputMinutes = min(max(value, 0), 59)
+        case .seconds: inputSeconds = min(max(value, 0), 59)
+        }
+        editingSegment = nil
+        segmentText = ""
+    }
+
+    private var timerSegmentEditor: some View {
+        HStack(spacing: 0) {
+            timerSegmentView(label: "hr", value: inputHours, segment: .hours)
+            Text(":")
+                .appScaledSystemFont(size: 56, weight: .light, design: .monospaced)
+                .foregroundStyle(.secondary)
+            timerSegmentView(label: "min", value: inputMinutes, segment: .minutes)
+            Text(":")
+                .appScaledSystemFont(size: 56, weight: .light, design: .monospaced)
+                .foregroundStyle(.secondary)
+            timerSegmentView(label: "sec", value: inputSeconds, segment: .seconds)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Tapping the gaps between segments commits the edit
+            commitSegmentEdit()
+        }
+    }
+
+    private func displayValue(for segment: TimerSegment) -> String {
+        let isEditing = editingSegment == segment
+        if isEditing {
+            if segmentText.isEmpty { return "00" }
+            let num = Int(segmentText) ?? 0
+            return String(format: "%02d", num)
+        }
+        switch segment {
+        case .hours: return String(format: "%02d", inputHours)
+        case .minutes: return String(format: "%02d", inputMinutes)
+        case .seconds: return String(format: "%02d", inputSeconds)
+        }
+    }
+
+    private func timerSegmentView(label: String, value: Int, segment: TimerSegment) -> some View {
+        let isEditing = editingSegment == segment
+
+        return VStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(displayValue(for: segment))
+                .appScaledSystemFont(size: 56, weight: .light, design: .monospaced)
+                .monospacedDigit()
+                .overlay {
+                    if isEditing {
+                        SegmentTextField(
+                            text: $segmentText,
+                            font: NSFont.monospacedSystemFont(ofSize: 48, weight: .light),
+                            onCommit: { commitSegmentEdit() },
+                            onCancel: {
+                                editingSegment = nil
+                                segmentText = ""
+                            }
+                        )
+                        .opacity(0.01) // Invisible but captures input
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(isEditing ? Color.accentColor.opacity(0.18) : Color.clear)
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if !timerService.isRunning {
+                        if editingSegment != nil && editingSegment != segment {
+                            commitSegmentEdit()
+                        }
+                        editingSegment = segment
+                        segmentText = ""
+                    }
+                }
         }
     }
 
@@ -458,37 +588,6 @@ struct TimerView: View {
         }
     }
 
-    private var formattedTime: String {
-        let h = timerSeconds / 3600
-        let m = (timerSeconds % 3600) / 60
-        let s = timerSeconds % 60
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
-        }
-        return String(format: "%02d:%02d", m, s)
-    }
-
-    private func startTimer() {
-        if timerSeconds == 0 { return }
-        timerIsRunning = true
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            if timerSeconds > 0 {
-                timerSeconds -= 1
-            } else {
-                stopTimer()
-                NSSound(named: "Glass")?.play()
-            }
-        }
-        if let t = timer {
-            RunLoop.main.add(t, forMode: .common)
-        }
-    }
-
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-        timerIsRunning = false
-    }
 
     private func displayedComponents(for date: Date, in zone: TimeZone) -> (parts: [String], labels: [String], suffix: String) {
         let values = hourMinuteSecond(for: date, in: zone)
@@ -768,7 +867,7 @@ private struct AnalogClockFace: View {
         let x = sin(angle.radians) * (radius - inset)
         let y = -cos(angle.radians) * (radius - inset)
         return Text(text)
-            .appScaledSystemFont(size: radius * 0.14, weight: .medium, design: .rounded)
+            .font(.system(size: radius * 0.14, weight: .medium, design: .rounded))
             .foregroundStyle(style == .railway ? Color.black.opacity(0.9) : .primary)
             .offset(x: x, y: y)
     }
@@ -818,7 +917,73 @@ private struct AnalogClockFace: View {
     }
 }
 
+private struct SegmentTextField: NSViewRepresentable {
+    @Binding var text: String
+    var font: NSFont = NSFont.monospacedSystemFont(ofSize: 48, weight: .light)
+    var onCommit: () -> Void
+    var onCancel: () -> Void
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.alignment = .center
+        field.font = font
+        field.delegate = context.coordinator
+        field.stringValue = text
+        // Become first responder on next run loop to ensure the view is in the window
+        DispatchQueue.main.async {
+            field.window?.makeFirstResponder(field)
+            field.currentEditor()?.selectAll(nil)
+        }
+        return field
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        let parent: SegmentTextField
+
+        init(_ parent: SegmentTextField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            // Only allow digits, max 2 characters
+            let filtered = String(field.stringValue.filter(\.isWholeNumber).prefix(2))
+            field.stringValue = filtered
+            parent.text = filtered
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onCommit()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                parent.onCancel()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.insertTab(_:)) {
+                parent.onCommit()
+                return true
+            }
+            return false
+        }
+    }
+}
+
 #Preview {
-    TimerView(config: .constant(.default))
+    TimerView(config: .constant(.default), timerService: TimerService())
         .frame(width: 400, height: 400)
 }

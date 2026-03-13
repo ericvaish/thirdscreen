@@ -1,5 +1,51 @@
 import SwiftUI
 
+private struct GlassSegmentPill: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(isSelected ? .regular.interactive() : .identity, in: .capsule)
+    }
+}
+
+private struct GlassSegmentedPicker<T: Hashable & Identifiable & RawRepresentable>: View where T.RawValue == String {
+    let label: String
+    let options: [T]
+    @Binding var selection: T
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 2) {
+                ForEach(options) { option in
+                    GlassSegmentPill(
+                        title: option.rawValue,
+                        isSelected: selection == option,
+                        action: { selection = option }
+                    )
+                }
+            }
+            .padding(3)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+}
+
 struct TimeCardClockSettingsEditor: View {
     @Binding var config: TimeCardConfig
 
@@ -9,6 +55,13 @@ struct TimeCardClockSettingsEditor: View {
 
     init() {
         _config = .constant(.default)
+    }
+
+    private var modeBinding: Binding<TimeCardMode> {
+        Binding(
+            get: { TimeCardMode(rawValue: config.modeRaw) ?? .clock },
+            set: { config.modeRaw = $0.rawValue }
+        )
     }
 
     private var clockPresentationBinding: Binding<TimeCardClockPresentation> {
@@ -69,64 +122,71 @@ struct TimeCardClockSettingsEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Type", selection: clockPresentationBinding) {
-                ForEach(TimeCardClockPresentation.allCases) { style in
-                    Text(style.rawValue).tag(style)
+            GlassSegmentedPicker(
+                label: "Mode",
+                options: Array(TimeCardMode.allCases),
+                selection: modeBinding
+            )
+
+            if modeBinding.wrappedValue == .clock {
+                GlassSegmentedPicker(
+                    label: "Type",
+                    options: Array(TimeCardClockPresentation.allCases),
+                    selection: clockPresentationBinding
+                )
+
+                VStack(spacing: 8) {
+                    Toggle("Seconds", isOn: showSecondsBinding)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+
+                    Toggle("24h", isOn: use24HourBinding)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
                 }
-            }
-            .pickerStyle(.segmented)
 
-            VStack(spacing: 8) {
-                Toggle("Seconds", isOn: showSecondsBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-
-                Toggle("24h", isOn: use24HourBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
-            Picker("Primary Zone", selection: selectedTimeZoneIDBinding) {
-                ForEach(availableTimeZoneIDs, id: \.self) { zoneID in
-                    Text(TimeCardPreferences.timeZoneDisplayName(zoneID)).tag(zoneID)
-                }
-            }
-            .pickerStyle(.menu)
-
-            switch clockPresentationBinding.wrappedValue {
-            case .digital:
-                Picker("Digital Style", selection: digitalStyleBinding) {
-                    ForEach(TimeCardDigitalClockStyle.allCases) { style in
-                        Text(style.rawValue).tag(style)
+                Picker("Primary Zone", selection: selectedTimeZoneIDBinding) {
+                    ForEach(availableTimeZoneIDs, id: \.self) { zoneID in
+                        Text(TimeCardPreferences.timeZoneDisplayName(zoneID)).tag(zoneID)
                     }
                 }
                 .pickerStyle(.menu)
-            case .analog:
-                Picker("Analog Style", selection: analogStyleBinding) {
-                    ForEach(TimeCardAnalogClockStyle.allCases) { style in
-                        Text(style.rawValue).tag(style)
-                    }
-                }
-                .pickerStyle(.menu)
-            case .world:
-                Menu("Add Time Zone") {
-                    ForEach(availableTimeZoneIDs.filter { !worldTimeZoneIDs.contains($0) }, id: \.self) { zoneID in
-                        Button(TimeCardPreferences.timeZoneDisplayName(zoneID)) {
-                            addWorldTimeZone(zoneID)
-                        }
-                    }
-                }
-            }
 
-            if clockPresentationBinding.wrappedValue == .world {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(worldTimeZoneIDs, id: \.self) { zoneID in
-                            worldZoneChip(zoneID)
+                switch clockPresentationBinding.wrappedValue {
+                case .digital:
+                    Picker("Digital Style", selection: digitalStyleBinding) {
+                        ForEach(TimeCardDigitalClockStyle.allCases) { style in
+                            Text(style.rawValue).tag(style)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                case .analog:
+                    Picker("Analog Style", selection: analogStyleBinding) {
+                        ForEach(TimeCardAnalogClockStyle.allCases) { style in
+                            Text(style.rawValue).tag(style)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                case .world:
+                    Menu("Add Time Zone") {
+                        ForEach(availableTimeZoneIDs.filter { !worldTimeZoneIDs.contains($0) }, id: \.self) { zoneID in
+                            Button(TimeCardPreferences.timeZoneDisplayName(zoneID)) {
+                                addWorldTimeZone(zoneID)
+                            }
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if clockPresentationBinding.wrappedValue == .world {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(worldTimeZoneIDs, id: \.self) { zoneID in
+                                worldZoneChip(zoneID)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .onAppear {

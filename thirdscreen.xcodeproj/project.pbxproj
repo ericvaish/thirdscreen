@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		9A1B2C3D4E5F600100000001 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A1B2C3D4E5F600100000003 /* XCTest.framework */; };
+		C3981B9A2F634670006B7970 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = C3981B992F634670006B7970 /* Tokenizers */; };
+		C3ED1C0B2F63FD300083B84D /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = C3ED1C0A2F63FD300083B84D /* MLXLLM */; };
+		C3ED1C0D2F63FD300083B84D /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = C3ED1C0C2F63FD300083B84D /* MLXLMCommon */; };
+		C3ED1C0F2F63FD300083B84D /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = C3ED1C0E2F63FD300083B84D /* MLXVLM */; };
 		E4F1CC092F4945A00012550B /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E4F1CC0A2F4945A00012550B /* ServiceManagement.framework */; };
 /* End PBXBuildFile section */
 
@@ -24,6 +28,7 @@
 /* Begin PBXFileReference section */
 		9A1B2C3D4E5F600100000002 /* thirdscreenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = thirdscreenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A1B2C3D4E5F600100000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		C38F802F2F60B826002B2786 /* thirdscreen-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "thirdscreen-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E4F1CBFB2F4945540012550B /* Third Screen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Third Screen.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E4F1CC0A2F4945A00012550B /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -32,6 +37,11 @@
 		9A1B2C3D4E5F600100000004 /* thirdscreenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = thirdscreenTests;
+			sourceTree = "<group>";
+		};
+		C38F80302F60B826002B2786 /* thirdscreen-ios */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "thirdscreen-ios";
 			sourceTree = "<group>";
 		};
 		E4F1CBFD2F4945540012550B /* thirdscreen */ = {
@@ -50,11 +60,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C38F802C2F60B826002B2786 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E4F1CBF82F4945540012550B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C3ED1C0F2F63FD300083B84D /* MLXVLM in Frameworks */,
+				C3ED1C0B2F63FD300083B84D /* MLXLLM in Frameworks */,
 				E4F1CC092F4945A00012550B /* ServiceManagement.framework in Frameworks */,
+				C3ED1C0D2F63FD300083B84D /* MLXLMCommon in Frameworks */,
+				C3981B9A2F634670006B7970 /* Tokenizers in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -66,6 +87,7 @@
 			children = (
 				E4F1CBFD2F4945540012550B /* thirdscreen */,
 				9A1B2C3D4E5F600100000004 /* thirdscreenTests */,
+				C38F80302F60B826002B2786 /* thirdscreen-ios */,
 				E4F1CBFC2F4945540012550B /* Products */,
 				E4F1CC0B2F4945A00012550B /* Frameworks */,
 			);
@@ -76,6 +98,7 @@
 			children = (
 				E4F1CBFB2F4945540012550B /* Third Screen.app */,
 				9A1B2C3D4E5F600100000002 /* thirdscreenTests.xctest */,
+				C38F802F2F60B826002B2786 /* thirdscreen-ios.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -115,6 +138,28 @@
 			productReference = 9A1B2C3D4E5F600100000002 /* thirdscreenTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		C38F802E2F60B826002B2786 /* thirdscreen-ios */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C38F80372F60B828002B2786 /* Build configuration list for PBXNativeTarget "thirdscreen-ios" */;
+			buildPhases = (
+				C38F802B2F60B826002B2786 /* Sources */,
+				C38F802C2F60B826002B2786 /* Frameworks */,
+				C38F802D2F60B826002B2786 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C38F80302F60B826002B2786 /* thirdscreen-ios */,
+			);
+			name = "thirdscreen-ios";
+			packageProductDependencies = (
+			);
+			productName = "thirdscreen-ios";
+			productReference = C38F802F2F60B826002B2786 /* thirdscreen-ios.app */;
+			productType = "com.apple.product-type.application";
+		};
 		E4F1CBFA2F4945540012550B /* Third Screen */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E4F1CC062F4945550012550B /* Build configuration list for PBXNativeTarget "Third Screen" */;
@@ -132,6 +177,10 @@
 			);
 			name = "Third Screen";
 			packageProductDependencies = (
+				C3981B992F634670006B7970 /* Tokenizers */,
+				C3ED1C0A2F63FD300083B84D /* MLXLLM */,
+				C3ED1C0C2F63FD300083B84D /* MLXLMCommon */,
+				C3ED1C0E2F63FD300083B84D /* MLXVLM */,
 			);
 			productName = thirdscreen;
 			productReference = E4F1CBFB2F4945540012550B /* Third Screen.app */;
@@ -144,12 +193,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2620;
+				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					9A1B2C3D4E5F600100000006 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = E4F1CBFA2F4945540012550B;
+					};
+					C38F802E2F60B826002B2786 = {
+						CreatedOnToolsVersion = 26.3;
 					};
 					E4F1CBFA2F4945540012550B = {
 						CreatedOnToolsVersion = 26.2;
@@ -165,6 +217,10 @@
 			);
 			mainGroup = E4F1CBF22F4945540012550B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C3981BA02F634680006B7970 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				C3ED1C092F63FD300083B84D /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E4F1CBFC2F4945540012550B /* Products */;
 			projectDirPath = "";
@@ -172,12 +228,20 @@
 			targets = (
 				E4F1CBFA2F4945540012550B /* Third Screen */,
 				9A1B2C3D4E5F600100000006 /* thirdscreenTests */,
+				C38F802E2F60B826002B2786 /* thirdscreen-ios */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		9A1B2C3D4E5F600100000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C38F802D2F60B826002B2786 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -195,6 +259,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		9A1B2C3D4E5F600100000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C38F802B2F60B826002B2786 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -249,6 +320,74 @@
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/thirdscreen.app/Contents/MacOS/thirdscreen";
 				TEST_TARGET_NAME = thirdscreen;
+			};
+			name = Release;
+		};
+		C38F80382F60B828002B2786 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "thirdscreen.thirdscreen-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C38F80392F60B828002B2786 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "thirdscreen.thirdscreen-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -382,11 +521,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Third Screen";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -415,11 +555,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Third Screen";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -450,6 +591,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C38F80372F60B828002B2786 /* Build configuration list for PBXNativeTarget "thirdscreen-ios" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C38F80382F60B828002B2786 /* Debug */,
+				C38F80392F60B828002B2786 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E4F1CBF62F4945540012550B /* Build configuration list for PBXProject "thirdscreen" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -469,6 +619,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C3981BA02F634680006B7970 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.1.6;
+			};
+		};
+		C3ED1C092F63FD300083B84D /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm/";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.30.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C3981B992F634670006B7970 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3981BA02F634680006B7970 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
+		};
+		C3ED1C0A2F63FD300083B84D /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3ED1C092F63FD300083B84D /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		C3ED1C0C2F63FD300083B84D /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3ED1C092F63FD300083B84D /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		C3ED1C0E2F63FD300083B84D /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3ED1C092F63FD300083B84D /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXVLM;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E4F1CBF32F4945540012550B /* Project object */;
 }

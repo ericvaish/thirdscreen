@@ -2,7 +2,7 @@ import SwiftUI
 
 enum AppTextScale {
     static let minScale: Double = 0.8
-    static let maxScale: Double = 2.0
+    static let maxScale: Double = 4.0
     static let step: Double = 0.1
     static let defaultScale: Double = 1.0
 

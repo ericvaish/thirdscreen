@@ -8,13 +8,17 @@ struct ContentView: View {
     let reminderService: ReminderService
     let googleCalendarService: GoogleCalendarService
     let shortcutsService: ShortcutsService
+    let llmService: LocalLLMService
+    let timerService: TimerService
 
     init(
         spotifyService: SpotifyService,
         calendarService: CalendarService,
         reminderService: ReminderService,
         googleCalendarService: GoogleCalendarService,
-        shortcutsService: ShortcutsService
+        shortcutsService: ShortcutsService,
+        llmService: LocalLLMService,
+        timerService: TimerService
     ) {
         _todoStore = State(initialValue: TodoStore(calendarService: calendarService, reminderService: reminderService))
         self.spotifyService = spotifyService
@@ -22,6 +26,8 @@ struct ContentView: View {
         self.reminderService = reminderService
         self.googleCalendarService = googleCalendarService
         self.shortcutsService = shortcutsService
+        self.llmService = llmService
+        self.timerService = timerService
     }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -50,6 +56,10 @@ struct ContentView: View {
     @State private var activeCardID: UUID?
     @State private var cardSettingsStore: CardInstanceSettingsStore = .empty
 
+    @State private var noteStores: [UUID: NoteStore] = [:]
+    @State private var medicineStores: [UUID: MedicineStore] = [:]
+    @State private var calorieStores: [UUID: CalorieStore] = [:]
+
     @State private var showAddCardCatalog = false
     @State private var showManageCards = false
     @State private var showLayoutPicker = false
@@ -61,7 +71,11 @@ struct ContentView: View {
 
     @State private var keyMonitor: Any?
 
-    private let engine = LayoutEngine()
+    private var engine: LayoutEngine {
+        LayoutEngine(timeCardModeLookup: { instanceID in
+            cardSettingsStore.timeConfig(for: instanceID)?.mode
+        })
+    }
 
     private var currentLayout: DashboardLayoutV2 {
         previewLayout ?? committedLayout
@@ -202,8 +216,25 @@ struct ContentView: View {
         List(selection: $sidebarSelection) {
             Section("Cards") {
                 ForEach(currentLayout.visibleCards, id: \.instanceID) { card in
-                    Label(displayName(for: card, in: currentLayout), systemImage: sidebarIcon(for: card.kind))
-                        .tag(Optional(card.instanceID))
+                    HStack {
+                        Label(displayName(for: card, in: currentLayout), systemImage: sidebarIcon(for: card.kind))
+                        Spacer()
+                        Menu {
+                            Button(role: .destructive) {
+                                deleteCard(card.instanceID)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .menuIndicator(.hidden)
+                    }
+                    .tag(Optional(card.instanceID))
                 }
             }
         }
@@ -238,11 +269,11 @@ struct ContentView: View {
                             .id(placed.card.instanceID.uuidString)
                             .frame(width: placed.frame.width, height: placed.frame.height)
                             .offset(x: placed.frame.minX, y: placed.frame.minY)
+                            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.85), value: placed.card)
                         }
                     }
                     .padding(insets)
                     .padding(.top, 8)
-                    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.85), value: currentLayout.cards)
                 }
                 .onAppear {
                     appSize = geo.size
@@ -275,13 +306,25 @@ struct ContentView: View {
             return "command"
         case .todos:
             return "checklist"
+        case .notes, .localNotes:
+            return "note.text"
+        case .icloudNotes:
+            return "icloud"
+        case .medicines:
+            return "pills.fill"
+        case .aiChat:
+            return "sparkles"
+        case .calories:
+            return "flame.fill"
         }
     }
 
     private func focusCard(_ cardID: UUID) {
         guard currentLayout.visibleCards.contains(where: { $0.instanceID == cardID }) else { return }
         activeCardID = cardID
-        pendingScrollTarget = cardID
+        if interactionSession == nil {
+            pendingScrollTarget = cardID
+        }
     }
 
     private func displayName(for card: CardPlacement, in layout: DashboardLayoutV2) -> String {
@@ -305,8 +348,7 @@ struct ContentView: View {
     ) -> some View {
         let card = placed.card
         let isActive = activeCardID == card.instanceID
-        let isLocked = card.isLocked || !isEditMode
-        let canResize = isEditMode && !card.isLocked
+        let canResize = isEditMode
 
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
@@ -317,12 +359,6 @@ struct ContentView: View {
                 Text(displayName(for: card, in: currentLayout))
                     .font(.headline)
                     .foregroundStyle(.secondary)
-
-                if isLocked {
-                    Image(systemName: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
 
                 Spacer()
 
@@ -355,6 +391,7 @@ struct ContentView: View {
                     }
                 }
 
+
                 if isActive {
                     Text("\(card.w) × \(card.h)")
                         .font(.caption2.monospacedDigit())
@@ -364,34 +401,6 @@ struct ContentView: View {
                         .background(.black.opacity(0.12), in: Capsule())
                 }
 
-                Menu {
-                    Button(card.isLocked ? "Unlock Card" : "Lock Card") {
-                        mutateCard(card.instanceID) { card in
-                            card.isLocked.toggle()
-                        }
-                    }
-
-                    Button(card.aspectLock == nil ? "Lock 1:1 Aspect" : "Unlock Aspect") {
-                        mutateCard(card.instanceID) { card in
-                            card.aspectLock = card.aspectLock == nil ? 1.0 : nil
-                            if card.aspectLock != nil {
-                                card = card.applyingAspectLockIfNeeded().clamped(columns: committedLayout.gridColumns)
-                            }
-                        }
-                    }
-
-                    Button("Reset Card Size") {
-                        commitLayout(engine.resetCard(card.instanceID, in: committedLayout))
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .foregroundStyle(.secondary)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .accessibilityLabel("Card actions")
-                .fixedSize()
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -400,7 +409,7 @@ struct ContentView: View {
             .highPriorityGesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
-                        guard isEditMode, !card.isLocked else { return }
+                        guard isEditMode else { return }
                         beginInteraction(
                             kind: .drag,
                             cardID: card.instanceID,
@@ -415,7 +424,7 @@ struct ContentView: View {
                         )
                     }
                     .onEnded { value in
-                        guard isEditMode, !card.isLocked else { return }
+                        guard isEditMode else { return }
                         endInteraction(
                             cardID: card.instanceID,
                             translation: value.translation,
@@ -526,7 +535,7 @@ struct ContentView: View {
     private func contentForCard(_ card: CardPlacement) -> some View {
         switch card.kind {
         case .timer:
-            TimerView(config: timeConfigBinding(for: card.instanceID))
+            TimerView(config: timeConfigBinding(for: card.instanceID), timerService: timerService)
         case .media:
             MediaView(spotify: spotifyService, config: mediaConfigBinding(for: card.instanceID))
         case .schedule:
@@ -541,13 +550,63 @@ struct ContentView: View {
             ShortcutsView(shortcutsService: shortcutsService)
         case .todos:
             TodoListView(todoStore: todoStore)
+        case .notes:
+            NotesCardView(noteStore: noteStoreFor(card.instanceID, storageKind: .icloud))
+        case .icloudNotes:
+            NotesCardView(noteStore: noteStoreFor(card.instanceID, storageKind: .icloud))
+        case .localNotes:
+            NotesCardView(noteStore: noteStoreFor(card.instanceID, storageKind: .local))
+        case .medicines:
+            MedicinesCardView(medicineStore: medicineStoreFor(card.instanceID))
+        case .aiChat:
+            AIChatCardView(
+                llmService: llmService,
+                config: aiChatConfigBinding(for: card.instanceID),
+                instanceID: card.instanceID
+            )
+        case .calories:
+            CalorieCardView(calorieStore: calorieStoreFor(card.instanceID))
         }
+    }
+
+    private func noteStoreFor(_ instanceID: UUID, storageKind: NoteStorageKind) -> NoteStore {
+        if let existing = noteStores[instanceID] {
+            return existing
+        }
+        let store = NoteStore(instanceID: instanceID, storageKind: storageKind)
+        DispatchQueue.main.async {
+            noteStores[instanceID] = store
+        }
+        return store
+    }
+
+    private func medicineStoreFor(_ instanceID: UUID) -> MedicineStore {
+        if let existing = medicineStores[instanceID] {
+            return existing
+        }
+        let store = MedicineStore(instanceID: instanceID)
+        DispatchQueue.main.async {
+            medicineStores[instanceID] = store
+        }
+        return store
+    }
+
+    private func calorieStoreFor(_ instanceID: UUID) -> CalorieStore {
+        if let existing = calorieStores[instanceID] {
+            return existing
+        }
+        let store = CalorieStore(instanceID: instanceID)
+        DispatchQueue.main.async {
+            calorieStores[instanceID] = store
+        }
+        return store
     }
 
     // MARK: - Settings
 
     private func legacyTimeConfig() -> TimeCardConfig {
         TimeCardConfig(
+            modeRaw: TimeCardMode.clock.rawValue,
             clockPresentationRaw: legacyClockPresentationRaw,
             digitalStyleRaw: legacyDigitalStyleRaw,
             analogStyleRaw: legacyAnalogStyleRaw,
@@ -562,10 +621,18 @@ struct ContentView: View {
         Binding(
             get: { cardSettingsStore.timeConfig(for: cardID) ?? .default },
             set: { newValue in
+                let oldMode = cardSettingsStore.timeConfig(for: cardID)?.mode
                 var next = cardSettingsStore
                 next.setTimeConfig(newValue, for: cardID)
                 cardSettingsStore = next
                 persistCardSettings(next)
+
+                // Re-sanitize layout when mode changes so min-size constraints update.
+                if newValue.mode != oldMode {
+                    let sanitized = engine.sanitize(committedLayout)
+                    committedLayout = sanitized
+                    persistLayout(sanitized)
+                }
             }
         )
     }
@@ -576,6 +643,18 @@ struct ContentView: View {
             set: { newValue in
                 var next = cardSettingsStore
                 next.setMediaConfig(newValue, for: cardID)
+                cardSettingsStore = next
+                persistCardSettings(next)
+            }
+        )
+    }
+
+    private func aiChatConfigBinding(for cardID: UUID) -> Binding<AIChatCardConfig> {
+        Binding(
+            get: { cardSettingsStore.aiChatConfig(for: cardID) ?? .default },
+            set: { newValue in
+                var next = cardSettingsStore
+                next.setAIChatConfig(newValue, for: cardID)
                 cardSettingsStore = next
                 persistCardSettings(next)
             }
@@ -594,11 +673,16 @@ struct ContentView: View {
     // MARK: - Persistence and Workspace
 
     private func loadPersistedStateIfNeeded() {
-        let migrated = DashboardLayoutV2.decodeWithMigration(v2Data: layoutDataV2, legacyData: legacyLayoutData) ?? .default
+        // Prefer file-based storage, fall back to @AppStorage / legacy.
+        let fileLayoutData = StableDefaults.loadLayout()
+        let effectiveV2Data = fileLayoutData ?? layoutDataV2
+        let migrated = DashboardLayoutV2.decodeWithMigration(v2Data: effectiveV2Data, legacyData: legacyLayoutData) ?? .default
         let sanitized = engine.sanitize(migrated)
         committedLayout = sanitized
 
-        if let decodedWorkspace = try? JSONDecoder().decode(LayoutWorkspace.self, from: workspaceData) {
+        let fileWorkspaceData = StableDefaults.loadWorkspace()
+        let effectiveWorkspaceData = fileWorkspaceData ?? workspaceData
+        if let decodedWorkspace = try? JSONDecoder().decode(LayoutWorkspace.self, from: effectiveWorkspaceData) {
             workspace = decodedWorkspace
         } else {
             workspace = .default(from: sanitized)
@@ -608,7 +692,9 @@ struct ContentView: View {
             workspace.lastStableLayout = sanitized
         }
 
-        var settings = (try? JSONDecoder().decode(CardInstanceSettingsStore.self, from: cardSettingsData)) ?? .empty
+        let fileSettingsData = StableDefaults.loadCardSettings()
+        let effectiveSettingsData = fileSettingsData ?? cardSettingsData
+        var settings = (try? JSONDecoder().decode(CardInstanceSettingsStore.self, from: effectiveSettingsData)) ?? .empty
         settings.seedMissingFromLegacy(for: sanitized.cards, legacyTime: legacyTimeConfig(), legacyMediaShowLyrics: legacyShowLyrics)
         cardSettingsStore = settings
 
@@ -618,15 +704,24 @@ struct ContentView: View {
     }
 
     private func persistLayout(_ layout: DashboardLayoutV2) {
-        layoutDataV2 = (try? JSONEncoder().encode(layout)) ?? layoutDataV2
+        if let data = try? JSONEncoder().encode(layout) {
+            layoutDataV2 = data
+            StableDefaults.saveLayout(data)
+        }
     }
 
     private func persistWorkspace(_ workspace: LayoutWorkspace) {
-        workspaceData = (try? JSONEncoder().encode(workspace)) ?? workspaceData
+        if let data = try? JSONEncoder().encode(workspace) {
+            workspaceData = data
+            StableDefaults.saveWorkspace(data)
+        }
     }
 
     private func persistCardSettings(_ settings: CardInstanceSettingsStore) {
-        cardSettingsData = (try? JSONEncoder().encode(settings)) ?? cardSettingsData
+        if let data = try? JSONEncoder().encode(settings) {
+            cardSettingsData = data
+            StableDefaults.saveCardSettings(data)
+        }
     }
 
     private func commitLayout(_ newLayout: DashboardLayoutV2, recordHistory: Bool = true) {
@@ -672,7 +767,7 @@ struct ContentView: View {
         let columns = next.gridColumns
         next.updateCard(id) {
             mutate(&$0)
-            $0 = $0.clamped(columns: columns).applyingAspectLockIfNeeded()
+            $0 = $0.clamped(columns: columns)
         }
         commitLayout(next)
     }
@@ -691,6 +786,10 @@ struct ContentView: View {
         nextSettings.removeAllSettings(for: cardID)
         cardSettingsStore = nextSettings
         persistCardSettings(nextSettings)
+
+        noteStores.removeValue(forKey: cardID)
+        medicineStores.removeValue(forKey: cardID)
+        calorieStores.removeValue(forKey: cardID)
     }
 
     // MARK: - Layout Actions
@@ -730,10 +829,6 @@ struct ContentView: View {
 
     private func normalizeLayoutSpacing() {
         commitLayout(engine.normalizedGapLayout(committedLayout))
-    }
-
-    private func lockAllCards(_ locked: Bool) {
-        commitLayout(engine.withAllCardsLocked(locked, in: committedLayout))
     }
 
     private func setAutoSaveEnabled(_ enabled: Bool) {
@@ -930,19 +1025,6 @@ struct ContentView: View {
 
         var card = sourceCard
         card.rect = candidate
-        if let aspectRatio = card.aspectLock, aspectRatio > 0 {
-            switch kind {
-            case .resizeWidth:
-                card.h = Int(round(Double(card.w) / aspectRatio))
-            case .resizeHeight:
-                card.w = Int(round(Double(card.h) * aspectRatio))
-            case .resizeBoth:
-                card.h = Int(round(Double(card.w) / aspectRatio))
-            case .drag:
-                break
-            }
-        }
-
         card = card.clamped(columns: columns)
         return card.rect
     }
@@ -951,6 +1033,7 @@ struct ContentView: View {
         previewLayout = nil
         interactionSession = nil
         activeCardID = nil
+        NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
     private func nudgeActiveCard(dx: Int = 0, dy: Int = 0, dw: Int = 0, dh: Int = 0) {
@@ -982,22 +1065,24 @@ struct ContentView: View {
                 }
             }
 
-            let isOption = event.modifierFlags.contains(.option)
-            switch event.keyCode {
-            case 123:
-                isOption ? nudgeActiveCard(dw: -1) : nudgeActiveCard(dx: -1)
-                return nil
-            case 124:
-                isOption ? nudgeActiveCard(dw: 1) : nudgeActiveCard(dx: 1)
-                return nil
-            case 125:
-                isOption ? nudgeActiveCard(dh: 1) : nudgeActiveCard(dy: 1)
-                return nil
-            case 126:
-                isOption ? nudgeActiveCard(dh: -1) : nudgeActiveCard(dy: -1)
-                return nil
-            default:
-                break
+            if isEditMode, activeCardID != nil {
+                let isOption = event.modifierFlags.contains(.option)
+                switch event.keyCode {
+                case 123:
+                    isOption ? nudgeActiveCard(dw: -1) : nudgeActiveCard(dx: -1)
+                    return nil
+                case 124:
+                    isOption ? nudgeActiveCard(dw: 1) : nudgeActiveCard(dx: 1)
+                    return nil
+                case 125:
+                    isOption ? nudgeActiveCard(dh: 1) : nudgeActiveCard(dy: 1)
+                    return nil
+                case 126:
+                    isOption ? nudgeActiveCard(dh: -1) : nudgeActiveCard(dy: -1)
+                    return nil
+                default:
+                    break
+                }
             }
             return event
         }
@@ -1017,6 +1102,8 @@ struct ContentView: View {
         calendarService: CalendarService(),
         reminderService: ReminderService(),
         googleCalendarService: GoogleCalendarService(),
-        shortcutsService: ShortcutsService()
+        shortcutsService: ShortcutsService(),
+        llmService: LocalLLMService(),
+        timerService: TimerService()
     )
 }

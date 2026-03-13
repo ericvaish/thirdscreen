@@ -51,13 +51,25 @@ struct DashboardLayoutV2: Codable, Equatable {
         case .media:
             base = CardPlacement(kind: .media, x: x, y: y, w: 12, h: 8)
         case .schedule:
-            base = CardPlacement(kind: .schedule, x: x, y: y, w: 24, h: 10)
+            base = CardPlacement(kind: .schedule, x: x, y: y, w: 20, h: 6)
         case .calendar:
             base = CardPlacement(kind: .calendar, x: x, y: y, w: 12, h: 8)
         case .todos:
             base = CardPlacement(kind: .todos, x: x, y: y, w: 24, h: 8)
         case .battery:
             base = CardPlacement(kind: .battery, x: x, y: y, w: 12, h: 8)
+        case .notes:
+            base = CardPlacement(kind: .notes, x: x, y: y, w: 12, h: 6)
+        case .icloudNotes:
+            base = CardPlacement(kind: .icloudNotes, x: x, y: y, w: 12, h: 6)
+        case .localNotes:
+            base = CardPlacement(kind: .localNotes, x: x, y: y, w: 12, h: 6)
+        case .medicines:
+            base = CardPlacement(kind: .medicines, x: x, y: y, w: 12, h: 8)
+        case .aiChat:
+            base = CardPlacement(kind: .aiChat, x: x, y: y, w: 12, h: 8)
+        case .calories:
+            base = CardPlacement(kind: .calories, x: x, y: y, w: 12, h: 8)
         }
         return CardLayoutPolicy.policy(for: section).normalize(base, columns: defaultColumns)
     }
@@ -157,9 +169,7 @@ struct DashboardLayoutV2: Codable, Equatable {
                 minW: card.minW,
                 minH: card.minH,
                 maxW: card.maxW,
-                maxH: card.maxH,
-                isLocked: false,
-                aspectLock: nil
+                maxH: card.maxH
             )
             cards.append(CardLayoutPolicy.policy(for: section.id).normalize(migrated, columns: defaultColumns))
 

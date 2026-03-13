@@ -6,6 +6,14 @@ struct LayoutValidationResult {
 }
 
 struct LayoutEngine {
+    /// Optional lookup that returns the current ``TimeCardMode`` for a timer card instance.
+    var timeCardModeLookup: ((UUID) -> TimeCardMode?)? = nil
+
+    private func policy(for card: CardPlacement) -> CardLayoutPolicy {
+        let mode: TimeCardMode? = (card.kind == .timer) ? timeCardModeLookup?(card.instanceID) : nil
+        return CardLayoutPolicy.policy(for: card.kind, timeCardMode: mode)
+    }
+
     func sanitize(_ layout: DashboardLayoutV2) -> DashboardLayoutV2 {
         var normalized = layout
         normalized.gridColumns = max(1, normalized.gridColumns)
@@ -20,8 +28,8 @@ struct LayoutEngine {
                 next.instanceID = UUID()
             }
             seen.insert(next.instanceID)
-            let policy = CardLayoutPolicy.policy(for: next.kind)
-            next = policy.normalize(next, columns: normalized.gridColumns).applyingAspectLockIfNeeded()
+            let p = policy(for: next)
+            next = p.normalize(next, columns: normalized.gridColumns)
             return next
         }
 
@@ -46,16 +54,16 @@ struct LayoutEngine {
 
         var cardsByID: [UUID: CardPlacement] = [:]
         for card in visibleCards {
-            let policy = CardLayoutPolicy.policy(for: card.kind)
-            cardsByID[card.instanceID] = policy.normalize(card, columns: columns)
+            let p = policy(for: card)
+            cardsByID[card.instanceID] = p.normalize(card, columns: columns)
         }
 
         if let activeCardID,
            var activeCard = cardsByID[activeCardID],
            let proposedRect {
             activeCard.rect = clampRect(proposedRect, card: activeCard, columns: columns)
-            let policy = CardLayoutPolicy.policy(for: activeCard.kind)
-            activeCard = policy.normalize(activeCard.applyingAspectLockIfNeeded(), columns: columns)
+            let p = policy(for: activeCard)
+            activeCard = p.normalize(activeCard, columns: columns)
             cardsByID[activeCardID] = activeCard
         }
 
@@ -135,25 +143,6 @@ struct LayoutEngine {
         )
     }
 
-    func resetCard(_ instanceID: UUID, in layout: DashboardLayoutV2) -> DashboardLayoutV2 {
-        guard let existing = layout.card(for: instanceID) else { return layout }
-        var updated = layout
-        var defaults = DashboardLayoutV2.defaultCard(for: existing.kind, x: existing.x, y: existing.y)
-        defaults.instanceID = existing.instanceID
-        defaults.title = existing.title
-        defaults.isHidden = existing.isHidden
-        updated.replaceCard(defaults)
-        return resolvedLayout(from: updated, activeCardID: instanceID, proposedRect: defaults.rect, compactAfter: true)
-    }
-
-    func withAllCardsLocked(_ locked: Bool, in layout: DashboardLayoutV2) -> DashboardLayoutV2 {
-        var updated = layout
-        for index in updated.cards.indices {
-            updated.cards[index].isLocked = locked
-        }
-        return updated
-    }
-
     func normalizedGapLayout(_ layout: DashboardLayoutV2) -> DashboardLayoutV2 {
         var updated = layout
         updated.gap = DashboardLayoutV2.defaultGap
@@ -167,11 +156,11 @@ struct LayoutEngine {
 
         var seen: Set<UUID> = []
         for card in layout.cards {
-            let policy = CardLayoutPolicy.policy(for: card.kind)
-            let effectiveMinW = min(max(1, policy.minW), columns)
-            let effectiveMaxW = min(max(effectiveMinW, policy.maxW), columns)
-            let effectiveMinH = max(1, policy.minH)
-            let effectiveMaxH = max(effectiveMinH, policy.maxH)
+            let p = policy(for: card)
+            let effectiveMinW = min(max(1, p.minW), columns)
+            let effectiveMaxW = min(max(effectiveMinW, p.maxW), columns)
+            let effectiveMinH = max(1, p.minH)
+            let effectiveMaxH = max(effectiveMinH, p.maxH)
 
             if seen.contains(card.instanceID) {
                 issues.append("Duplicate card instanceID: \(card.instanceID.uuidString)")
@@ -226,13 +215,6 @@ struct LayoutEngine {
         var updated = layout
         updated.cards.removeAll { $0.kind == section }
         return sanitize(updated)
-    }
-
-    func resetCard(_ section: DashboardSection, in layout: DashboardLayoutV2) -> DashboardLayoutV2 {
-        guard let existing = layout.cards.first(where: { $0.kind == section && !$0.isHidden }) ?? layout.cards.first(where: { $0.kind == section }) else {
-            return layout
-        }
-        return resetCard(existing.instanceID, in: layout)
     }
 
     // MARK: - Internals

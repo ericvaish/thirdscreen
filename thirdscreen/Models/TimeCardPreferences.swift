@@ -1,5 +1,13 @@
 import Foundation
 
+enum TimeCardMode: String, CaseIterable, Identifiable {
+    case clock = "Clock"
+    case timer = "Timer"
+    case alarm = "Alarm"
+
+    var id: String { rawValue }
+}
+
 enum TimeCardPreferenceKey {
     static let clockPresentation = "timeCardClockPresentation"
     static let digitalStyle = "timeCardDigitalClockStyle"

@@ -108,6 +108,9 @@ struct thirdscreenApp: App {
     @State private var reminderService = ReminderService()
     @State private var googleCalendarService = GoogleCalendarService()
     @State private var shortcutsService = ShortcutsService()
+    @State private var llmService = LocalLLMService()
+    @State private var timerService = TimerService()
+    @State private var toastManager = ToastManager()
     @AppStorage("appAppearanceMode") private var appAppearanceModeRaw: String = AppAppearanceMode.automatic.rawValue
     @AppStorage("appTextScale") private var appTextScaleRaw: Double = AppTextScale.defaultScale
 
@@ -137,14 +140,30 @@ struct thirdscreenApp: App {
                 calendarService: calendarService,
                 reminderService: reminderService,
                 googleCalendarService: googleCalendarService,
-                shortcutsService: shortcutsService
+                shortcutsService: shortcutsService,
+                llmService: llmService,
+                timerService: timerService
             )
+            .overlay { ToastOverlayView(toastManager: toastManager) }
+            .environment(toastManager)
             .environment(\.appTextScale, appTextScale)
             .dynamicTypeSize(AppTextScale.dynamicTypeSize(for: appTextScale))
             .preferredColorScheme(appAppearanceMode.colorScheme)
             .onAppear {
                 applyAppAppearance()
                 clampStoredTextScaleIfNeeded(appTextScaleRaw)
+            }
+            .onAppear {
+                timerService.toastManager = toastManager
+                llmService.registerTools(timerService: timerService, toastManager: toastManager)
+            }
+            .task {
+                await llmService.refreshOllamaModels()
+                // Periodic Ollama refresh every 30s
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(30))
+                    await llmService.refreshOllamaModels()
+                }
             }
             .onChange(of: appAppearanceModeRaw) { _, _ in
                 applyAppAppearance()
@@ -164,7 +183,8 @@ struct thirdscreenApp: App {
                 spotify: spotifyService,
                 calendarService: calendarService,
                 reminderService: reminderService,
-                googleCalendarService: googleCalendarService
+                googleCalendarService: googleCalendarService,
+                llmService: llmService
             )
             .environment(\.appTextScale, appTextScale)
             .dynamicTypeSize(AppTextScale.dynamicTypeSize(for: appTextScale))

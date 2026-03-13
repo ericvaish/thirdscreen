@@ -15,6 +15,7 @@ enum MediaProvider: String, Codable, CaseIterable, Identifiable {
 }
 
 struct TimeCardConfig: Codable, Equatable {
+    var modeRaw: String
     var clockPresentationRaw: String
     var digitalStyleRaw: String
     var analogStyleRaw: String
@@ -25,6 +26,7 @@ struct TimeCardConfig: Codable, Equatable {
 
     static var `default`: TimeCardConfig {
         TimeCardConfig(
+            modeRaw: TimeCardMode.clock.rawValue,
             clockPresentationRaw: TimeCardClockPresentation.digital.rawValue,
             digitalStyleRaw: TimeCardDigitalClockStyle.stacked.rawValue,
             analogStyleRaw: TimeCardAnalogClockStyle.railway.rawValue,
@@ -33,6 +35,57 @@ struct TimeCardConfig: Codable, Equatable {
             selectedTimeZoneID: TimeZone.current.identifier,
             worldTimeZoneIDsRaw: TimeCardPreferences.defaultWorldTimeZoneIDsStorage
         )
+    }
+
+    init(modeRaw: String, clockPresentationRaw: String, digitalStyleRaw: String, analogStyleRaw: String, showSeconds: Bool, use24Hour: Bool, selectedTimeZoneID: String, worldTimeZoneIDsRaw: String) {
+        self.modeRaw = modeRaw
+        self.clockPresentationRaw = clockPresentationRaw
+        self.digitalStyleRaw = digitalStyleRaw
+        self.analogStyleRaw = analogStyleRaw
+        self.showSeconds = showSeconds
+        self.use24Hour = use24Hour
+        self.selectedTimeZoneID = selectedTimeZoneID
+        self.worldTimeZoneIDsRaw = worldTimeZoneIDsRaw
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        modeRaw = try container.decodeIfPresent(String.self, forKey: .modeRaw) ?? TimeCardMode.clock.rawValue
+        clockPresentationRaw = try container.decode(String.self, forKey: .clockPresentationRaw)
+        digitalStyleRaw = try container.decode(String.self, forKey: .digitalStyleRaw)
+        analogStyleRaw = try container.decode(String.self, forKey: .analogStyleRaw)
+        showSeconds = try container.decode(Bool.self, forKey: .showSeconds)
+        use24Hour = try container.decode(Bool.self, forKey: .use24Hour)
+        selectedTimeZoneID = try container.decode(String.self, forKey: .selectedTimeZoneID)
+        worldTimeZoneIDsRaw = try container.decode(String.self, forKey: .worldTimeZoneIDsRaw)
+    }
+
+    var mode: TimeCardMode {
+        get { TimeCardMode(rawValue: modeRaw) ?? .clock }
+        set { modeRaw = newValue.rawValue }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case modeRaw
+        case clockPresentationRaw
+        case digitalStyleRaw
+        case analogStyleRaw
+        case showSeconds
+        case use24Hour
+        case selectedTimeZoneID
+        case worldTimeZoneIDsRaw
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(modeRaw, forKey: .modeRaw)
+        try container.encode(clockPresentationRaw, forKey: .clockPresentationRaw)
+        try container.encode(digitalStyleRaw, forKey: .digitalStyleRaw)
+        try container.encode(analogStyleRaw, forKey: .analogStyleRaw)
+        try container.encode(showSeconds, forKey: .showSeconds)
+        try container.encode(use24Hour, forKey: .use24Hour)
+        try container.encode(selectedTimeZoneID, forKey: .selectedTimeZoneID)
+        try container.encode(worldTimeZoneIDsRaw, forKey: .worldTimeZoneIDsRaw)
     }
 }
 
@@ -45,16 +98,31 @@ struct MediaCardConfig: Codable, Equatable {
     }
 }
 
+struct AIChatCardConfig: Codable, Equatable {
+    var selectedModelID: String
+    var systemPrompt: String
+
+    static var `default`: AIChatCardConfig {
+        AIChatCardConfig(
+            selectedModelID: "apple-foundation",
+            systemPrompt: "You are a helpful, concise assistant. You have access to tools — only use them when the user's request clearly requires one. For general conversation, respond directly without using any tools."
+        )
+    }
+}
+
 struct CardInstanceSettingsStore: Codable, Equatable {
     private var timeByID: [String: TimeCardConfig]
     private var mediaByID: [String: MediaCardConfig]
+    private var aiChatByID: [String: AIChatCardConfig]
 
     init(
         timeByID: [String: TimeCardConfig] = [:],
-        mediaByID: [String: MediaCardConfig] = [:]
+        mediaByID: [String: MediaCardConfig] = [:],
+        aiChatByID: [String: AIChatCardConfig] = [:]
     ) {
         self.timeByID = timeByID
         self.mediaByID = mediaByID
+        self.aiChatByID = aiChatByID
     }
 
     static var empty: CardInstanceSettingsStore { CardInstanceSettingsStore() }
@@ -67,6 +135,10 @@ struct CardInstanceSettingsStore: Codable, Equatable {
         mediaByID[instanceID.uuidString]
     }
 
+    func aiChatConfig(for instanceID: UUID) -> AIChatCardConfig? {
+        aiChatByID[instanceID.uuidString]
+    }
+
     mutating func setTimeConfig(_ config: TimeCardConfig, for instanceID: UUID) {
         timeByID[instanceID.uuidString] = config
     }
@@ -75,9 +147,14 @@ struct CardInstanceSettingsStore: Codable, Equatable {
         mediaByID[instanceID.uuidString] = config
     }
 
+    mutating func setAIChatConfig(_ config: AIChatCardConfig, for instanceID: UUID) {
+        aiChatByID[instanceID.uuidString] = config
+    }
+
     mutating func removeAllSettings(for instanceID: UUID) {
         timeByID.removeValue(forKey: instanceID.uuidString)
         mediaByID.removeValue(forKey: instanceID.uuidString)
+        aiChatByID.removeValue(forKey: instanceID.uuidString)
     }
 
     mutating func seedMissingFromLegacy(
@@ -99,7 +176,7 @@ struct CardInstanceSettingsStore: Codable, Equatable {
                 if mediaByID[card.instanceID.uuidString] == nil {
                     mediaByID[card.instanceID.uuidString] = MediaCardConfig(provider: .spotify, showLyrics: legacyMediaShowLyrics)
                 }
-            default:
+            case .schedule, .battery, .calendar, .todos, .notes, .icloudNotes, .localNotes, .medicines, .aiChat, .calories:
                 continue
             }
         }
@@ -109,6 +186,7 @@ struct CardInstanceSettingsStore: Codable, Equatable {
         let aliveIDs = Set(cards.map(\.instanceID.uuidString))
         timeByID = timeByID.filter { aliveIDs.contains($0.key) }
         mediaByID = mediaByID.filter { aliveIDs.contains($0.key) }
+        aiChatByID = aiChatByID.filter { aliveIDs.contains($0.key) }
 
         for card in cards {
             switch card.kind {
@@ -120,7 +198,11 @@ struct CardInstanceSettingsStore: Codable, Equatable {
                 if mediaByID[card.instanceID.uuidString] == nil {
                     mediaByID[card.instanceID.uuidString] = .default
                 }
-            default:
+            case .aiChat:
+                if aiChatByID[card.instanceID.uuidString] == nil {
+                    aiChatByID[card.instanceID.uuidString] = .default
+                }
+            case .schedule, .battery, .calendar, .todos, .notes, .icloudNotes, .localNotes, .medicines, .calories:
                 continue
             }
         }

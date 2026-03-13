@@ -12,7 +12,7 @@ struct SettingsView: View {
     @Bindable var calendarService: CalendarService
     @Bindable var reminderService: ReminderService
     @Bindable var googleCalendarService: GoogleCalendarService
-
+    @Bindable var llmService: LocalLLMService
     var body: some View {
         TabView {
             GeneralSettingsTab()
@@ -38,6 +38,16 @@ struct SettingsView: View {
                 )
                 .tabItem {
                     Label("Connections", systemImage: "link")
+                }
+
+            MusicSettingsTab(spotify: spotify)
+                .tabItem {
+                    Label("Music", systemImage: "music.note")
+                }
+
+            AIModelSettingsTab(llmService: llmService)
+                .tabItem {
+                    Label("AI Models", systemImage: "sparkles")
                 }
 
             AboutSettingsTab()
@@ -433,6 +443,390 @@ private struct ExternalConnectionsSettingsTab: View {
                 .foregroundStyle(isConnected ? .green : .secondary)
                 .frame(width: 24, alignment: .center)
         }
+    }
+}
+
+private struct MusicSettingsTab: View {
+    @Bindable var spotify: SpotifyService
+    @AppStorage("lyricsOffsetMs") private var lyricsOffsetMs: Int = 0
+    @AppStorage("lyricsCacheMaxCount") private var lyricsCacheMaxCount: Int = 200
+    @AppStorage("lyricsCacheMaxSizeMB") private var lyricsCacheMaxSizeMB: Int = 100
+    @State private var showClearConfirmation = false
+
+    private var offsetSeconds: Double {
+        Double(lyricsOffsetMs) / 1000.0
+    }
+
+    var body: some View {
+        Form {
+            Section("Lyrics Timing") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Offset")
+                        Spacer()
+                        Text(offsetLabel)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    Slider(
+                        value: Binding(
+                            get: { offsetSeconds },
+                            set: { lyricsOffsetMs = Int($0 * 1000) }
+                        ),
+                        in: -1.0...1.0,
+                        step: 0.05
+                    )
+
+                    HStack(spacing: 10) {
+                        Button("−0.05s") {
+                            lyricsOffsetMs = max(-1000, lyricsOffsetMs - 50)
+                        }
+                        .disabled(lyricsOffsetMs <= -1000)
+
+                        Button("Reset") {
+                            lyricsOffsetMs = 0
+                        }
+                        .disabled(lyricsOffsetMs == 0)
+
+                        Button("+0.05s") {
+                            lyricsOffsetMs = min(1000, lyricsOffsetMs + 50)
+                        }
+                        .disabled(lyricsOffsetMs >= 1000)
+                    }
+                }
+
+                Text("Positive values show the next line earlier. Negative values delay it. Adjust in 50ms steps for fine control.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Lyrics Cache") {
+                Picker("Max cached songs", selection: $lyricsCacheMaxCount) {
+                    Text("50").tag(50)
+                    Text("100").tag(100)
+                    Text("200").tag(200)
+                    Text("500").tag(500)
+                    Text("1000").tag(1000)
+                }
+                .pickerStyle(.menu)
+
+                Picker("Max cache size", selection: $lyricsCacheMaxSizeMB) {
+                    Text("25 MB").tag(25)
+                    Text("50 MB").tag(50)
+                    Text("100 MB").tag(100)
+                    Text("250 MB").tag(250)
+                    Text("500 MB").tag(500)
+                }
+                .pickerStyle(.menu)
+
+                Text("Oldest lyrics are automatically removed when limits are reached.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Storage") {
+                HStack {
+                    Text("Cached songs")
+                    Spacer()
+                    Text("\(spotify.lyricsCache.cachedCount)")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                HStack {
+                    Text("Cache size")
+                    Spacer()
+                    Text(formattedCacheSize)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Button("Clear Lyrics Cache") {
+                    showClearConfirmation = true
+                }
+                .disabled(spotify.lyricsCache.cachedCount == 0)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            spotify.lyricsCache.refreshStats()
+        }
+        .alert("Clear Lyrics Cache", isPresented: $showClearConfirmation) {
+            Button("Clear", role: .destructive) {
+                spotify.lyricsCache.clearAll()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete all \(spotify.lyricsCache.cachedCount) cached lyrics. They will be re-downloaded as needed.")
+        }
+    }
+
+    private var offsetLabel: String {
+        if lyricsOffsetMs == 0 {
+            return "0ms"
+        } else if lyricsOffsetMs > 0 {
+            return "+\(lyricsOffsetMs)ms"
+        } else {
+            return "\(lyricsOffsetMs)ms"
+        }
+    }
+
+    private var formattedCacheSize: String {
+        let bytes = spotify.lyricsCache.currentSizeBytes
+        if bytes < 1_000 {
+            return "\(bytes) B"
+        } else if bytes < 1_000_000 {
+            return String(format: "%.1f KB", Double(bytes) / 1_000)
+        } else {
+            return String(format: "%.1f MB", Double(bytes) / 1_000_000)
+        }
+    }
+}
+
+private struct AIModelSettingsTab: View {
+    @Bindable var llmService: LocalLLMService
+    @State private var newMLXRepoID = ""
+    @State private var newMLXIsVLM = false
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Manage AI models for the AI Chat card. Apple Intelligence is always built-in. Add MLX models from HuggingFace or connect to a local Ollama instance.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // MARK: Apple Intelligence
+            Section("Apple Intelligence") {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.title2)
+                        .foregroundStyle(.green)
+                        .frame(width: 24, alignment: .center)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Apple Intelligence")
+                            .font(.headline)
+                        Text("Built-in on-device model")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Label("Built-in", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 4)
+            }
+
+            // MARK: MLX Models
+            Section("MLX Models") {
+                ForEach(llmService.userMLXModels) { model in
+                    AIModelRow(model: model, llmService: llmService)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Add Model")
+                        .font(.subheadline.weight(.medium))
+                    TextField("HuggingFace Repo ID", text: $newMLXRepoID, prompt: Text("mlx-community/Llama-3.2-3B-Instruct-4bit"))
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.leading)
+                    HStack(spacing: 8) {
+                        Toggle("Vision model (VLM)", isOn: $newMLXIsVLM)
+                            .help("Enable if this model supports image inputs")
+                        Spacer()
+                        Button("Add") {
+                            llmService.addMLXModel(repoID: newMLXRepoID, isVLM: newMLXIsVLM)
+                            newMLXRepoID = ""
+                            newMLXIsVLM = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(newMLXRepoID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    Text("Paste any mlx-community/ HuggingFace repo ID. The model will be downloaded on first use.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            // MARK: Ollama
+            Section("Ollama") {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(llmService.isOllamaRunning ? Color.green : Color.gray)
+                        .frame(width: 8, height: 8)
+                    Text(llmService.isOllamaRunning ? "Connected" : "Not detected")
+                        .font(.subheadline)
+                        .foregroundStyle(llmService.isOllamaRunning ? .primary : .secondary)
+                    Spacer()
+                    Button {
+                        Task { await llmService.refreshOllamaModels() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Refresh Ollama models")
+                }
+
+                if llmService.isOllamaRunning {
+                    if llmService.ollamaModels.isEmpty {
+                        Text("No models found. Pull models with `ollama pull <model>`.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(llmService.ollamaModels) { model in
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: model.iconName)
+                                    .font(.title2)
+                                    .foregroundStyle(.green)
+                                    .frame(width: 24, alignment: .center)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(model.displayName)
+                                        .font(.headline)
+                                    Text(model.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Label("Ready", systemImage: "checkmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                } else {
+                    Text("Start Ollama with `ollama serve` to use local models. Install from ollama.com if needed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // MARK: Storage
+            if !llmService.downloadedModels.isEmpty {
+                Section("Storage") {
+                    HStack {
+                        Text("Models directory")
+                        Spacer()
+                        Button("Show in Finder") {
+                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: llmService.actualModelsDirectory.path)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task {
+            await llmService.refreshOllamaModels()
+        }
+    }
+}
+
+private struct AIModelRow: View {
+    let model: AIModel
+    @Bindable var llmService: LocalLLMService
+
+    private var isDownloaded: Bool { llmService.downloadedModels.contains(model.id) }
+    private var isDownloading: Bool { llmService.isDownloading[model.id] == true }
+    private var progress: Double? { llmService.downloadProgress[model.id] }
+    private var error: String? { llmService.downloadErrors[model.id] }
+
+    private var storageSizeLabel: String {
+        guard let bytes = llmService.modelStorageBytes(model) else { return "Downloaded" }
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1 {
+            return String(format: "Downloaded · %.1f GB", gb)
+        }
+        let mb = Double(bytes) / 1_048_576
+        return String(format: "Downloaded · %.0f MB", mb)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: model.iconName)
+                .font(.title2)
+                .foregroundStyle(isDownloaded ? .green : .secondary)
+                .frame(width: 24, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.displayName)
+                    .font(.headline)
+                Text(model.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let repo = model.huggingFaceRepo {
+                    Text(repo)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                if let error {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                HStack(spacing: 8) {
+                    if isDownloaded {
+                        Label(storageSizeLabel, systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                        Button("Unload") {
+                            llmService.unloadMLXModel(id: model.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Free memory by unloading model")
+                        Button("Delete") {
+                            llmService.deleteModel(model)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else if isDownloading {
+                        if let progress {
+                            ProgressView(value: progress)
+                                .frame(width: 120)
+                            Text("\(Int(progress * 100))%")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Button("Cancel") {
+                            llmService.cancelDownload(id: model.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Button("Download") {
+                            llmService.downloadModel(model)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        llmService.removeMLXModel(id: model.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Remove model from list")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
     }
 }
 
