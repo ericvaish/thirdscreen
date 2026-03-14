@@ -17,7 +17,53 @@ const { title, description = "Your day, at a glance, in a single dashboard. A na
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
+    <meta name="author" content="Eric Vaish" />
     <title>{title}</title>
+
+    <!-- Author link -->
+    <link rel="author" href="https://ericvaish.com" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/assets/third_screen_demo.png" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content="/assets/third_screen_demo.png" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Third Screen",
+      "operatingSystem": "macOS",
+      "applicationCategory": "UtilitiesApplication",
+      "description": description,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Eric Vaish",
+        "url": "https://ericvaish.com",
+        "sameAs": [
+          "https://github.com/ericvaish",
+          "https://ericvaish.com"
+        ]
+      },
+      "url": "https://thirdscreen.app",
+      "downloadUrl": "https://github.com/ericvaish/thirdscreen/releases/latest/download/ThirdScreen-0.1.0.dmg",
+      "screenshot": "/assets/third_screen_demo.png",
+      "softwareVersion": "0.1.0",
+      "isAccessibleForFree": true
+    })} />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
