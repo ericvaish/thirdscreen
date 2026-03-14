@@ -1,0 +1,15 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Third Screen</title>
+        <item>
+            <title>1.0</title>
+            <pubDate>Sun, 15 Mar 2026 01:26:21 +0530</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/ericvaish/thirdscreen/releases/download/v0.1.0/ThirdScreen-0.1.0.dmg" length="20102848" type="application/octet-stream" sparkle:edSignature="qP5PA9i7JhbbkvPEH15w6idPeCoiFpcoFhgowsBVBDWhXEZcjNENStEFJc1Uxpf1z+cNB5tdJvNKA05F81/UBA=="/>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+        </item>
+    </channel>
+</rss>

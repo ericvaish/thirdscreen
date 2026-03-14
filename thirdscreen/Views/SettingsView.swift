@@ -13,6 +13,7 @@ struct SettingsView: View {
     @Bindable var reminderService: ReminderService
     @Bindable var googleCalendarService: GoogleCalendarService
     @Bindable var llmService: LocalLLMService
+    var appUpdater: AppUpdater
     var body: some View {
         TabView {
             GeneralSettingsTab()
@@ -50,7 +51,7 @@ struct SettingsView: View {
                     Label("AI Models", systemImage: "sparkles")
                 }
 
-            AboutSettingsTab()
+            AboutSettingsTab(appUpdater: appUpdater)
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
@@ -831,6 +832,14 @@ private struct AIModelRow: View {
 }
 
 private struct AboutSettingsTab: View {
+    var appUpdater: AppUpdater
+
+    private var versionString: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+
     var body: some View {
         Form {
             Section {
@@ -842,7 +851,7 @@ private struct AboutSettingsTab: View {
                 HStack {
                     Text("Version")
                     Spacer()
-                    Text("1.0")
+                    Text(versionString)
                         .foregroundStyle(.secondary)
                 }
                 HStack {
@@ -855,6 +864,30 @@ private struct AboutSettingsTab: View {
                     }
                     .buttonStyle(.bordered)
                 }
+            }
+
+            Section("Updates") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Automatic Updates")
+                            .font(.headline)
+                        Text("Periodically checks for new versions in the background.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { appUpdater.automaticallyChecksForUpdates },
+                        set: { appUpdater.automaticallyChecksForUpdates = $0 }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                }
+
+                Button("Check for Updates...") {
+                    appUpdater.checkForUpdates()
+                }
+                .disabled(!appUpdater.canCheckForUpdates)
             }
         }
         .formStyle(.grouped)

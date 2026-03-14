@@ -7,10 +7,36 @@
 
 import SwiftUI
 import AppKit
+import Sparkle
+
+/// Wrapper so Sparkle's updater can be shared via SwiftUI environment.
+@MainActor @Observable
+final class AppUpdater {
+    let controller: SPUStandardUpdaterController
+
+    var canCheckForUpdates: Bool { controller.updater.canCheckForUpdates }
+    var automaticallyChecksForUpdates: Bool {
+        get { controller.updater.automaticallyChecksForUpdates }
+        set { controller.updater.automaticallyChecksForUpdates = newValue }
+    }
+
+    init() {
+        controller = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }
+
+    func checkForUpdates() {
+        controller.updater.checkForUpdates()
+    }
+}
 
 private struct AppMenuCommands: Commands {
     @Environment(\.openWindow) private var openWindow
     @Binding var textScale: Double
+    var appUpdater: AppUpdater
 
     private var normalizedScale: Double {
         AppTextScale.clamp(textScale)
@@ -26,6 +52,13 @@ private struct AppMenuCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
+            Button("Check for Updates...") {
+                appUpdater.checkForUpdates()
+            }
+            .disabled(!appUpdater.canCheckForUpdates)
+
+            Divider()
+
             Button("Settings...") {
                 openWindow(id: "settings")
             }
@@ -103,6 +136,7 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
 
 @main
 struct thirdscreenApp: App {
+    @State private var appUpdater = AppUpdater()
     @State private var spotifyService = SpotifyService()
     @State private var calendarService = CalendarService()
     @State private var reminderService = ReminderService()
@@ -173,7 +207,7 @@ struct thirdscreenApp: App {
             }
         }
         .commands {
-            AppMenuCommands(textScale: $appTextScaleRaw)
+            AppMenuCommands(textScale: $appTextScaleRaw, appUpdater: appUpdater)
         }
         .defaultSize(width: 900, height: 700)
         // Use a regular Window scene (not Settings scene) so macOS keeps
@@ -184,7 +218,8 @@ struct thirdscreenApp: App {
                 calendarService: calendarService,
                 reminderService: reminderService,
                 googleCalendarService: googleCalendarService,
-                llmService: llmService
+                llmService: llmService,
+                appUpdater: appUpdater
             )
             .environment(\.appTextScale, appTextScale)
             .dynamicTypeSize(AppTextScale.dynamicTypeSize(for: appTextScale))

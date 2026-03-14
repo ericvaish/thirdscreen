@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="#integrations"><img src="https://img.shields.io/badge/Integrations-7-0F766E?style=for-the-badge" alt="Integrations badge"></a>
+  <a href="#cards"><img src="https://img.shields.io/badge/Cards-12-0F766E?style=for-the-badge" alt="Cards badge"></a>
   <a href="#what-it-does"><img src="https://img.shields.io/badge/Focus-One%20Glance-1F2937?style=for-the-badge" alt="Focus badge"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/Platform-macOS-111827?style=for-the-badge" alt="Platform badge"></a>
 </p>
@@ -30,17 +30,20 @@
 - Add multiple cards (including multiple instances of the same card type)
 
 
-## Integrations
+## Cards
 
-| | Integration | Purpose |
+| | Card | Description |
 |:---:|---|---|
-| <img src="https://cdn.simpleicons.org/spotify/1DB954" width="24" height="24"> | **Spotify** | Now playing, playback controls, lyrics (via Lrclib) |
-| <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg" width="24" height="24"> | **Google Calendar** | Events, meeting links (Meet, Zoom, etc.) |
-| <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Apple_Calendar_%28iOS%29.svg" width="24" height="24"> | **Apple Calendar** | Local calendar events |
-| <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Reminders_%28macOS%29.png" width="24" height="24"> | **Apple Reminders** | Todos list synced with Reminders |
-| <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Shortcuts_%28iOS_26%29_app_icon.png" width="24" height="24"> | **Apple Shortcuts** | Run shortcuts directly from the dashboard |
-| <img src="https://cdn.simpleicons.org/bluetooth/0082FC" width="24" height="24"> | **Battery** | Internal + Bluetooth accessories (AirPods, etc.) |
-| <img src="https://cdn.simpleicons.org/spotify/1DB954" width="24" height="24"> | **Lrclib.net** | Synced lyrics for Spotify tracks |
+| 🕐 | **Time** | Clock, timer, alarm, and world time displays |
+| 🎵 | **Media** | Now playing with Spotify & Apple Music, playback controls, synced lyrics (via Lrclib) |
+| 📅 | **Schedule** | Events and day timeline from Google Calendar & Apple Calendar, meeting links |
+| ✅ | **To-Dos** | Tasks and reminders synced with Apple Reminders |
+| ⌨️ | **Shortcuts** | Run Apple Shortcuts directly from the dashboard |
+| 🔋 | **Battery** | Internal battery + Bluetooth accessories (AirPods, etc.) |
+| 📝 | **Notes** | Quick notes and checklists (iCloud-synced or local storage) |
+| 💊 | **Medicines** | Track medicines, schedules, and reminders with iCloud sync |
+| ✨ | **AI Chat** | Chat with local AI models on-device with image attachments |
+| 🔥 | **Food Tracking** | Track food intake, calories, and daily water consumption |
 
 ---
 ## Native macOS
