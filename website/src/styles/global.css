@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Lenis smooth scroll */
+html.lenis, html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+/* Scroll reveal animations */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered children */
+.reveal-stagger > .reveal:nth-child(1)  { transition-delay: 0ms; }
+.reveal-stagger > .reveal:nth-child(2)  { transition-delay: 60ms; }
+.reveal-stagger > .reveal:nth-child(3)  { transition-delay: 120ms; }
+.reveal-stagger > .reveal:nth-child(4)  { transition-delay: 180ms; }
+.reveal-stagger > .reveal:nth-child(5)  { transition-delay: 240ms; }
+.reveal-stagger > .reveal:nth-child(6)  { transition-delay: 300ms; }
+.reveal-stagger > .reveal:nth-child(7)  { transition-delay: 360ms; }
+.reveal-stagger > .reveal:nth-child(8)  { transition-delay: 420ms; }
+.reveal-stagger > .reveal:nth-child(9)  { transition-delay: 480ms; }
+.reveal-stagger > .reveal:nth-child(10) { transition-delay: 540ms; }
