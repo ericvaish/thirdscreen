@@ -1,4 +1,3 @@
-import { createHash } from "crypto"
 import { getDb } from "@/lib/get-db"
 import { lyricsCache } from "@/db/schema"
 import { eq } from "drizzle-orm"
@@ -23,9 +22,14 @@ export interface LyricsResult {
 
 // ── Cache key ───────────────────────────────────────────────────────────────
 
-function hashKey(track: string, artist: string, album: string): string {
+async function hashKey(track: string, artist: string, album: string): Promise<string> {
   const input = `${track}|${artist}|${album}`.toLowerCase()
-  return createHash("sha256").update(input).digest("hex").slice(0, 40)
+  const data = new TextEncoder().encode(input)
+  const hash = await crypto.subtle.digest("SHA-256", data)
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 40)
 }
 
 // ── LRC parser ──────────────────────────────────────────────────────────────
@@ -78,7 +82,7 @@ export async function getLyrics(
   album: string,
   durationMs?: number
 ): Promise<LyricsResult> {
-  const id = hashKey(track, artist, album)
+  const id = await hashKey(track, artist, album)
 
   // 1. Check cache
   const [cached] = await getDb().select().from(lyricsCache).where(eq(lyricsCache.id, id))
@@ -158,7 +162,7 @@ export async function refetchLyrics(
   album: string,
   durationMs?: number
 ): Promise<LyricsResult> {
-  const id = hashKey(track, artist, album)
+  const id = await hashKey(track, artist, album)
 
   // Delete cached entry
   await getDb().delete(lyricsCache).where(eq(lyricsCache.id, id))
