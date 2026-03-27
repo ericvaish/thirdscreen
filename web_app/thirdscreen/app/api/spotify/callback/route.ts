@@ -1,3 +1,5 @@
+export const runtime = "edge"
+
 import { NextResponse } from "next/server"
 import { exchangeCode } from "@/lib/spotify/service"
 import { getAuthUserId } from "@/lib/auth"
