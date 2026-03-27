@@ -7,6 +7,7 @@ import { TasksZone } from "@/components/zones/TasksZone"
 import { NotesZone } from "@/components/zones/NotesZone"
 import { MediaZone } from "@/components/zones/MediaZone"
 import { StatusBar } from "@/components/zones/StatusBar"
+import { NotificationBanner } from "@/components/zones/NotificationBanner"
 import { SettingsView } from "./SettingsView"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Settings, ArrowLeft, Grid3x3, Sun, Moon, Monitor, Maximize, Minimize } from "lucide-react"
@@ -202,6 +203,9 @@ export function Dashboard() {
           </div>
         </div>
       </header>
+
+      {/* Notification banner */}
+      {view === "dashboard" && <NotificationBanner />}
 
       {/* Content */}
       {view === "dashboard" ? (

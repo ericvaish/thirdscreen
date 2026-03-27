@@ -16,6 +16,7 @@ import { extractDominantColor } from "@/lib/spotify/color"
 import { toast } from "sonner"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
+import { isLocal } from "@/lib/data-layer"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,10 @@ export function MediaZone() {
 
   // Fetch connection status from server
   const fetchState = useCallback(async () => {
+    if (isLocal) {
+      setStatus({ state: "needs-client-id" })
+      return
+    }
     try {
       const res = await fetch("/api/spotify")
       if (res.status === 401) {

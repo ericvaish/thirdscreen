@@ -25,9 +25,8 @@ import { useNotifications } from "@/lib/notifications"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { GOOGLE_AUTH_URL, GOOGLE_SCOPES } from "@/lib/google-calendar/constants"
 
-const START_HOUR = 6
-const END_HOUR = 23
-const TOTAL_HOURS = END_HOUR - START_HOUR
+const WINDOW_HOURS = 24 // total span: -12h to +12h
+const WINDOW_MINUTES = WINDOW_HOURS * 60
 const EVENT_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
@@ -39,18 +38,18 @@ const EVENT_COLORS = [
 const SUNRISE_MIN = 6 * 60 + 30
 const SUNSET_MIN = 19 * 60
 
-function timeToPercent(time: string): number {
+function timeToPercent(time: string, startMin: number): number {
   const [h, m] = time.split(":").map(Number)
   const minutes = h * 60 + m
-  return ((minutes - START_HOUR * 60) / (TOTAL_HOURS * 60)) * 100
+  return ((minutes - startMin) / WINDOW_MINUTES) * 100
 }
 
-function minutesToPercent(minutes: number): number {
-  return ((minutes - START_HOUR * 60) / (TOTAL_HOURS * 60)) * 100
+function minutesToPercent(minutes: number, startMin: number): number {
+  return ((minutes - startMin) / WINDOW_MINUTES) * 100
 }
 
-function percentToMinutes(pct: number): number {
-  return (pct / 100) * (TOTAL_HOURS * 60) + START_HOUR * 60
+function percentToMinutes(pct: number, startMin: number): number {
+  return (pct / 100) * WINDOW_MINUTES + startMin
 }
 
 function snapTo15(minutes: number): number {
@@ -71,26 +70,122 @@ function formatTime12(minutes: number): string {
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-function buildSunArcPaths(width: number, height: number): { fill: string; stroke: string } {
-  const sunriseX = (minutesToPercent(SUNRISE_MIN) / 100) * width
-  const sunsetX = (minutesToPercent(SUNSET_MIN) / 100) * width
-  const arcWidth = sunsetX - sunriseX
-  const peakY = height * 0.15
-  const baseY = height
+// Next-day sunrise for the moon arc's right endpoint
+const NEXT_SUNRISE_MIN = 24 * 60 + SUNRISE_MIN // tomorrow's sunrise in "extended" minutes
+const PREV_SUNSET_MIN = SUNSET_MIN - 24 * 60   // yesterday's sunset in "extended" minutes
 
-  const points: string[] = []
+interface ArcPaths {
+  fill: string
+  stroke: string
+}
+
+interface DaylightArcs {
+  sun: ArcPaths
+  moon: ArcPaths
+  /** Position of the sun/moon indicator on the arc: { x, y, isSun } */
+  indicator: { x: number; y: number; isSun: boolean } | null
+}
+
+function buildDaylightArcs(width: number, height: number, startMin: number, nowMin: number): DaylightArcs {
+  const horizonY = height * 0.5
+  const sunPeak = height * 0.08    // how high sun arc goes (from top)
+  const moonTrough = height * 0.92 // how low moon arc goes (from top)
   const steps = 60
+
+  // ── Sun arc (sunrise → sunset, curves above horizon) ──
+  const sunriseX = (minutesToPercent(SUNRISE_MIN, startMin) / 100) * width
+  const sunsetX = (minutesToPercent(SUNSET_MIN, startMin) / 100) * width
+  const sunArcW = sunsetX - sunriseX
+
+  const sunPoints: string[] = []
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
-    const x = sunriseX + t * arcWidth
-    const y = baseY - (baseY - peakY) * Math.sin(Math.PI * t)
-    points.push(`${x},${y}`)
+    const x = sunriseX + t * sunArcW
+    const y = horizonY - (horizonY - sunPeak) * Math.sin(Math.PI * t)
+    sunPoints.push(`${x},${y}`)
   }
 
-  const fill = `M ${sunriseX},${baseY} L ${points.join(" L ")} L ${sunsetX},${baseY} Z`
-  const stroke = `M ${points.join(" L ")}`
+  const sunFill = `M ${sunriseX},${horizonY} L ${sunPoints.join(" L ")} L ${sunsetX},${horizonY} Z`
+  const sunStroke = `M ${sunPoints.join(" L ")}`
 
-  return { fill, stroke }
+  // ── Moon arc (sunset → next sunrise, curves below horizon) ──
+  const moonStartX = (minutesToPercent(SUNSET_MIN, startMin) / 100) * width
+  const moonEndX = (minutesToPercent(NEXT_SUNRISE_MIN, startMin) / 100) * width
+  const moonArcW = moonEndX - moonStartX
+
+  const moonPoints: string[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const x = moonStartX + t * moonArcW
+    const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
+    moonPoints.push(`${x},${y}`)
+  }
+
+  const moonFill = `M ${moonStartX},${horizonY} L ${moonPoints.join(" L ")} L ${moonEndX},${horizonY} Z`
+  const moonStroke = `M ${moonPoints.join(" L ")}`
+
+  // ── Pre-sunrise moon arc (yesterday sunset → today sunrise) ──
+  // This covers the early morning dark period before sunrise
+  const prevMoonStartX = (minutesToPercent(PREV_SUNSET_MIN, startMin) / 100) * width
+  const prevMoonEndX = (minutesToPercent(SUNRISE_MIN, startMin) / 100) * width
+  const prevMoonArcW = prevMoonEndX - prevMoonStartX
+
+  const prevMoonPoints: string[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const x = prevMoonStartX + t * prevMoonArcW
+    const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
+    prevMoonPoints.push(`${x},${y}`)
+  }
+
+  const prevMoonFill = `M ${prevMoonStartX},${horizonY} L ${prevMoonPoints.join(" L ")} L ${prevMoonEndX},${horizonY} Z`
+  const prevMoonStroke = `M ${prevMoonPoints.join(" L ")}`
+
+  // Combine both moon arcs
+  const combinedMoonFill = moonFill + " " + prevMoonFill
+  const combinedMoonStroke = moonStroke + " " + prevMoonStroke
+
+  // ── Current position indicator ──
+  let indicator: DaylightArcs["indicator"] = null
+  const isSun = nowMin >= SUNRISE_MIN && nowMin < SUNSET_MIN
+
+  if (isSun) {
+    const t = (nowMin - SUNRISE_MIN) / (SUNSET_MIN - SUNRISE_MIN)
+    const x = sunriseX + t * sunArcW
+    const y = horizonY - (horizonY - sunPeak) * Math.sin(Math.PI * t)
+    indicator = { x, y, isSun: true }
+  } else {
+    // Night time: figure out which moon arc we're on
+    if (nowMin >= SUNSET_MIN) {
+      // Evening: on the post-sunset moon arc
+      const t = (nowMin - SUNSET_MIN) / (NEXT_SUNRISE_MIN - SUNSET_MIN)
+      const x = moonStartX + t * moonArcW
+      const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
+      indicator = { x, y, isSun: false }
+    } else {
+      // Pre-sunrise: on the prev-sunset moon arc
+      const t = (nowMin - (PREV_SUNSET_MIN + 24 * 60)) / (SUNRISE_MIN - (PREV_SUNSET_MIN + 24 * 60))
+      // Actually simpler: nowMin is 0..SUNRISE_MIN, arc goes from PREV_SUNSET to SUNRISE
+      // In extended minutes: nowMin maps to position on prevMoon arc
+      const arcStart = PREV_SUNSET_MIN + 24 * 60 // = SUNSET_MIN (yesterday, normalized)
+      const arcEnd = SUNRISE_MIN
+      const totalArc = arcEnd - arcStart + 24 * 60 // handle wrap
+      // prevMoon arc covers yesterday sunset (PREV_SUNSET_MIN) to today sunrise (SUNRISE_MIN)
+      // That's a span of SUNRISE_MIN - PREV_SUNSET_MIN minutes
+      const span = SUNRISE_MIN - PREV_SUNSET_MIN // this is positive since PREV is negative
+      const tPrev = (nowMin - PREV_SUNSET_MIN) / span
+      const clampedT = Math.max(0, Math.min(1, tPrev))
+      const x = prevMoonStartX + clampedT * prevMoonArcW
+      const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * clampedT)
+      indicator = { x, y, isSun: false }
+    }
+  }
+
+  return {
+    sun: { fill: sunFill, stroke: sunStroke },
+    moon: { fill: combinedMoonFill, stroke: combinedMoonStroke },
+    indicator,
+  }
 }
 
 interface MedDose {
@@ -120,12 +215,29 @@ export function TimelineZone() {
   const [showSunArc, setShowSunArc] = useState(true)
   const [today, setToday] = useState("")
   const [mounted, setMounted] = useState(false)
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date()
+    return n.getHours() * 60 + n.getMinutes()
+  })
+
+  // Derived window bounds: current time is always centered
+  const windowStart = nowMinutes - WINDOW_MINUTES / 2
+  const windowEnd = nowMinutes + WINDOW_MINUTES / 2
 
   useEffect(() => {
     setMounted(true)
     setToday(format(new Date(), "yyyy-MM-dd"))
     const stored = localStorage.getItem("timeline-sun-arc")
     if (stored === "false") setShowSunArc(false)
+
+    // Update current time every 30 seconds so timeline stays centered
+    const interval = setInterval(() => {
+      const n = new Date()
+      setNowMinutes(n.getHours() * 60 + n.getMinutes())
+      // Also update today if it changed (past midnight)
+      setToday(format(n, "yyyy-MM-dd"))
+    }, 30_000)
+    return () => clearInterval(interval)
   }, [])
 
   // Hover + drag state
@@ -144,6 +256,7 @@ export function TimelineZone() {
   const [googleClientId, setGoogleClientId] = useState<string | null>(null)
 
   const fetchCalendarAccounts = useCallback(async () => {
+    if (isLocal) return
     try {
       const [cidRes, accRes] = await Promise.all([
         fetch("/api/google-calendar?action=client-id"),
@@ -334,13 +447,12 @@ export function TimelineZone() {
     const rect = el.getBoundingClientRect()
     const relX = clientX - rect.left
     const pct = (relX / rect.width) * 100
-    const raw = percentToMinutes(pct)
+    const raw = percentToMinutes(pct, windowStart)
     const snapped = snapTo15(raw)
-    const minBound = START_HOUR * 60
-    const maxBound = END_HOUR * 60
-    if (snapped < minBound || snapped > maxBound) return null
+    // Clamp to valid day range (0:00 - 23:59) for event creation
+    if (snapped < 0 || snapped > 23 * 60 + 59) return null
     return snapped
-  }, [])
+  }, [windowStart])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -442,11 +554,8 @@ export function TimelineZone() {
     }
   }
 
-  const now = mounted ? new Date() : null
-  const nowMinutes = now ? now.getHours() * 60 + now.getMinutes() : -1
-  const nowPercent = minutesToPercent(nowMinutes)
-  const showNowLine =
-    mounted && nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
+  // Current time is always at 50% (center of the window)
+  const nowPercent = 50
 
   // Drag selection range
   const selectionStart = dragStart !== null && dragEnd !== null ? Math.min(dragStart, dragEnd) : null
@@ -604,7 +713,7 @@ export function TimelineZone() {
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
       >
-        {/* Sun arc (behind everything) */}
+        {/* Sun/moon arcs (behind everything) */}
         {mounted && showSunArc && (
           <svg
             className="pointer-events-none absolute inset-0 z-0"
@@ -616,15 +725,34 @@ export function TimelineZone() {
             <defs>
               <linearGradient id="sun-arc-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" className="sun-arc-stop-top" />
-                <stop offset="100%" className="sun-arc-stop-bottom" />
+                <stop offset="50%" className="sun-arc-stop-bottom" />
+              </linearGradient>
+              <linearGradient id="moon-arc-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="50%" className="moon-arc-stop-top" />
+                <stop offset="100%" className="moon-arc-stop-bottom" />
               </linearGradient>
             </defs>
             {(() => {
-              const { fill, stroke } = buildSunArcPaths(1000, 100)
+              const arcs = buildDaylightArcs(1000, 100, windowStart, nowMinutes)
               return (
                 <>
-                  <path d={fill} fill="url(#sun-arc-fill)" />
-                  <path d={stroke} fill="none" className="sun-arc-stroke" strokeWidth="0.5" />
+                  {/* Horizon line */}
+                  <line x1="0" y1="50" x2="1000" y2="50" className="horizon-line" strokeWidth="0.3" />
+                  {/* Sun arc (above horizon) */}
+                  <path d={arcs.sun.fill} fill="url(#sun-arc-fill)" />
+                  <path d={arcs.sun.stroke} fill="none" className="sun-arc-stroke" strokeWidth="0.5" />
+                  {/* Moon arc (below horizon) */}
+                  <path d={arcs.moon.fill} fill="url(#moon-arc-fill)" />
+                  <path d={arcs.moon.stroke} fill="none" className="moon-arc-stroke" strokeWidth="0.5" />
+                  {/* Sun/Moon indicator dot on the arc */}
+                  {arcs.indicator && (
+                    <circle
+                      cx={arcs.indicator.x}
+                      cy={arcs.indicator.y}
+                      r="2.5"
+                      className={arcs.indicator.isSun ? "sun-indicator" : "moon-indicator"}
+                    />
+                  )}
                 </>
               )
             })()}
@@ -632,39 +760,47 @@ export function TimelineZone() {
         )}
 
         {/* Hour markers */}
-        {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => {
-          const hour = START_HOUR + i
-          const pct = (i / TOTAL_HOURS) * 100
-          const isEven = i % 2 === 0
-          return (
-            <div
-              key={hour}
-              className="absolute top-0 h-full"
-              style={{ left: `${pct}%` }}
-            >
-              <span
-                className={`absolute top-0 -translate-x-1/2 font-mono text-[0.5rem] leading-none text-muted-foreground/40 ${!isEven ? "hidden sm:inline" : ""}`}
+        {(() => {
+          const firstHour = Math.ceil(windowStart / 60)
+          const lastHour = Math.floor(windowEnd / 60)
+          const markers = []
+          for (let hour = firstHour; hour <= lastHour; hour++) {
+            const mins = hour * 60
+            const pct = minutesToPercent(mins, windowStart)
+            // Normalize hour to 0-23 for display
+            const displayHour = ((hour % 24) + 24) % 24
+            const isEven = hour % 2 === 0
+            markers.push(
+              <div
+                key={hour}
+                className="absolute top-0 h-full"
+                style={{ left: `${pct}%` }}
               >
-                {hour === 0
-                  ? "12a"
-                  : hour < 12
-                    ? `${hour}a`
-                    : hour === 12
-                      ? "12p"
-                      : `${hour - 12}p`}
-              </span>
-              <div className="mt-2.5 h-[calc(100%-10px)] w-px bg-border/15" />
-            </div>
-          )
-        })}
+                <span
+                  className={`absolute top-0 -translate-x-1/2 font-mono text-[0.5rem] leading-none text-muted-foreground/40 ${!isEven ? "hidden sm:inline" : ""}`}
+                >
+                  {displayHour === 0
+                    ? "12a"
+                    : displayHour < 12
+                      ? `${displayHour}a`
+                      : displayHour === 12
+                        ? "12p"
+                        : `${displayHour - 12}p`}
+                </span>
+                <div className="mt-2.5 h-[calc(100%-10px)] w-px bg-border/15" />
+              </div>
+            )
+          }
+          return markers
+        })()}
 
         {/* Drag selection highlight */}
         {selectionStart !== null && selectionEnd !== null && selectionEnd - selectionStart >= 15 && (
           <div
             className="pointer-events-none absolute z-[5] rounded-md border border-primary/40 bg-primary/10"
             style={{
-              left: `${minutesToPercent(selectionStart)}%`,
-              width: `${minutesToPercent(selectionEnd) - minutesToPercent(selectionStart)}%`,
+              left: `${minutesToPercent(selectionStart, windowStart)}%`,
+              width: `${minutesToPercent(selectionEnd, windowStart) - minutesToPercent(selectionStart, windowStart)}%`,
               top: "16px",
               bottom: "4px",
             }}
@@ -681,8 +817,8 @@ export function TimelineZone() {
         {events
           .filter((ev) => !ev.allDay)
           .map((ev, idx) => {
-            const leftPct = timeToPercent(ev.startTime)
-            const rightPct = timeToPercent(ev.endTime)
+            const leftPct = timeToPercent(ev.startTime, windowStart)
+            const rightPct = timeToPercent(ev.endTime, windowStart)
             const widthPct = Math.max(rightPct - leftPct, 2)
 
             return (
@@ -732,8 +868,8 @@ export function TimelineZone() {
         {/* Medicine dose markers */}
         {medDoses.map((dose, idx) => {
           const minutes = dose.hour * 60 + dose.minute
-          if (minutes < START_HOUR * 60 || minutes > END_HOUR * 60) return null
-          const pct = minutesToPercent(minutes)
+          const pct = minutesToPercent(minutes, windowStart)
+          if (pct < 0 || pct > 100) return null
 
           return (
             <div
@@ -760,7 +896,7 @@ export function TimelineZone() {
         {hoverMinutes !== null && !isDragging.current && (
           <div
             className="pointer-events-none absolute top-0 z-[8] h-full"
-            style={{ left: `${minutesToPercent(hoverMinutes)}%` }}
+            style={{ left: `${minutesToPercent(hoverMinutes, windowStart)}%` }}
           >
             <div className="-translate-x-1/2 rounded bg-muted/80 px-1 py-0.5 font-mono text-[0.5rem] font-medium text-foreground/70 backdrop-blur-sm whitespace-nowrap">
               {formatTime12(hoverMinutes)}
@@ -769,8 +905,8 @@ export function TimelineZone() {
           </div>
         )}
 
-        {/* Current time indicator */}
-        {showNowLine && (
+        {/* Current time indicator — always at center */}
+        {mounted && (
           <div
             className="pointer-events-none absolute top-0 z-10 h-full"
             style={{ left: `${nowPercent}%` }}
