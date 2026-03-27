@@ -11,7 +11,7 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "build:export": "NEXT_CONFIG_FILE=next.config.export.mjs next build",
-    "build:cloudflare": "STORAGE=d1 npx opennextjs-cloudflare",
+    "build:cloudflare": "STORAGE=d1 opennextjs-cloudflare",
     "preview:cloudflare": "npx wrangler dev"
   },
   "dependencies": {
