@@ -26,6 +26,8 @@ client_*.apps.googleusercontent.com.plist
 
 docs
 progress.md
-website/node_modules/
+node_modules/
 docs/glass-segmented-picker.md
 CLAUDE.md
+bun.lock
+*.db

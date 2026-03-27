@@ -2,11 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Plus, Trash2, Mail, ExternalLink } from "lucide-react"
+import { Plus, Trash2, Mail } from "lucide-react"
 import { toast } from "sonner"
-import { generatePKCE } from "@/lib/spotify/pkce" // reuse PKCE utility
+import { generatePKCE } from "@/lib/spotify/pkce"
 import {
   GOOGLE_AUTH_URL,
   GOOGLE_SCOPES,
@@ -21,8 +19,7 @@ interface GoogleAccount {
 }
 
 export function GoogleCalendarSettings() {
-  const [clientId, setClientId] = useState("")
-  const [savedClientId, setSavedClientId] = useState<string | null>(null)
+  const [clientId, setClientId] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<GoogleAccount[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -34,9 +31,7 @@ export function GoogleCalendarSettings() {
       ])
       if (cidRes.ok) {
         const data = await cidRes.json()
-        const cid = data.clientId as string | null
-        setSavedClientId(cid)
-        if (cid) setClientId(cid)
+        setClientId(data.clientId as string | null)
       }
       if (accRes.ok) {
         setAccounts(await accRes.json())
@@ -63,34 +58,15 @@ export function GoogleCalendarSettings() {
     return () => window.removeEventListener("message", handler)
   }, [fetchState])
 
-  const saveClientId = async () => {
-    const trimmed = clientId.trim()
-    if (!trimmed) return
-    try {
-      await fetch("/api/google-calendar", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: trimmed }),
-      })
-      setSavedClientId(trimmed)
-      toast.success("Client ID saved")
-    } catch {
-      toast.error("Failed to save")
-    }
-  }
-
   const addAccount = async () => {
-    if (!savedClientId) {
-      toast.error("Set a Client ID first")
-      return
-    }
+    if (!clientId) return
 
     const { codeVerifier, codeChallenge } = await generatePKCE()
     const redirectUri = `${window.location.origin}/api/google-calendar/callback`
     const state = btoa(JSON.stringify({ v: codeVerifier, r: redirectUri }))
 
     const params = new URLSearchParams({
-      client_id: savedClientId,
+      client_id: clientId,
       redirect_uri: redirectUri,
       response_type: "code",
       scope: GOOGLE_SCOPES,
@@ -130,105 +106,52 @@ export function GoogleCalendarSettings() {
     )
   }
 
+  if (!clientId) {
+    return (
+      <p className="py-2 text-xs text-muted-foreground">
+        Google Calendar is not configured yet.
+      </p>
+    )
+  }
+
   return (
     <div className="space-y-4">
-      {/* Client ID setup */}
-      {!savedClientId ? (
-        <div className="rounded-xl border border-border/50 bg-muted/10 p-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            To sync Google Calendar, enter your Google OAuth Client ID.
-            Create one at{" "}
-            <a
-              href="https://console.cloud.google.com/apis/credentials"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-primary hover:underline"
-            >
-              Google Cloud Console
-              <ExternalLink className="size-2.5" />
-            </a>
-            {" "}with redirect URI:{" "}
-            <code className="rounded bg-muted/40 px-1 py-0.5 font-mono text-[0.625rem]">
-              {typeof window !== "undefined"
-                ? `${window.location.origin}/api/google-calendar/callback`
-                : "/api/google-calendar/callback"}
-            </code>
-          </p>
-          <div className="flex gap-2">
-            <Input
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="Google OAuth Client ID"
-              className="h-8 flex-1 font-mono text-xs"
+      {/* Connected accounts */}
+      <div className="space-y-1.5">
+        {accounts.map((account) => (
+          <div
+            key={account.id}
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/20"
+          >
+            <div
+              className="size-3 shrink-0 rounded-full"
+              style={{ backgroundColor: account.color ?? "#3b82f6" }}
             />
+            <Mail className="size-3.5 shrink-0 text-muted-foreground/50" />
+            <span className="min-w-0 flex-1 truncate text-sm">
+              {account.email}
+            </span>
             <Button
-              size="sm"
-              onClick={saveClientId}
-              disabled={!clientId.trim()}
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => removeAccount(account.id)}
+              className="shrink-0 text-muted-foreground/50 hover:text-destructive"
             >
-              Save
+              <Trash2 className="size-3" />
             </Button>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/10 px-4 py-2">
-          <div className="text-xs text-muted-foreground">
-            Client ID:{" "}
-            <span className="font-mono text-foreground/60">
-              {savedClientId.slice(0, 20)}...
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => setSavedClientId(null)}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Change
-          </Button>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* Connected accounts */}
-      {savedClientId && (
-        <>
-          <div className="space-y-1.5">
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/20"
-              >
-                <div
-                  className="size-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: account.color ?? "#3b82f6" }}
-                />
-                <Mail className="size-3.5 shrink-0 text-muted-foreground/50" />
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {account.email}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => removeAccount(account.id)}
-                  className="shrink-0 text-muted-foreground/50 hover:text-destructive"
-                >
-                  <Trash2 className="size-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={addAccount}
-            className="w-full text-xs"
-          >
-            <Plus className="mr-1 size-3" />
-            Add Google Account
-          </Button>
-        </>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={addAccount}
+        className="w-full text-xs"
+      >
+        <Plus className="mr-1 size-3" />
+        Add Google Account
+      </Button>
     </div>
   )
 }

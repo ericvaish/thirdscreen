@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     // Env var takes priority, then DB setting
     const envClientId = process.env.GOOGLE_CLIENT_ID ?? null
     if (envClientId) {
-      return NextResponse.json({ clientId: envClientId })
+      return NextResponse.json({ clientId: envClientId, adminProvided: true })
     }
     const [row] = await getDb()
       .select()
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       .where(
         and(eq(settings.key, GOOGLE_CLIENT_ID_KEY), eq(settings.userId, userId))
       )
-    return NextResponse.json({ clientId: row?.value ?? null })
+    return NextResponse.json({ clientId: row?.value ?? null, adminProvided: false })
   }
 
   if (action === "accounts") {
@@ -70,32 +70,6 @@ export async function PUT(request: Request) {
     if (authError) return authError
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json()
-
-  // Set client ID
-  if (body.clientId !== undefined) {
-    const existing = await getDb()
-      .select()
-      .from(settings)
-      .where(
-        and(eq(settings.key, GOOGLE_CLIENT_ID_KEY), eq(settings.userId, userId))
-      )
-    if (existing.length > 0) {
-      await getDb()
-        .update(settings)
-        .set({ value: body.clientId })
-        .where(
-          and(
-            eq(settings.key, GOOGLE_CLIENT_ID_KEY),
-            eq(settings.userId, userId)
-          )
-        )
-    } else {
-      await getDb()
-        .insert(settings)
-        .values({ key: GOOGLE_CLIENT_ID_KEY, userId, value: body.clientId })
-    }
-    return NextResponse.json({ success: true })
-  }
 
   // Update account color or calendarIds
   if (body.accountId) {

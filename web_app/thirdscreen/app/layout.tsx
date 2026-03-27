@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 
@@ -19,6 +20,15 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: "Third Screen",
+  description: "A glanceable personal dashboard",
+  icons: {
+    icon: "/logo-128.png",
+    apple: "/logo-128.png",
+  },
+}
 
 export default function RootLayout({
   children,
