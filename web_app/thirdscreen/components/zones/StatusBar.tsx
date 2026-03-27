@@ -35,6 +35,42 @@ import {
   type NotificationType,
 } from "@/lib/notifications"
 
+// ── Shared geolocation (used by weather + AQI) ──────────────────────────────
+
+let geoCache: { latitude: number; longitude: number; city: string } | null = null
+let geoPromise: Promise<typeof geoCache> | null = null
+
+function getGeo(): Promise<typeof geoCache> {
+  if (geoCache) return Promise.resolve(geoCache)
+  if (geoPromise) return geoPromise
+  geoPromise = (async () => {
+    try {
+      // Try browser Geolocation API first
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+      })
+      geoCache = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        city: "",
+      }
+      return geoCache
+    } catch {
+      // Fallback to IP geolocation
+      try {
+        const res = await fetch("https://ipapi.co/json/")
+        if (!res.ok) return null
+        const data = await res.json()
+        geoCache = { latitude: data.latitude, longitude: data.longitude, city: data.city ?? "" }
+        return geoCache
+      } catch {
+        return null
+      }
+    }
+  })()
+  return geoPromise
+}
+
 const NOTIF_ICONS: Record<NotificationType, typeof Bell> = {
   timer: Timer,
   alarm: Clock,
@@ -142,10 +178,8 @@ function WeatherWidget() {
 
     async function fetchWeather() {
       try {
-        // Get location via IP geolocation (no permission needed)
-        const geoRes = await fetch("https://ipapi.co/json/")
-        if (!geoRes.ok) return
-        const geo = await geoRes.json()
+        const geo = await getGeo()
+        if (!geo) return
         const { latitude, longitude, city } = geo
 
         // Open-Meteo (free, no API key)
@@ -271,9 +305,8 @@ function AirQualityWidget() {
 
     async function fetchAQI() {
       try {
-        const geoRes = await fetch("https://ipapi.co/json/")
-        if (!geoRes.ok) return
-        const geo = await geoRes.json()
+        const geo = await getGeo()
+        if (!geo) return
         const { latitude, longitude } = geo
 
         // Open-Meteo Air Quality API (free, no key)
