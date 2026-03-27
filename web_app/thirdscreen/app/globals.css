@@ -274,7 +274,7 @@
   animation: now-dot-glow 2s ease-in-out infinite;
 }
 
-/* ── Sun arc (daylight curve in timeline) ──────────────────────────────── */
+/* ── Sun/moon arcs (daylight & night curves in timeline) ───────────────── */
 
 .sun-arc-stop-top {
   stop-color: oklch(0.85 0.12 85 / 20%);
@@ -285,6 +285,26 @@
 .sun-arc-stroke {
   stroke: oklch(0.8 0.1 85 / 25%);
 }
+.moon-arc-stop-top {
+  stop-color: oklch(0.55 0.08 260 / 0%);
+}
+.moon-arc-stop-bottom {
+  stop-color: oklch(0.55 0.08 260 / 15%);
+}
+.moon-arc-stroke {
+  stroke: oklch(0.55 0.08 260 / 20%);
+}
+.horizon-line {
+  stroke: oklch(0.6 0 0 / 12%);
+}
+.sun-indicator {
+  fill: oklch(0.85 0.16 85);
+  filter: drop-shadow(0 0 3px oklch(0.85 0.16 85 / 60%));
+}
+.moon-indicator {
+  fill: oklch(0.8 0.1 260);
+  filter: drop-shadow(0 0 3px oklch(0.8 0.1 260 / 60%));
+}
 
 .dark .sun-arc-stop-top {
   stop-color: oklch(0.7 0.14 70 / 15%);
@@ -294,6 +314,26 @@
 }
 .dark .sun-arc-stroke {
   stroke: oklch(0.7 0.12 70 / 20%);
+}
+.dark .moon-arc-stop-top {
+  stop-color: oklch(0.45 0.1 270 / 0%);
+}
+.dark .moon-arc-stop-bottom {
+  stop-color: oklch(0.45 0.1 270 / 12%);
+}
+.dark .moon-arc-stroke {
+  stroke: oklch(0.45 0.1 270 / 18%);
+}
+.dark .horizon-line {
+  stroke: oklch(0.5 0 0 / 10%);
+}
+.dark .sun-indicator {
+  fill: oklch(0.8 0.16 80);
+  filter: drop-shadow(0 0 4px oklch(0.8 0.16 80 / 50%));
+}
+.dark .moon-indicator {
+  fill: oklch(0.75 0.12 270);
+  filter: drop-shadow(0 0 4px oklch(0.75 0.12 270 / 50%));
 }
 
 /* ── Scrollbar styling ──────────────────────────────────────────────────── */
