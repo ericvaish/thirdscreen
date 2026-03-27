@@ -66,7 +66,8 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   const [userId, authError] = await getAuthUserId()
     if (authError) return authError
-  const body = await request.json()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any = await request.json()
 
   // Set client ID
   if (body.clientId !== undefined) {

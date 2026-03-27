@@ -34,7 +34,8 @@ export async function POST(request: Request) {
   try {
     const [userId, authError] = await getAuthUserId()
     if (authError) return authError
-    const body = await request.json()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any = await request.json()
     const id = uuidv4()
 
     await getDb().insert(todos).values({
@@ -65,7 +66,8 @@ export async function PUT(request: Request) {
   try {
     const [userId, authError] = await getAuthUserId()
     if (authError) return authError
-    const body = await request.json()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any = await request.json()
     const { id } = body
 
     if (!id) {

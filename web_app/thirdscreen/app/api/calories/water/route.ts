@@ -53,7 +53,8 @@ export async function PUT(request: Request) {
   try {
     const [userId, authError] = await getAuthUserId()
     if (authError) return authError
-    const body = await request.json()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any = await request.json()
     const { cardId, date, ml } = body
 
     if (!cardId || !date || ml === undefined) {
