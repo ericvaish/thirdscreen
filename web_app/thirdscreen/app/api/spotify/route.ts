@@ -21,7 +21,7 @@ export async function GET() {
       return NextResponse.json({ connected: false, needsClientId: true })
     }
     if (!accessToken) {
-      return NextResponse.json({ connected: false, needsClientId: false })
+      return NextResponse.json({ connected: false, needsClientId: false, clientId })
     }
 
     const playback = await getCurrentPlayback(userId)
