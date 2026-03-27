@@ -32,7 +32,7 @@ interface PlaybackState {
 type ConnectionStatus =
   | { state: "loading" }
   | { state: "needs-client-id" }
-  | { state: "needs-auth" }
+  | { state: "needs-auth"; clientId: string | null }
   | { state: "connected"; playback: PlaybackState | null; sdkReady: boolean; deviceId: string | null }
 
 // Extend window for Spotify SDK
@@ -89,6 +89,10 @@ export function MediaZone() {
   const fetchState = useCallback(async () => {
     try {
       const res = await fetch("/api/spotify")
+      if (res.status === 401) {
+        setStatus({ state: "needs-auth", clientId: null })
+        return
+      }
       if (!res.ok) {
         setStatus({ state: "needs-client-id" })
         return
@@ -98,7 +102,7 @@ export function MediaZone() {
       if (data.needsClientId) {
         setStatus({ state: "needs-client-id" })
       } else if (!data.connected) {
-        setStatus({ state: "needs-auth" })
+        setStatus({ state: "needs-auth", clientId: data.clientId ?? null })
       } else {
         setStatus((prev) => ({
           state: "connected",
@@ -260,7 +264,7 @@ export function MediaZone() {
     playerRef.current = null
     sdkLoadedRef.current = false
     await fetch("/api/spotify", { method: "DELETE" })
-    setStatus({ state: "needs-client-id" })
+    fetchState()
     toast.success("Disconnected from Spotify")
   }
 
@@ -286,7 +290,7 @@ export function MediaZone() {
   }
 
   if (status.state === "needs-auth") {
-    return <SpotifyAuth onComplete={fetchState} />
+    return <SpotifyAuth clientId={status.clientId} onComplete={fetchState} />
   }
 
   // Connected
@@ -465,14 +469,11 @@ export function MediaZone() {
 
 // ── Spotify auth (open OAuth popup) ─────────────────────────────────────────
 
-function SpotifyAuth({ onComplete }: { onComplete: () => void }) {
+function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComplete: () => void }) {
   const connect = async () => {
-    const { codeVerifier, codeChallenge } = await generatePKCE()
-
-    const settingsRes = await fetch("/api/settings")
-    const allSettings = await settingsRes.json()
-    const clientId = allSettings.spotify_client_id
     if (!clientId) return
+
+    const { codeVerifier, codeChallenge } = await generatePKCE()
 
     const origin = window.location.origin.replace("://localhost", "://127.0.0.1")
     const redirectUri = `${origin}/api/spotify/callback`
@@ -521,18 +522,26 @@ function SpotifyAuth({ onComplete }: { onComplete: () => void }) {
 
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6">
         <Music className="size-6" style={{ color: "var(--zone-media-accent)", opacity: 0.4 }} />
-        <p className="text-xs text-muted-foreground">
-          Connect your Spotify account
-        </p>
-        <Button
-          size="sm"
-          onClick={connect}
-          className="gap-1.5"
-          style={{ background: "var(--zone-media-accent)" }}
-        >
-          <Music className="size-3" />
-          Connect Spotify
-        </Button>
+        {clientId ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Connect your Spotify account
+            </p>
+            <Button
+              size="sm"
+              onClick={connect}
+              className="gap-1.5"
+              style={{ background: "var(--zone-media-accent)" }}
+            >
+              <Music className="size-3" />
+              Connect Spotify
+            </Button>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground text-center">
+            Sign in to connect Spotify
+          </p>
+        )}
       </div>
     </div>
   )
