@@ -46,7 +46,8 @@ export async function POST(request: Request) {
   try {
     const [userId, authError] = await getAuthUserId()
     if (authError) return authError
-    const body = await request.json()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any = await request.json()
     const { medicineId, timeId, date } = body
 
     if (!medicineId || !timeId || !date) {
