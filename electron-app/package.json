@@ -1,0 +1,56 @@
+{
+  "name": "thirdscreen-desktop",
+  "version": "0.1.0",
+  "description": "Third Screen - Personal Dashboard (Desktop)",
+  "main": "dist/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"tsc -w\" \"electron .\"",
+    "build": "tsc",
+    "start": "electron .",
+    "build:renderer": "cd ../web_app/thirdscreen && npm run build:export && cp -r out ../../electron-app/renderer",
+    "dist": "npm run build && npm run build:renderer && electron-builder",
+    "dist:mac": "npm run dist -- --mac",
+    "dist:win": "npm run dist -- --win",
+    "dist:linux": "npm run dist -- --linux"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "drizzle-orm": "^0.45.1",
+    "electron-updater": "^6.3.9",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/uuid": "^11.0.0",
+    "concurrently": "^9.1.2",
+    "electron": "^35.2.1",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.thirdscreen.desktop",
+    "productName": "Third Screen",
+    "files": [
+      "dist/**/*",
+      "renderer/**/*"
+    ],
+    "extraResources": [],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}
