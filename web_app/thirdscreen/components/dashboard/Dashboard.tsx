@@ -11,7 +11,7 @@ import { SettingsView } from "./SettingsView"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Settings, ArrowLeft, Grid3x3, Sun, Moon, Monitor, Maximize, Minimize } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Show, UserButton, SignInButton } from "@clerk/nextjs"
+import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
 import { getSettings, setSetting } from "@/lib/data-layer"
 
 // ── Grid layout config ──────────────────────────────────────────────────────
@@ -46,8 +46,12 @@ export function Dashboard() {
   const [layout, setLayout] = useState<GridLayout>(DEFAULT_LAYOUT)
   const [editMode, setEditMode] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
+  const { isSignedIn, isLoaded: authLoaded } = useAuth()
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -130,7 +134,7 @@ export function Dashboard() {
           <div className="flex items-center gap-1">
             {view === "dashboard" && (
               <>
-                {(() => {
+                {mounted && (() => {
                   const current = (theme ?? "system") as keyof typeof THEME_ICON
                   const ThemeIcon = THEME_ICON[current] ?? Monitor
                   const nextTheme = THEME_CYCLE[(THEME_CYCLE.indexOf(current as typeof THEME_CYCLE[number]) + 1) % THEME_CYCLE.length]
@@ -174,26 +178,27 @@ export function Dashboard() {
                 </Button>
               </>
             )}
-            <Show when="signed-in">
-              <UserButton
-                appearance={{
-                  elements: {
-                    avatarBox: "size-6",
-                  },
-                }}
-              />
-            </Show>
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Sign in
-                </Button>
-              </SignInButton>
-            </Show>
+            {mounted && authLoaded && (
+              isSignedIn ? (
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox: "size-6",
+                    },
+                  }}
+                />
+              ) : (
+                <SignInButton mode="modal">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Sign in
+                  </Button>
+                </SignInButton>
+              )
+            )}
           </div>
         </div>
       </header>

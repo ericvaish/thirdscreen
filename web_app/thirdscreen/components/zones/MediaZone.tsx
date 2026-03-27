@@ -11,7 +11,6 @@ import {
   Volume2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { extractDominantColor } from "@/lib/spotify/color"
 import { toast } from "sonner"
@@ -90,7 +89,10 @@ export function MediaZone() {
   const fetchState = useCallback(async () => {
     try {
       const res = await fetch("/api/spotify")
-      if (!res.ok) return
+      if (!res.ok) {
+        setStatus({ state: "needs-client-id" })
+        return
+      }
       const data = await res.json()
 
       if (data.needsClientId) {
@@ -273,7 +275,14 @@ export function MediaZone() {
   }
 
   if (status.state === "needs-client-id") {
-    return <SpotifySetup onComplete={fetchState} />
+    return (
+      <div className="zone-surface zone-media flex h-full flex-col items-center justify-center gap-2 px-6">
+        <Music className="size-6" style={{ color: "var(--zone-media-accent)", opacity: 0.4 }} />
+        <p className="text-xs text-muted-foreground text-center">
+          Spotify is not configured yet.
+        </p>
+      </div>
+    )
   }
 
   if (status.state === "needs-auth") {
@@ -453,76 +462,6 @@ export function MediaZone() {
   )
 }
 
-// ── Spotify setup (enter client ID) ─────────────────────────────────────────
-
-function SpotifySetup({ onComplete }: { onComplete: () => void }) {
-  const [clientId, setClientId] = useState("")
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    const id = clientId.trim()
-    if (!id) return
-    setSaving(true)
-    try {
-      await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "spotify_client_id", value: id }),
-      })
-      onComplete()
-    } catch {
-      toast.error("Failed to save")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="zone-surface zone-media flex h-full flex-col">
-      <div className="flex shrink-0 items-center px-4 py-1.5">
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-[3px] rounded-full" style={{ background: "var(--zone-media-accent)" }} />
-          <span
-            className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight"
-            style={{ color: "var(--zone-media-accent)" }}
-          >
-            Now Playing
-          </span>
-        </div>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6">
-        <Music className="size-6" style={{ color: "var(--zone-media-accent)", opacity: 0.4 }} />
-        <div className="w-full max-w-xs space-y-3 text-center">
-          <p className="text-xs text-muted-foreground">
-            Enter your Spotify Client ID to connect
-          </p>
-          <p className="text-[0.625rem] text-muted-foreground/40">
-            Create a free app at developer.spotify.com, set the redirect URI to{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.5625rem]">
-              {typeof window !== "undefined" ? `${window.location.origin.replace("://localhost", "://127.0.0.1")}/api/spotify/callback` : "http://127.0.0.1:3000/api/spotify/callback"}
-            </code>
-          </p>
-          <Input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder="Paste Client ID here"
-            className="h-8 text-center text-xs"
-            onKeyDown={(e) => e.key === "Enter" && save()}
-          />
-          <Button
-            size="sm"
-            onClick={save}
-            disabled={!clientId.trim() || saving}
-            className="w-full"
-          >
-            Save
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Spotify auth (open OAuth popup) ─────────────────────────────────────────
 
