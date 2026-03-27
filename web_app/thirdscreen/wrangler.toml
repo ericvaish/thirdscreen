@@ -1,0 +1,12 @@
+name = "thirdscreen"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+STORAGE = "d1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "thirdscreen-db"
+database_id = "c341852f-a356-4fe3-8b18-5bf0557dcbee"
+migrations_dir = "migrations"
