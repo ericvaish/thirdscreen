@@ -11,8 +11,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "build:export": "NEXT_CONFIG_FILE=next.config.export.mjs next build",
-    "build:cloudflare": "STORAGE=d1 npx @cloudflare/next-on-pages",
-    "preview:cloudflare": "npx wrangler pages dev .vercel/output/static --d1=DB"
+    "build:cloudflare": "STORAGE=d1 npx opennextjs-cloudflare",
+    "preview:cloudflare": "npx wrangler dev"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.7",

@@ -15,12 +15,11 @@ export function getDb() {
   }
 
   // In D1 mode, get the binding from Cloudflare's request context
-  // @cloudflare/next-on-pages provides getRequestContext()
   try {
-    // Dynamic import to avoid bundling issues in non-Cloudflare environments
+    // @opennextjs/cloudflare provides getCloudflareContext()
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getRequestContext } = require("@cloudflare/next-on-pages")
-    const { env } = getRequestContext()
+    const { getCloudflareContext } = require("@opennextjs/cloudflare")
+    const { env } = getCloudflareContext()
     return getD1Db(env.DB)
   } catch {
     // Fallback for build time or non-Cloudflare context
