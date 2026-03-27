@@ -1,0 +1,72 @@
+---
+import Layout from '../layouts/Layout.astro'
+---
+
+<Layout title="Privacy Policy - Third Screen">
+  <div class="min-h-screen bg-[#0a0a0a] px-6 py-20">
+    <div class="mx-auto max-w-2xl">
+      <a href="/" class="inline-flex items-center gap-2 text-sm text-white/40 hover:text-white/60 transition-colors mb-8" style="font-family:Inter,system-ui,sans-serif;">
+        &larr; Back to home
+      </a>
+
+      <h1 class="text-3xl font-bold text-white tracking-tight mb-2" style="font-family:Inter,system-ui,sans-serif;">Privacy Policy</h1>
+      <p class="text-white/40 text-sm mb-10" style="font-family:Inter,system-ui,sans-serif;">Last updated: March 27, 2026</p>
+
+      <div class="space-y-8 text-white/70 text-sm leading-relaxed" style="font-family:Inter,system-ui,sans-serif;">
+        <section>
+          <h2 class="text-white font-semibold text-lg mb-3">What Third Screen Is</h2>
+          <p>
+            Third Screen is a personal dashboard application that displays your schedule, tasks, notes, health data, and music in a single glanceable view. It is available as a web application and a desktop application.
+          </p>
+        </section>
+
+        <section>
+          <h2 class="text-white font-semibold text-lg mb-3">Data Storage</h2>
+          <p>
+            Third Screen is local-first. Your data (tasks, notes, calendar events, calorie logs, medicine schedules) is stored locally on your device by default. No account is required to use the core features.
+          </p>
+          <p class="mt-3">
+            When you choose to connect external services (Google Calendar, Spotify), authentication tokens are stored locally on your device to maintain your connection. We do not store your passwords.
+          </p>
+        </section>
+
+        <section>
+          <h2 class="text-white font-semibold text-lg mb-3">Third-Party Services</h2>
+          <p>Third Screen integrates with the following services when you choose to connect them:</p>
+          <ul class="list-disc list-inside mt-3 space-y-2">
+            <li><strong class="text-white">Google Calendar</strong> - We request read-only access to your calendar events to display them on your dashboard. We use Google's OAuth 2.0 for authentication.</li>
+            <li><strong class="text-white">Spotify</strong> - We request access to your playback state to display currently playing music and control playback. We use Spotify's OAuth with PKCE for authentication.</li>
+            <li><strong class="text-white">LRCLib</strong> - We fetch song lyrics from LRCLib (lrclib.net), an open-source lyrics database. Only the song title, artist, and album name are sent to retrieve lyrics.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 class="text-white font-semibold text-lg mb-3">Data We Do Not Collect</h2>
+          <ul class="list-disc list-inside space-y-2">
+            <li>We do not collect personal information</li>
+            <li>We do not use analytics or tracking</li>
+            <li>We do not sell or share your data with third parties</li>
+            <li>We do not serve advertisements</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 class="text-white font-semibold text-lg mb-3">Open Source</h2>
+          <p>
+            Third Screen is open source. You can inspect the complete source code at
+            <a href="https://github.com/ericvaish/thirdscreen" target="_blank" class="text-[#3b82f6] hover:underline">github.com/ericvaish/thirdscreen</a>
+            to verify exactly what the application does with your data.
+          </p>
+        </section>
+
+        <section>
+          <h2 class="text-white font-semibold text-lg mb-3">Contact</h2>
+          <p>
+            If you have questions about this privacy policy, you can reach the developer at
+            <a href="https://ericvaish.com" target="_blank" class="text-[#3b82f6] hover:underline">ericvaish.com</a>.
+          </p>
+        </section>
+      </div>
+    </div>
+  </div>
+</Layout>
