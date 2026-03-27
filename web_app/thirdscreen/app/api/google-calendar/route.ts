@@ -11,6 +11,7 @@ import { settings, calendarAccounts } from "@/db/schema"
 import { eq, and } from "drizzle-orm"
 import { GOOGLE_CLIENT_ID_KEY } from "@/lib/google-calendar/constants"
 import { getAuthUserId } from "@/lib/auth"
+import { getAdminConfig, ADMIN_KEYS } from "@/lib/admin-config"
 
 // GET /api/google-calendar
 // ?action=accounts  -> list connected accounts
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
 
   if (action === "client-id") {
     // Env var takes priority, then DB setting
-    const envClientId = process.env.GOOGLE_CLIENT_ID ?? null
+    const envClientId = getAdminConfig(ADMIN_KEYS.googleClientId)
     if (envClientId) {
       return NextResponse.json({ clientId: envClientId, adminProvided: true })
     }

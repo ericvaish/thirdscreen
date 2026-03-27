@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { getRequestContext } from "@cloudflare/next-on-pages"
 
 /**
  * Get the current user ID from Clerk.
@@ -44,7 +45,13 @@ export async function requireAuth(): Promise<
 export async function getAuthUserId(): Promise<
   [string, null] | [null, NextResponse]
 > {
-  const isMultiTenant = process.env.STORAGE === "d1"
+  let storage = process.env.STORAGE
+  try {
+    const { env } = getRequestContext()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storage = (env as any).STORAGE ?? storage
+  } catch {}
+  const isMultiTenant = storage === "d1"
 
   if (isMultiTenant) {
     return requireAuth()
