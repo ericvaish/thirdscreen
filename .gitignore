@@ -21,8 +21,14 @@ settings-window-notes.md
 xcuserdata/
 
 .env
-Info.plist
-client_*.apps.googleusercontent.com.plist
+.env.*
+!.env.example
+**/Info.plist
+**/client_*.plist
+**/client_*.apps.googleusercontent.com.plist
+**/build/
+**/releases/
+**/dist/
 
 docs
 progress.md
