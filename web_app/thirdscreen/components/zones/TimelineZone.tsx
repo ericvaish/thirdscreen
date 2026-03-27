@@ -117,11 +117,16 @@ export function TimelineZone() {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [medDoses, setMedDoses] = useState<MedDose[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [showSunArc, setShowSunArc] = useState(() => {
-    if (typeof window === "undefined") return true
-    return localStorage.getItem("timeline-sun-arc") !== "false"
-  })
-  const today = format(new Date(), "yyyy-MM-dd")
+  const [showSunArc, setShowSunArc] = useState(true)
+  const [today, setToday] = useState("")
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    setToday(format(new Date(), "yyyy-MM-dd"))
+    const stored = localStorage.getItem("timeline-sun-arc")
+    if (stored === "false") setShowSunArc(false)
+  }, [])
 
   // Hover + drag state
   const timelineRef = useRef<HTMLDivElement>(null)
@@ -163,6 +168,7 @@ export function TimelineZone() {
   }
 
   const fetchEvents = useCallback(async () => {
+    if (!today) return
     try {
       const merged: TimelineEvent[] = []
 
@@ -436,11 +442,11 @@ export function TimelineZone() {
     }
   }
 
-  const now = new Date()
-  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const now = mounted ? new Date() : null
+  const nowMinutes = now ? now.getHours() * 60 + now.getMinutes() : -1
   const nowPercent = minutesToPercent(nowMinutes)
   const showNowLine =
-    nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
+    mounted && nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
 
   // Drag selection range
   const selectionStart = dragStart !== null && dragEnd !== null ? Math.min(dragStart, dragEnd) : null
@@ -458,7 +464,7 @@ export function TimelineZone() {
             </span>
           </div>
           <span className="text-[0.625rem] text-muted-foreground/60">
-            {format(new Date(), "EEEE, MMM d")}
+            {mounted ? format(new Date(), "EEEE, MMM d") : "\u00A0"}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -599,7 +605,7 @@ export function TimelineZone() {
         onPointerLeave={handlePointerLeave}
       >
         {/* Sun arc (behind everything) */}
-        {showSunArc && (
+        {mounted && showSunArc && (
           <svg
             className="pointer-events-none absolute inset-0 z-0"
             width="100%"
