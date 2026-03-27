@@ -1,3 +1,5 @@
+export const runtime = "edge"
+
 import { NextResponse } from "next/server"
 import { getDb } from "@/lib/get-db"
 import { enabledIntegrations } from "@/db/schema"
