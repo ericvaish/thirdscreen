@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.7",
+    "@clerk/ui": "^1.2.4",
     "@cloudflare/next-on-pages": "^1.13.16",
     "@cloudflare/workers-types": "^4.20260317.1",
     "class-variance-authority": "^0.7.1",

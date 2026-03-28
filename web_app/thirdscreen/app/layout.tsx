@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google"
-import { ClerkProvider } from "@clerk/nextjs"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ClerkThemeProvider } from "@/components/clerk-theme-provider"
 import { ScaleProvider } from "@/components/scale-provider"
 import { NotificationProvider } from "@/lib/notifications"
 import { Toaster } from "@/components/ui/sonner"
@@ -48,16 +48,16 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ClerkProvider>
-          <ThemeProvider defaultTheme="dark">
+        <ThemeProvider defaultTheme="dark">
+          <ClerkThemeProvider>
             <ScaleProvider>
               <NotificationProvider>
                 {children}
               </NotificationProvider>
             </ScaleProvider>
             <Toaster position="bottom-right" />
-          </ThemeProvider>
-        </ClerkProvider>
+          </ClerkThemeProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
