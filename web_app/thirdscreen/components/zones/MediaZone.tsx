@@ -19,6 +19,7 @@ import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
 import { isLocal } from "@/lib/data-layer"
 import {
   getLocalSpotifyTokens,
+  saveLocalSpotifyTokens,
   getLocalCurrentPlayback,
   getValidLocalToken,
   localPlaybackControl,
@@ -265,8 +266,18 @@ export function MediaZone() {
   // Listen for auth callback from popup
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return
-      if (e.data?.type === "spotify-auth" && e.data.success) {
+      if (e.data?.type !== "spotify-auth") return
+
+      // Local mode: popup sends tokens back for us to save
+      if (isLocal && e.data.success && e.data.tokens) {
+        saveLocalSpotifyTokens(e.data.tokens)
+        toast.success("Connected to Spotify")
+        fetchState()
+        return
+      }
+
+      // Server mode: just refetch state
+      if (e.data.success) {
         toast.success("Connected to Spotify")
         fetchState()
       }
@@ -532,11 +543,13 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
 
     const { codeVerifier, codeChallenge } = await generatePKCE()
 
-    const origin = window.location.origin.replace("://localhost", "://127.0.0.1")
+    const openerOrigin = window.location.origin
+    const redirectOrigin = openerOrigin.replace("://localhost", "://127.0.0.1")
     const callbackPath = isLocal ? "/spotify-callback" : "/api/spotify/callback"
-    const redirectUri = `${origin}${callbackPath}`
+    const redirectUri = `${redirectOrigin}${callbackPath}`
 
-    const state = btoa(JSON.stringify({ v: codeVerifier, r: redirectUri }))
+    // Include opener origin so the callback page can postMessage back correctly
+    const state = btoa(JSON.stringify({ v: codeVerifier, r: redirectUri, o: openerOrigin }))
 
     const params = new URLSearchParams({
       client_id: clientId,
