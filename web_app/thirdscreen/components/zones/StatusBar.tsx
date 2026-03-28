@@ -37,18 +37,21 @@ import {
   type NotificationType,
 } from "@/lib/notifications"
 import { useGoogleNotifications } from "@/lib/google-services/use-google-notifications"
+import { GOOGLE_AUTH_URL, GMAIL_SCOPES, CHAT_SCOPES } from "@/lib/google-services/constants"
+import { generatePKCE } from "@/lib/spotify/pkce"
 
 // ── Shared geolocation (used by weather + AQI) ──────────────────────────────
 
-let geoCache: { latitude: number; longitude: number; city: string } | null = null
-let geoPromise: Promise<typeof geoCache> | null = null
+type GeoData = { latitude: number; longitude: number; city: string }
 
-function getGeo(): Promise<typeof geoCache> {
+let geoCache: GeoData | null = null
+let geoPromise: Promise<GeoData | null> | null = null
+
+function getGeo(): Promise<GeoData | null> {
   if (geoCache) return Promise.resolve(geoCache)
   if (geoPromise) return geoPromise
-  geoPromise = (async () => {
+  geoPromise = (async (): Promise<GeoData | null> => {
     try {
-      // Try browser Geolocation API first
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
       })
@@ -59,11 +62,10 @@ function getGeo(): Promise<typeof geoCache> {
       }
       return geoCache
     } catch {
-      // Fallback to IP geolocation
       try {
         const res = await fetch("https://ipapi.co/json/")
         if (!res.ok) return null
-        const data = await res.json()
+        const data: { latitude: number; longitude: number; city?: string } = await res.json()
         geoCache = { latitude: data.latitude, longitude: data.longitude, city: data.city ?? "" }
         return geoCache
       } catch {
@@ -194,7 +196,7 @@ function WeatherWidget() {
           `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&temperature_unit=celsius`
         )
         if (!weatherRes.ok) return
-        const data = await weatherRes.json()
+        const data: { current: { temperature_2m: number; apparent_temperature: number; weather_code: number; relative_humidity_2m: number; wind_speed_10m: number } } = await weatherRes.json()
         const c = data.current
 
         if (!cancelled) {
@@ -321,7 +323,7 @@ function AirQualityWidget() {
           `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=us_aqi,pm2_5,pm10`
         )
         if (!res.ok) return
-        const data = await res.json()
+        const data: { current: { us_aqi: number; pm2_5: number; pm10: number } } = await res.json()
         const c = data.current
 
         if (!cancelled) {
@@ -501,20 +503,107 @@ function PomodoroWidget() {
   )
 }
 
+// ── Connect service button (used in notification popover) ───────────────────
+
+function ConnectServiceButton({ service, label, icon, scopes }: {
+  service: "gmail" | "chat"
+  label: string
+  icon: React.ReactNode
+  scopes: string
+}) {
+  const [clientId, setClientId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/google-services?action=client-id")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        const data = d as { clientId?: string } | null
+        if (data?.clientId) setClientId(data.clientId)
+      })
+      .catch(() => {})
+  }, [])
+
+  const connect = async () => {
+    if (!clientId) return
+    const { codeVerifier, codeChallenge } = await generatePKCE()
+    const redirectUri = `${window.location.origin}/api/google-services/callback`
+    const state = btoa(JSON.stringify({ v: codeVerifier, r: redirectUri, s: service }))
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: scopes,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+      state,
+      access_type: "offline",
+      prompt: "consent",
+    })
+
+    window.open(
+      `${GOOGLE_AUTH_URL}?${params}`,
+      `google-${service}-auth`,
+      "width=500,height=700,left=200,top=100"
+    )
+  }
+
+  return (
+    <button
+      onClick={connect}
+      disabled={!clientId}
+      className="flex w-full items-center gap-2 rounded-lg border border-border/20 px-3 py-2 text-xs transition-colors hover:border-border/30 hover:bg-muted/20 active:scale-[0.98] disabled:opacity-40"
+    >
+      {icon}
+      <span className="text-foreground/80">{label}</span>
+      <span className="ml-auto font-mono text-xs text-primary">Connect</span>
+    </button>
+  )
+}
+
 // ── Notification Ticker ─────────────────────────────────────────────────────
 
 function NotificationTicker() {
   const { notifications, dismiss, activeCount } = useNotifications()
-  const unread = useGoogleNotifications()
+  const { unread, hasGmail, hasChat } = useGoogleNotifications()
   const active = notifications.filter((n) => !n.dismissed)
 
   const hasUnread = unread.gmail > 0 || unread.chat > 0
   const hasActive = active.length > 0
-
-  if (!hasActive && !hasUnread) return null
+  const needsConnect = !hasGmail || !hasChat
 
   return (
     <div className="flex items-center gap-2 overflow-hidden">
+      {/* Connect prompt for unlinked accounts */}
+      {needsConnect && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="flex items-center gap-1.5 rounded-full border border-border/20 bg-muted/10 px-2.5 py-1 text-xs text-muted-foreground/50 transition-colors hover:border-border/30 hover:bg-muted/20 hover:text-muted-foreground">
+              <Bell className="size-3" />
+              <span>Connect</span>
+              {!hasGmail && <Mail className="size-2.5 text-violet-400/50" />}
+              {!hasChat && <MessageSquare className="size-2.5 text-cyan-400/50" />}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-56">
+            <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Notifications
+            </p>
+            <p className="mb-3 text-xs text-muted-foreground/60">
+              Connect your accounts to receive notifications for new emails and messages.
+            </p>
+            <div className="space-y-1.5">
+              {!hasGmail && (
+                <ConnectServiceButton service="gmail" label="Gmail" icon={<Mail className="size-3 text-violet-400" />} scopes={GMAIL_SCOPES} />
+              )}
+              {!hasChat && (
+                <ConnectServiceButton service="chat" label="Google Chat" icon={<MessageSquare className="size-3 text-cyan-400" />} scopes={CHAT_SCOPES} />
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+
       {/* Unread count badges */}
       {hasUnread && (
         <div className="flex items-center gap-1.5">

@@ -106,7 +106,7 @@ export function VitalsZone() {
   const [today, setToday] = useState("")
 
   const [foodItems, setFoodItems] = useState<FoodItem[]>([])
-  const [calorieGoal] = useState(DEFAULT_CALORIE_GOAL)
+  const [calorieGoal, setCalorieGoal] = useState(DEFAULT_CALORIE_GOAL)
   const [waterMl, setWaterMl] = useState(0)
   const [waterUnit, setWaterUnit] = useState<"cups" | "ml">("cups")
   const [waterGoalMl, setWaterGoalMl] = useState(DEFAULT_WATER_GOAL)
@@ -154,6 +154,8 @@ export function VitalsZone() {
     if (storedUnit === "ml" || storedUnit === "cups") setWaterUnit(storedUnit)
     const storedGoal = localStorage.getItem("water-goal-ml")
     if (storedGoal) setWaterGoalMl(Number(storedGoal))
+    const storedCalGoal = localStorage.getItem("calorie-goal")
+    if (storedCalGoal) setCalorieGoal(Number(storedCalGoal))
   }, [])
 
   useEffect(() => {
@@ -187,6 +189,17 @@ export function VitalsZone() {
     } catch (err) {
       console.error("Failed to log food:", err)
       toast.error("Failed to log food")
+    }
+  }
+
+  const removeLastFood = async () => {
+    if (foodItems.length === 0) return
+    const last = foodItems[foodItems.length - 1]
+    try {
+      await deleteFoodItem(last.id)
+      fetchCalories()
+    } catch {
+      toast.error("Failed to remove food item")
     }
   }
 
@@ -253,10 +266,10 @@ export function VitalsZone() {
 
   return (
     <div className="zone-surface zone-vitals flex h-full flex-col">
-      <div className={`shrink-0 px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-center gap-2">
+      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
+        <div className="flex items-center gap-1.5">
           <ZoneDragHandle />
-          <div className="h-4 w-[3px] rounded-full" style={{ background: "var(--zone-vitals-accent)" }} />
+          <div className="h-5 w-[3px] rounded-full" style={{ background: "var(--zone-vitals-accent)" }} />
           <span className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight" style={{ color: "var(--zone-vitals-accent)" }}>
             Vitals
           </span>
@@ -264,35 +277,137 @@ export function VitalsZone() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* Calories meter */}
-        <Meter
-          value={Math.round(totalCalories)}
-          max={calorieGoal}
-          color="var(--vital-calories)"
-          label="Calories"
-          unit="cal"
-          icon={<Flame className="size-3.5" />}
-        >
-          <form onSubmit={addFood} className="grid gap-2">
-            <Input name="name" placeholder="Food name" className="h-8 text-xs" />
-            <div className="flex gap-2">
-              <Input name="calories" type="number" placeholder="kcal" className="h-8 text-xs" />
-              <Button type="submit" size="sm" className="h-8 shrink-0">
-                <Plus className="size-3" />
-              </Button>
+        {/* Calories - inline +/- buttons with settings popover */}
+        <div className="w-full rounded-lg px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--vital-calories)" }} className="opacity-80">
+                <Flame className="size-3.5" />
+              </span>
+              <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Calories
+              </span>
+              <div className="flex items-baseline gap-1 ml-1">
+                <span
+                  className="font-[family-name:var(--font-display)] text-lg font-bold tabular-nums"
+                  style={{ color: "var(--vital-calories)" }}
+                >
+                  {Math.round(totalCalories).toLocaleString()}
+                </span>
+                <span className="text-xs text-muted-foreground/50">
+                  / {calorieGoal.toLocaleString()} cal
+                </span>
+              </div>
             </div>
-          </form>
-          {foodItems.length > 0 && (
-            <div className="mt-2 max-h-32 space-y-1 overflow-auto">
-              {foodItems.map((f) => (
-                <div key={f.id} className="flex items-center justify-between text-xs">
-                  <span className="truncate text-muted-foreground">{f.name}</span>
-                  <span className="shrink-0 font-mono text-foreground">{f.calories}</span>
-                </div>
-              ))}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={removeLastFood}
+                disabled={foodItems.length === 0}
+                className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <Minus className="size-3.5" />
+              </button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
+                    <Plus className="size-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="left" className="w-60">
+                  <p className="mb-3 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-calories)" }}>
+                    Log Food
+                  </p>
+                  <form onSubmit={addFood} className="grid gap-2">
+                    <Input name="name" placeholder="Food name" className="h-9 text-xs" />
+                    <div className="flex gap-2">
+                      <Input name="calories" type="number" placeholder="kcal" className="h-9 text-xs" />
+                      <Button type="submit" size="sm" className="h-9 shrink-0">
+                        <Plus className="size-3" />
+                      </Button>
+                    </div>
+                  </form>
+                  {foodItems.length > 0 && (
+                    <div className="mt-3 max-h-32 space-y-1 overflow-auto border-t border-border/10 pt-2">
+                      {foodItems.map((f) => (
+                        <div key={f.id} className="group flex items-center justify-between text-xs">
+                          <span className="truncate text-muted-foreground">{f.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="shrink-0 font-mono text-foreground">{f.calories}</span>
+                            <button
+                              onClick={() => { deleteFoodItem(f.id).then(() => fetchCalories()) }}
+                              className="hover-reveal text-muted-foreground/30 hover:text-destructive"
+                            >
+                              <Trash2 className="size-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
+                    <Settings className="size-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="left" className="w-56">
+                  <p className="mb-3 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-calories)" }}>
+                    Calorie Settings
+                  </p>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Daily goal (cal)</Label>
+                    <div className="mt-1 flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          const val = Math.max(50, calorieGoal - 50)
+                          setCalorieGoal(val)
+                          localStorage.setItem("calorie-goal", String(val))
+                        }}
+                        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                      >
+                        <Minus className="size-3.5" />
+                      </button>
+                      <Input
+                        type="number"
+                        className="text-center"
+                        value={calorieGoal}
+                        onChange={(e) => {
+                          const val = Number(e.target.value)
+                          if (isNaN(val) || val <= 0) return
+                          setCalorieGoal(val)
+                          localStorage.setItem("calorie-goal", String(val))
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          const val = calorieGoal + 50
+                          setCalorieGoal(val)
+                          localStorage.setItem("calorie-goal", String(val))
+                        }}
+                        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
-          )}
-        </Meter>
+          </div>
+          {/* Progress bar */}
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border/30">
+            <div
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{
+                width: `${Math.min((totalCalories / Math.max(calorieGoal, 1)) * 100, 100)}%`,
+                background: "var(--vital-calories)",
+                boxShadow: "0 0 8px var(--vital-calories)",
+              }}
+            />
+          </div>
+        </div>
 
         {/* Water - inline +/- buttons with settings popover */}
         <div className="w-full rounded-lg px-3 py-2">
