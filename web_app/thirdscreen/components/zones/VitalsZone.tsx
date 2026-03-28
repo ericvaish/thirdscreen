@@ -98,13 +98,14 @@ const CARD_ID_CALORIES = "calories-1"
 const CARD_ID_MEDICINES = "medicines-1"
 
 export function VitalsZone() {
-  const today = format(new Date(), "yyyy-MM-dd")
+  const [today, setToday] = useState("")
 
   const [foodItems, setFoodItems] = useState<FoodItem[]>([])
   const [calorieGoal] = useState(DEFAULT_CALORIE_GOAL)
   const [waterMl, setWaterMl] = useState(0)
   const [medicines, setMedicines] = useState<MedicineItem[]>([])
   const [doseLogs, setDoseLogs] = useState<Map<string, Set<string>>>(new Map())
+  const [dayOfWeek, setDayOfWeek] = useState(-1)
 
   const fetchCalories = useCallback(async () => {
     try {
@@ -139,15 +140,20 @@ export function VitalsZone() {
   }, [today])
 
   useEffect(() => {
+    setToday(format(new Date(), "yyyy-MM-dd"))
+    setDayOfWeek(new Date().getDay())
+  }, [])
+
+  useEffect(() => {
+    if (!today) return
     fetchCalories()
     fetchWater()
     fetchMedicines()
-  }, [fetchCalories, fetchWater, fetchMedicines])
+  }, [today, fetchCalories, fetchWater, fetchMedicines])
 
   const totalCalories = foodItems.reduce((sum, f) => sum + f.calories, 0)
   const waterCups = Math.round(waterMl / 250)
   const waterGoalCups = Math.round(DEFAULT_WATER_GOAL / 250)
-  const dayOfWeek = new Date().getDay()
   const todayMeds = medicines.filter((m) => m.activeDays.includes(dayOfWeek))
 
   const addFood = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -383,7 +389,7 @@ function AddMedicineDialog({
   const [name, setName] = useState("")
   const [dosage, setDosage] = useState("")
   const [times, setTimes] = useState<{ hour: number; minute: number; id: string }[]>([
-    { hour: 8, minute: 0, id: crypto.randomUUID() },
+    { hour: 8, minute: 0, id: "default-time-0" },
   ])
 
   const addTime = () => {

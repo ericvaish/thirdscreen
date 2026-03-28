@@ -37,3 +37,4 @@ docs/glass-segmented-picker.md
 CLAUDE.md
 bun.lock
 *.db
+.wrangler/

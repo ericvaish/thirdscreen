@@ -215,10 +215,7 @@ export function TimelineZone() {
   const [showSunArc, setShowSunArc] = useState(true)
   const [today, setToday] = useState("")
   const [mounted, setMounted] = useState(false)
-  const [nowMinutes, setNowMinutes] = useState(() => {
-    const n = new Date()
-    return n.getHours() * 60 + n.getMinutes()
-  })
+  const [nowMinutes, setNowMinutes] = useState(720) // noon as SSR-safe default
 
   // Derived window bounds: current time is always centered
   const windowStart = nowMinutes - WINDOW_MINUTES / 2
@@ -226,16 +223,17 @@ export function TimelineZone() {
 
   useEffect(() => {
     setMounted(true)
-    setToday(format(new Date(), "yyyy-MM-dd"))
+    const n = new Date()
+    setNowMinutes(n.getHours() * 60 + n.getMinutes())
+    setToday(format(n, "yyyy-MM-dd"))
     const stored = localStorage.getItem("timeline-sun-arc")
     if (stored === "false") setShowSunArc(false)
 
     // Update current time every 30 seconds so timeline stays centered
     const interval = setInterval(() => {
-      const n = new Date()
-      setNowMinutes(n.getHours() * 60 + n.getMinutes())
-      // Also update today if it changed (past midnight)
-      setToday(format(n, "yyyy-MM-dd"))
+      const now = new Date()
+      setNowMinutes(now.getHours() * 60 + now.getMinutes())
+      setToday(format(now, "yyyy-MM-dd"))
     }, 30_000)
     return () => clearInterval(interval)
   }, [])
