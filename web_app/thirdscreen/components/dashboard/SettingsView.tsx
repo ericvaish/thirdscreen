@@ -114,12 +114,12 @@ export function SettingsView() {
           Adjust for viewing distance. Use "TV / Far" or "Kiosk" for
           across-the-room dashboards.
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 grid grid-cols-5 gap-2">
           {presets.map(({ label, value }) => (
             <button
               key={value}
               onClick={() => setScale(value)}
-              className={`flex flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-xs transition-all ${
+              className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs transition-all ${
                 scale === value
                   ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
                   : "border-border text-muted-foreground hover:bg-muted/30"
@@ -195,16 +195,24 @@ export function SettingsView() {
                               built-in
                             </Badge>
                           )}
+                          {!def.builtIn && !def.implemented && (
+                            <Badge
+                              variant="outline"
+                              className="border-border/30 px-1.5 py-0 font-mono text-xs uppercase text-muted-foreground/50"
+                            >
+                              coming soon
+                            </Badge>
+                          )}
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {def.description}
                         </p>
                       </div>
                       <Switch
-                        size="sm"
+
                         checked={enabled}
                         onCheckedChange={(checked) => toggle(def.id, checked)}
-                        disabled={!def.builtIn && !enabled}
+                        disabled={!def.builtIn && !def.implemented}
                       />
                     </div>
                   )

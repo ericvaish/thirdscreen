@@ -159,5 +159,5 @@ export function useGoogleNotifications() {
     return () => clearInterval(interval)
   }, [pollGmail, pollChat, hasGmail, hasChat])
 
-  return unread
+  return { unread, hasGmail, hasChat }
 }

@@ -233,14 +233,20 @@ function ClockDisplay({
   // Count how many secondary lines are shown to budget vertical space
   const secondaryLines = (settings.showDate ? 1 : 0) + (settings.showNextEvent || settings.showWeather ? 1 : 0)
   const isFill = settings.fit === "fill"
-  // "Fill" mode: time digits should nearly touch the edges.
-  // The time string "12:00" is roughly 4.2 characters wide in the display font.
-  // With AM/PM and seconds sidebar, total width is ~5.2 char-widths.
-  // Font size = container width / ~5.2 to fill horizontally.
-  const charWidths = settings.format === "12h" ? 5.5 : 5.0 // 12h has AM/PM sidebar
-  const sizeFromWidth = effectiveW / (isFill ? charWidths : charWidths * 1.3)
-  const verticalBudget = isFill ? 0.65 - secondaryLines * 0.08 : 0.45 - secondaryLines * 0.06
-  const sizeFromHeight = effectiveH * Math.max(0.3, verticalBudget)
+  // Space Grotesk "1:00" measures ~3.2 char-widths. "12:00" ~4.0.
+  // The AM/PM + seconds sidebar adds ~1.2 char-widths. Total ~4.5-5.2.
+  // In fill mode we use the tight estimate so digits nearly touch edges.
+  const hasAmPm = settings.format === "12h"
+  const hasSidebar = hasAmPm || settings.showSeconds
+  // Space Grotesk digit width is ~0.6em. "2:28" = 4 chars * 0.6 + colon 0.3 = 2.7em.
+  // AM/PM sidebar is rendered at 0.22em font size, so ~0.5em wide.
+  // Total: ~3.2em for time + sidebar. Use this to compute max font size from width.
+  const timeEm = 2.7 + (hasSidebar ? 0.6 : 0)
+  const sizeFromWidth = effectiveW / (isFill ? timeEm : timeEm * 1.3)
+  // lineHeight is ~1.0 for the time, so the font size IS the height of the digits.
+  // Budget: almost all vertical space for time, minus secondary lines.
+  const verticalBudget = isFill ? 0.92 - secondaryLines * 0.15 : 0.60 - secondaryLines * 0.10
+  const sizeFromHeight = effectiveH * Math.max(0.4, verticalBudget)
   const fontSize = Math.max(24, Math.min(sizeFromWidth, sizeFromHeight))
   const secondarySize = Math.max(12, fontSize * settings.dateSizeRatio)
   const ampmSize = Math.max(14, fontSize * 0.22)
@@ -564,6 +570,7 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
 export function ClockZone() {
   const { editMode, layout, onLayoutChange } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ w: 400, h: 300 })
   const [time, setTime] = useState<Date | null>(null)
   const [weather, setWeather] = useState<{ temp: number } | null>(null)
@@ -587,9 +594,9 @@ export function ClockZone() {
     return () => clearInterval(id)
   }, [])
 
-  // Track container size
+  // Track content area size (excludes header)
   useEffect(() => {
-    const el = containerRef.current
+    const el = contentRef.current
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
@@ -631,11 +638,23 @@ export function ClockZone() {
   return (
     <div
       ref={containerRef}
-      className="zone-surface zone-clock flex h-full flex-col items-center justify-center"
+      className="zone-surface zone-clock flex h-full flex-col"
     >
-      {/* Header: drag handle + settings */}
-      <div className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-3 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <ZoneDragHandle />
+      {/* Header: title on left, settings on right */}
+      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
+        <div className="flex items-center gap-1.5">
+          <ZoneDragHandle />
+          <div
+            className="h-5 w-[3px] rounded-full"
+            style={{ background: "var(--zone-clock-accent)" }}
+          />
+          <span
+            className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight"
+            style={{ color: "var(--zone-clock-accent)" }}
+          >
+            Clock
+          </span>
+        </div>
         <Dialog>
           <DialogTrigger asChild>
             <button
@@ -665,14 +684,16 @@ export function ClockZone() {
         </Dialog>
       </div>
 
-      <ClockDisplay
-        time={time}
-        settings={settings}
-        containerWidth={containerSize.w}
-        containerHeight={containerSize.h}
-        nextEvent={nextEvent}
-        weather={weather}
-      />
+      <div ref={contentRef} className="flex min-h-0 flex-1 items-center justify-center">
+        <ClockDisplay
+          time={time}
+          settings={settings}
+          containerWidth={containerSize.w}
+          containerHeight={containerSize.h}
+          nextEvent={nextEvent}
+          weather={weather}
+        />
+      </div>
     </div>
   )
 }

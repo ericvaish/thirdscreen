@@ -40,6 +40,7 @@ import {
   Check,
   X,
   User,
+  MoreHorizontal,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -956,6 +957,161 @@ function EventListPanel({
   )
 }
 
+// ── Shared sub-components for progressive header collapse ───────────────────
+
+function ViewModeDropdown({
+  viewMode,
+  onViewChange,
+  showSunArc,
+  onToggleSunArc,
+}: {
+  viewMode: ViewMode
+  onViewChange: (mode: ViewMode) => void
+  showSunArc: boolean
+  onToggleSunArc: () => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 font-mono text-xs font-bold uppercase tracking-wider text-[var(--zone-timeline-accent)] transition-colors hover:border-border/40 hover:bg-muted/30 active:scale-95"
+          title="View options"
+        >
+          {viewMode === "day" ? "D" : viewMode === "week" ? "W" : "M"}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end" className="w-44 p-1">
+        <p className="px-2 py-1 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/40">
+          View
+        </p>
+        {(["day", "week", "month"] as ViewMode[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => onViewChange(mode)}
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+              viewMode === mode
+                ? "bg-[var(--zone-timeline-accent)]/15 text-[var(--zone-timeline-accent)]"
+                : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+            }`}
+          >
+            <span className="font-mono font-bold uppercase tracking-wider">
+              {mode === "day" ? "D" : mode === "week" ? "W" : "M"}
+            </span>
+            {mode === "day" ? "Day" : mode === "week" ? "Week" : "Month"}
+          </button>
+        ))}
+        {viewMode === "day" && (
+          <>
+            <div className="my-1 h-px bg-border/20" />
+            <button
+              onClick={onToggleSunArc}
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                showSunArc
+                  ? "text-amber-400"
+                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+              }`}
+            >
+              <Sun className="size-3.5" />
+              Daylight Arc
+              {showSunArc && <span className="ml-auto text-amber-400">On</span>}
+            </button>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function CalendarAccountsContent({
+  isSignedIn,
+  calendarAccounts,
+  googleClientId,
+  addGoogleAccount,
+  removeCalendarAccount,
+}: {
+  isSignedIn: boolean
+  calendarAccounts: { id: string; email: string; color?: string | null }[]
+  googleClientId: string | null
+  addGoogleAccount: () => void
+  removeCalendarAccount: (id: string) => void
+}) {
+  return (
+    <>
+      <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Connected Calendars
+      </p>
+      {isSignedIn ? (
+        <>
+          {calendarAccounts.length > 0 ? (
+            <div className="mb-3 space-y-1">
+              {calendarAccounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  className="group flex min-h-11 items-center gap-2 rounded px-2 hover:bg-muted/30"
+                >
+                  <div
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: acc.color ?? "#3b82f6" }}
+                  />
+                  <Mail className="size-3 shrink-0 text-muted-foreground/40" />
+                  <span className="min-w-0 flex-1 truncate text-xs">{acc.email}</span>
+                  <button
+                    onClick={() => removeCalendarAccount(acc.id)}
+                    className="flex size-11 shrink-0 items-center justify-center"
+                  >
+                    <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mb-3 text-xs text-muted-foreground/40">
+              No calendars connected yet
+            </p>
+          )}
+          {googleClientId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addGoogleAccount}
+              className="w-full text-xs"
+            >
+              <Plus className="size-3" />
+              Add Google Account
+            </Button>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="mb-3 text-xs text-muted-foreground/50">
+            Connect your calendars to see events from Google, Outlook, and more on your schedule.
+          </p>
+          <div className="mb-3 space-y-1.5">
+            <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground/40">
+              <div className="size-2 rounded-full bg-blue-500/40" />
+              Google Calendar
+            </div>
+            <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground/40">
+              <div className="size-2 rounded-full bg-sky-500/40" />
+              Outlook Calendar
+            </div>
+            <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground/40">
+              <div className="size-2 rounded-full bg-rose-500/40" />
+              Apple Calendar
+            </div>
+          </div>
+          <SignInButton mode="modal">
+            <Button variant="outline" size="sm" className="w-full text-xs">
+              <LogIn className="size-3" />
+              Sign in to connect
+            </Button>
+          </SignInButton>
+        </>
+      )}
+    </>
+  )
+}
+
 export function TimelineZone() {
   const { editMode } = useDashboard()
   const { isSignedIn } = useAuth()
@@ -984,25 +1140,37 @@ export function TimelineZone() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  // Overlap detection: collapse sun-arc toggle + D/W/M into one dropdown
-  const [headerCompact, setHeaderCompact] = useState(false)
+  // Progressive header collapse based on actual element overlap
+  // Level 0: all buttons visible (wide)
+  // Level 1: sun arc + D/W/M merged into one dropdown
+  // Level 2: also merge calendar accounts + add event into overflow
+  // Level 3: everything in a single overflow menu (smallest)
+  const [compactLevel, setCompactLevel] = useState(0)
   const centerNavRef = useRef<HTMLDivElement>(null)
   const rightActionsRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLDivElement>(null)
 
+  // Check if center nav content is wider than its flex container (being squeezed)
+  useEffect(() => {
+    const center = centerNavRef.current
+    if (!center) return
+    const raf = requestAnimationFrame(() => {
+      if (center.scrollWidth > center.clientWidth + 2) {
+        setCompactLevel((prev) => Math.min(prev + 1, 3))
+      }
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [compactLevel])
+
+  // On zone resize, reset to 0 so the cascade re-evaluates
   useEffect(() => {
     const zone = zoneRef.current
     if (!zone) return
-    const check = () => {
-      const center = centerNavRef.current
-      const right = rightActionsRef.current
-      if (!center || !right) return
-      const centerRect = center.getBoundingClientRect()
-      const rightRect = right.getBoundingClientRect()
-      // Compact when center nav's right edge is within 8px of the right actions' left edge
-      setHeaderCompact(centerRect.right + 8 > rightRect.left)
-    }
-    check()
-    const ro = new ResizeObserver(check)
+    let firstRun = true
+    const ro = new ResizeObserver(() => {
+      if (firstRun) { firstRun = false; return }
+      setCompactLevel(0)
+    })
     ro.observe(zone)
     return () => ro.disconnect()
   }, [])
@@ -1627,9 +1795,9 @@ export function TimelineZone() {
   return (
     <div ref={zoneRef} className="zone-surface zone-timeline flex h-full flex-col">
       {/* Header */}
-      <div className={`relative flex shrink-0 items-center justify-between px-3 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
+      <div className={`flex shrink-0 items-center gap-1 px-3 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         {/* Left: title */}
-        <div className="z-10 flex shrink-0 items-center gap-1.5">
+        <div ref={titleRef} className="flex shrink-0 items-center gap-1.5">
           <ZoneDragHandle />
           <div
             className="h-5 w-[3px] rounded-full"
@@ -1643,12 +1811,12 @@ export function TimelineZone() {
           </span>
         </div>
 
-        {/* Center: date navigation - absolutely centered on card */}
-        <div className="absolute inset-x-0 flex items-center justify-center">
-          <div ref={centerNavRef} className="relative flex items-center gap-1">
+        {/* Center: date navigation - flexes to fill available space */}
+        <div ref={centerNavRef} className="flex min-w-0 flex-1 items-center justify-center overflow-hidden">
+          <div className="flex items-center gap-1">
             <button
               onClick={goBack}
-              className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -1656,7 +1824,7 @@ export function TimelineZone() {
             {/* Date label / calendar picker */}
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
-                <button className="flex h-11 min-w-[11rem] items-center justify-center gap-1.5 rounded-lg border border-border/25 bg-muted/15 px-3 text-xs font-semibold text-foreground/80 transition-colors hover:border-border/40 hover:bg-muted/30">
+                <button className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border/25 bg-muted/15 px-3 text-xs font-semibold whitespace-nowrap text-foreground/80 transition-colors hover:border-border/40 hover:bg-muted/30">
                   <CalendarDays className="size-3.5 shrink-0 text-muted-foreground/50" />
                   {headerDateLabel}
                 </button>
@@ -1682,16 +1850,15 @@ export function TimelineZone() {
 
             <button
               onClick={goForward}
-              className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
             >
               <ChevronRight className="size-4" />
             </button>
 
-            {/* Today button - absolutely positioned so it doesn't shift the centered nav */}
             {showTodayButton && (
               <button
                 onClick={goToToday}
-                className="absolute left-[calc(100%+0.5rem)] top-1/2 -translate-y-1/2 h-11 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 font-mono text-xs font-bold uppercase tracking-wider text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95 whitespace-nowrap"
+                className="h-11 shrink-0 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 font-mono text-xs font-bold uppercase tracking-wider whitespace-nowrap text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95"
               >
                 Today
               </button>
@@ -1699,10 +1866,10 @@ export function TimelineZone() {
           </div>
         </div>
 
-        {/* Right: view mode switcher + actions */}
-        <div ref={rightActionsRef} className="z-10 flex items-center gap-1">
-          {/* Expanded: separate sun arc toggle + D/W/M tabs */}
-          {!headerCompact && (
+        {/* Right: view mode switcher + actions (progressively collapsed) */}
+        <div ref={rightActionsRef} className="flex shrink-0 items-center gap-1">
+          {/* Level 0 (wide): all buttons visible separately */}
+          {compactLevel === 0 && (
             <>
               {viewMode === "day" && (
                 <button
@@ -1732,21 +1899,133 @@ export function TimelineZone() {
                   </button>
                 ))}
               </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    title="Connect calendars"
+                  >
+                    <CalendarCog className="size-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className="w-64">
+                  <CalendarAccountsContent
+                    isSignedIn={!!isSignedIn}
+                    calendarAccounts={calendarAccounts}
+                    googleClientId={googleClientId}
+                    addGoogleAccount={addGoogleAccount}
+                    removeCalendarAccount={removeCalendarAccount}
+                  />
+                </PopoverContent>
+              </Popover>
+              <button
+                onClick={() => handleDialogChange(true)}
+                className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                title="Add event"
+              >
+                <Plus className="size-4" />
+              </button>
             </>
           )}
 
-          {/* Compact: single dropdown combining view mode + sun arc */}
-          {headerCompact && (
+          {/* Level 1 (medium): sun arc + D/W/M merged into one dropdown */}
+          {compactLevel === 1 && (
+            <>
+              <ViewModeDropdown
+                viewMode={viewMode}
+                onViewChange={handleViewChange}
+                showSunArc={showSunArc}
+                onToggleSunArc={toggleSunArc}
+              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    title="Connect calendars"
+                  >
+                    <CalendarCog className="size-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className="w-64">
+                  <CalendarAccountsContent
+                    isSignedIn={!!isSignedIn}
+                    calendarAccounts={calendarAccounts}
+                    googleClientId={googleClientId}
+                    addGoogleAccount={addGoogleAccount}
+                    removeCalendarAccount={removeCalendarAccount}
+                  />
+                </PopoverContent>
+              </Popover>
+              <button
+                onClick={() => handleDialogChange(true)}
+                className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                title="Add event"
+              >
+                <Plus className="size-4" />
+              </button>
+            </>
+          )}
+
+          {/* Level 2 (narrow): D/W/M dropdown + overflow menu for calendar & add */}
+          {compactLevel === 2 && (
+            <>
+              <ViewModeDropdown
+                viewMode={viewMode}
+                onViewChange={handleViewChange}
+                showSunArc={showSunArc}
+                onToggleSunArc={toggleSunArc}
+              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    title="More actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className="w-56 p-1">
+                  <button
+                    onClick={() => handleDialogChange(true)}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+                  >
+                    <Plus className="size-3.5" />
+                    Add Event
+                  </button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground">
+                        <CalendarCog className="size-3.5" />
+                        Connected Calendars
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="left" align="start" className="w-64">
+                      <CalendarAccountsContent
+                        isSignedIn={!!isSignedIn}
+                        calendarAccounts={calendarAccounts}
+                        googleClientId={googleClientId}
+                        addGoogleAccount={addGoogleAccount}
+                        removeCalendarAccount={removeCalendarAccount}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
+
+          {/* Level 3 (smallest): single overflow menu with everything */}
+          {compactLevel >= 3 && (
             <Popover>
               <PopoverTrigger asChild>
                 <button
-                  className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 font-mono text-xs font-bold uppercase tracking-wider text-[var(--zone-timeline-accent)] transition-colors hover:border-border/40 hover:bg-muted/30 active:scale-95"
-                  title="View options"
+                  className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                  title="Schedule options"
                 >
-                  {viewMode === "day" ? "D" : viewMode === "week" ? "W" : "M"}
+                  <MoreHorizontal className="size-4" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="end" className="w-44 p-1">
+              <PopoverContent side="bottom" align="end" className="w-56 p-1">
                 <p className="px-2 py-1 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/40">
                   View
                 </p>
@@ -1783,114 +2062,37 @@ export function TimelineZone() {
                     </button>
                   </>
                 )}
+                <div className="my-1 h-px bg-border/20" />
+                <button
+                  onClick={() => handleDialogChange(true)}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+                >
+                  <Plus className="size-3.5" />
+                  Add Event
+                </button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground">
+                      <CalendarCog className="size-3.5" />
+                      Connected Calendars
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent side="left" align="start" className="w-64">
+                    <CalendarAccountsContent
+                      isSignedIn={!!isSignedIn}
+                      calendarAccounts={calendarAccounts}
+                      googleClientId={googleClientId}
+                      addGoogleAccount={addGoogleAccount}
+                      removeCalendarAccount={removeCalendarAccount}
+                    />
+                  </PopoverContent>
+                </Popover>
               </PopoverContent>
             </Popover>
           )}
 
-          {/* Calendar accounts popover -- always visible */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
-                title="Connect calendars"
-              >
-                <CalendarCog className="size-4" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="bottom" align="end" className="w-64">
-              <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Connected Calendars
-              </p>
-
-              {isSignedIn ? (
-                <>
-                  {calendarAccounts.length > 0 ? (
-                    <div className="mb-3 space-y-1">
-                      {calendarAccounts.map((acc) => (
-                        <div
-                          key={acc.id}
-                          className="group flex min-h-11 items-center gap-2 rounded px-2 hover:bg-muted/30"
-                        >
-                          <div
-                            className="size-2 shrink-0 rounded-full"
-                            style={{
-                              backgroundColor: acc.color ?? "#3b82f6",
-                            }}
-                          />
-                          <Mail className="size-3 shrink-0 text-muted-foreground/40" />
-                          <span className="min-w-0 flex-1 truncate text-xs">
-                            {acc.email}
-                          </span>
-                          <button
-                            onClick={() => removeCalendarAccount(acc.id)}
-                            className="flex size-11 shrink-0 items-center justify-center"
-                          >
-                            <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mb-3 text-xs text-muted-foreground/40">
-                      No calendars connected yet
-                    </p>
-                  )}
-                  {googleClientId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={addGoogleAccount}
-                      className="w-full text-xs"
-                    >
-                      <Plus className="size-3" />
-                      Add Google Account
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="mb-3 text-xs text-muted-foreground/50">
-                    Connect your calendars to see events from Google, Outlook, and more on your schedule.
-                  </p>
-                  <div className="mb-3 space-y-1.5">
-                    <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground/40">
-                      <div className="size-2 rounded-full bg-blue-500/40" />
-                      Google Calendar
-                    </div>
-                    <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground/40">
-                      <div className="size-2 rounded-full bg-sky-500/40" />
-                      Outlook Calendar
-                    </div>
-                    <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground/40">
-                      <div className="size-2 rounded-full bg-rose-500/40" />
-                      Apple Calendar
-                    </div>
-                  </div>
-                  <SignInButton mode="modal">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs"
-                    >
-                      <LogIn className="size-3" />
-                      Sign in to connect
-                    </Button>
-                  </SignInButton>
-                </>
-              )}
-            </PopoverContent>
-          </Popover>
-
-          {/* Add event button */}
+          {/* Add Event dialog -- single instance, controlled by dialogOpen state */}
           <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogTrigger asChild>
-              <button
-                className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
-                title="Add event"
-              >
-                <Plus className="size-4" />
-              </button>
-            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Event</DialogTitle>

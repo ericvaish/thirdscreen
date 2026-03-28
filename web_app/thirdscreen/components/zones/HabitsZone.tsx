@@ -206,33 +206,6 @@ export function HabitsZone() {
     )
   }
 
-  // Inline add row at the bottom
-  const InlineAddRow = () => (
-    <form
-      className="flex items-center gap-px rounded-md px-1 py-0.5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        handleAdd(inlineNewName)
-        setInlineNewName("")
-      }}
-    >
-      <div className="flex w-20 shrink-0 items-center gap-1.5">
-        <Plus className="size-3 shrink-0 text-muted-foreground/30" />
-        <Input
-          ref={inlineInputRef}
-          value={inlineNewName}
-          onChange={(e) => setInlineNewName(e.target.value)}
-          placeholder="Add habit..."
-          className="h-7 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
-      </div>
-      {/* Empty day cells to maintain alignment */}
-      {dates.map((d) => (
-        <div key={d.toISOString()} className="flex-1" />
-      ))}
-      <div className="w-8 shrink-0" />
-    </form>
-  )
 
   // ── Charts ─────────────────────────────────────────────────────────────
 
@@ -412,7 +385,32 @@ export function HabitsZone() {
         </div>
 
         {/* Inline add row -- always visible */}
-        <InlineAddRow />
+        <form
+          className="flex items-center gap-1.5 rounded-md px-1 py-0.5"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (inlineNewName.trim()) {
+              handleAdd(inlineNewName)
+              setInlineNewName("")
+            } else {
+              inlineInputRef.current?.focus()
+            }
+          }}
+        >
+          <button
+            type="submit"
+            className="shrink-0 rounded-md p-1 text-muted-foreground/30 transition-colors hover:text-foreground"
+          >
+            <Plus className="size-3" />
+          </button>
+          <Input
+            ref={inlineInputRef}
+            value={inlineNewName}
+            onChange={(e) => setInlineNewName(e.target.value)}
+            placeholder="Add habit"
+            className="h-7 min-w-0 flex-1 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
+        </form>
       </div>
     </div>
   )

@@ -25,6 +25,8 @@ export interface IntegrationDef {
   category: string
   builtIn: boolean
   defaultEnabled: boolean
+  /** Whether this integration is implemented. False = shows "Coming soon" badge. */
+  implemented?: boolean
 }
 
 // ── Enabled integration (DB record) ─────────────────────────────────────────

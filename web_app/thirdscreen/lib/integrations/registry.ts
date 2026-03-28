@@ -21,6 +21,7 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     category: "Calendar",
     builtIn: false,
     defaultEnabled: false,
+    implemented: true,
   },
   {
     id: "outlook-calendar",
@@ -84,26 +85,6 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     builtIn: false,
     defaultEnabled: false,
   },
-  {
-    id: "fitbit",
-    name: "Fitbit",
-    description: "Sync fitness data from Fitbit",
-    icon: "Activity",
-    zone: "vitals",
-    category: "Health",
-    builtIn: false,
-    defaultEnabled: false,
-  },
-  {
-    id: "myfitnesspal",
-    name: "MyFitnessPal",
-    description: "Sync nutrition data from MyFitnessPal",
-    icon: "UtensilsCrossed",
-    zone: "vitals",
-    category: "Health",
-    builtIn: false,
-    defaultEnabled: false,
-  },
 
   // ── Tasks zone · Productivity sources ───────────────────────────────────
   {
@@ -115,26 +96,6 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     category: "Productivity",
     builtIn: true,
     defaultEnabled: true,
-  },
-  {
-    id: "todoist",
-    name: "Todoist",
-    description: "Sync tasks from Todoist",
-    icon: "CheckSquare",
-    zone: "tasks",
-    category: "Productivity",
-    builtIn: false,
-    defaultEnabled: false,
-  },
-  {
-    id: "linear",
-    name: "Linear",
-    description: "Sync issues from Linear",
-    icon: "Layers",
-    zone: "tasks",
-    category: "Productivity",
-    builtIn: false,
-    defaultEnabled: false,
   },
   {
     id: "apple-reminders",
@@ -168,26 +129,6 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     builtIn: true,
     defaultEnabled: true,
   },
-  {
-    id: "notion",
-    name: "Notion",
-    description: "Sync pages from Notion",
-    icon: "FileText",
-    zone: "notes",
-    category: "Notes",
-    builtIn: false,
-    defaultEnabled: false,
-  },
-  {
-    id: "obsidian",
-    name: "Obsidian",
-    description: "Sync notes from Obsidian vault",
-    icon: "Gem",
-    zone: "notes",
-    category: "Notes",
-    builtIn: false,
-    defaultEnabled: false,
-  },
 
   // ── Status zone · Communication ──────────────────────────────────────────
   {
@@ -199,6 +140,7 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     category: "Communication",
     builtIn: false,
     defaultEnabled: false,
+    implemented: true,
   },
   {
     id: "google-chat",
@@ -209,6 +151,7 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     category: "Communication",
     builtIn: false,
     defaultEnabled: false,
+    implemented: true,
   },
 
   // ── Status zone · Utilities & media ─────────────────────────────────────
@@ -271,6 +214,7 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     category: "Media",
     builtIn: false,
     defaultEnabled: false,
+    implemented: true,
   },
   {
     id: "apple-music",
