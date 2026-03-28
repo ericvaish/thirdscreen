@@ -590,7 +590,7 @@ function SyncedLyrics({
   const isNewTrackRef = useRef(false)
   // Timestamp-based progress: record when we last synced so we can
   // compute elapsed time without accumulation drift
-  const syncRef = useRef({ position: progressMs, time: Date.now() })
+  const syncRef = useRef({ position: progressMs, time: 0 })
 
   // Re-anchor whenever the SDK gives us a new position
   useEffect(() => {

@@ -85,10 +85,11 @@ export function NotificationBanner() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [entering, setEntering] = useState(false)
   const prevCountRef = useRef(0)
-  const [timeNow, setTimeNow] = useState(Date.now())
+  const [timeNow, setTimeNow] = useState(0)
 
   // Update relative timestamps
   useEffect(() => {
+    setTimeNow(Date.now())
     if (active.length === 0) return
     const id = setInterval(() => setTimeNow(Date.now()), 30_000)
     return () => clearInterval(id)
