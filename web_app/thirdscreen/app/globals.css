@@ -99,6 +99,8 @@
     --zone-vitals-accent: oklch(0.45 0.16 160);
     --zone-media: oklch(0.97 0.012 30);
     --zone-media-accent: oklch(0.5 0.16 30);
+    --zone-clock: oklch(0.97 0.012 195);
+    --zone-clock-accent: oklch(0.45 0.16 195);
     --zone-status: oklch(0.975 0.005 260);
     --zone-status-accent: oklch(0.45 0.04 260);
 }
@@ -155,6 +157,8 @@
     --zone-vitals-accent: oklch(0.74 0.17 160);
     --zone-media: var(--zone-base);
     --zone-media-accent: oklch(0.75 0.18 20);
+    --zone-clock: var(--zone-base);
+    --zone-clock-accent: oklch(0.74 0.17 195);
     --zone-status: oklch(0.11 0.01 260);
     --zone-status-accent: oklch(0.6 0.03 270);
 }
@@ -204,6 +208,14 @@
 .cl-modalBackdrop,
 .cl-modal {
   font-size: 16px !important;
+}
+
+.dark .cl-modalBackdrop {
+  background: rgba(0, 0, 0, 0.7) !important;
+}
+
+.cl-modalBackdrop {
+  align-items: center !important;
 }
 
 /* ── Ambient background ─────────────────────────────────────────────────── */
@@ -281,6 +293,20 @@
   background: radial-gradient(circle 200px at 0% 0%, oklch(0.75 0.18 20 / 18%), transparent);
 }
 
+.zone-clock {
+  background: var(--zone-clock);
+}
+.zone-clock::before {
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.74 0.17 195 / 18%), transparent);
+}
+
+.zone-habits {
+  background: var(--zone-habits, var(--card));
+}
+.zone-habits::before {
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.7 0.15 140 / 18%), transparent);
+}
+
 .zone-status {
   background: var(--zone-status);
   border-radius: 0;
@@ -296,7 +322,8 @@
 :root[data-gradient-tasks="flat"] .zone-tasks::before,
 :root[data-gradient-notes="flat"] .zone-notes::before,
 :root[data-gradient-vitals="flat"] .zone-vitals::before,
-:root[data-gradient-media="flat"] .zone-media::before {
+:root[data-gradient-media="flat"] .zone-media::before,
+:root[data-gradient-clock="flat"] .zone-clock::before {
   background: none !important;
 }
 
@@ -305,7 +332,8 @@
 :root[data-gradient-tasks="border"] .zone-tasks::before,
 :root[data-gradient-notes="border"] .zone-notes::before,
 :root[data-gradient-vitals="border"] .zone-vitals::before,
-:root[data-gradient-media="border"] .zone-media::before {
+:root[data-gradient-media="border"] .zone-media::before,
+:root[data-gradient-clock="border"] .zone-clock::before {
   background: none !important;
 }
 :root[data-gradient-timeline="border"] .zone-timeline {
@@ -322,6 +350,9 @@
 }
 :root[data-gradient-media="border"] .zone-media {
   border-top: 2px solid var(--zone-media-accent);
+}
+:root[data-gradient-clock="border"] .zone-clock {
+  border-top: 2px solid var(--zone-clock-accent);
 }
 
 /* ── Pulse animation for now-line ──────────────────────────────────────── */

@@ -236,7 +236,7 @@ export function SettingsView() {
 // ── Mascot Settings ──────────────────────────────────────────────────────────
 
 function MascotSettings() {
-  const { enabled, setEnabled, character, setCharacter } = useMascot()
+  const { enabled, setEnabled, soundEnabled, setSoundEnabled, character, setCharacter } = useMascot()
 
   return (
     <section>
@@ -254,22 +254,32 @@ function MascotSettings() {
       </p>
 
       {enabled && (
-        <div className="mt-4 grid grid-cols-5 gap-2">
-          {MASCOT_CHARACTERS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setCharacter(c.id)}
-              className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs transition-all ${
-                character === c.id
-                  ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
-                  : "border-border text-muted-foreground hover:bg-muted/30"
-              }`}
-            >
-              <span className="text-2xl">{c.emoji}</span>
-              <span className="font-medium">{c.name}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="mt-4 grid grid-cols-5 gap-2">
+            {MASCOT_CHARACTERS.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCharacter(c.id)}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs transition-all ${
+                  character === c.id
+                    ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
+                    : "border-border text-muted-foreground hover:bg-muted/30"
+                }`}
+              >
+                <span className="text-2xl">{c.emoji}</span>
+                <span className="font-medium">{c.name}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icons.Volume2 className="size-4 text-muted-foreground/60" />
+              <Label className="text-xs text-muted-foreground">Sound effects</Label>
+            </div>
+            <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+          </div>
+        </>
       )}
     </section>
   )

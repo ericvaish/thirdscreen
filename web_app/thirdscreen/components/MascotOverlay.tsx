@@ -47,32 +47,141 @@ function nearestCorner(x: number, y: number): Corner {
   return "top-left"
 }
 
+// Eye tracking: scan the frame for K (pupil) pixels, find each eye's bounding box,
+// then redraw the 2x2 pupil shifted within the surrounding W (white) region.
+
+type PupilPos = "center" | "tl" | "tr" | "bl" | "br"
+
+function cursorToPupilPos(mouseX: number, mouseY: number): PupilPos {
+  const midX = window.innerWidth / 2
+  const midY = window.innerHeight / 2
+  const isRight = mouseX >= midX
+  const isDown = mouseY >= midY
+  if (isDown && isRight) return "br"
+  if (isDown && !isRight) return "bl"
+  if (!isDown && isRight) return "tr"
+  return "tl"
+}
+
+// Find W (white) regions in the frame that are eye-shaped (at least 3 wide, 2 tall).
+// Returns bounding boxes of each eye's white region.
+function findEyeRegions(fr: string[][]): { wx: number; wy: number; ww: number; wh: number }[] {
+  // Find all W pixel positions
+  const wPixels: { x: number; y: number }[] = []
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      if (fr[y]?.[x] === "W") wPixels.push({ x, y })
+    }
+  }
+  if (wPixels.length === 0) return []
+
+  // Cluster W pixels into groups (split by horizontal gap > 1)
+  wPixels.sort((a, b) => a.y - b.y || a.x - b.x)
+
+  const groups: { x: number; y: number }[][] = []
+  for (const p of wPixels) {
+    // Try to add to an existing group if adjacent
+    let added = false
+    for (const g of groups) {
+      if (g.some(gp => Math.abs(gp.x - p.x) <= 1 && Math.abs(gp.y - p.y) <= 1)) {
+        g.push(p)
+        added = true
+        break
+      }
+    }
+    if (!added) groups.push([p])
+  }
+
+  // Filter to eye-sized regions (at least 3 wide, 2 tall) and compute bounding boxes
+  return groups
+    .map(g => {
+      const xs = g.map(p => p.x)
+      const ys = g.map(p => p.y)
+      return {
+        wx: Math.min(...xs),
+        wy: Math.min(...ys),
+        ww: Math.max(...xs) - Math.min(...xs) + 1,
+        wh: Math.max(...ys) - Math.min(...ys) + 1,
+      }
+    })
+    .filter(r => r.ww >= 3 && r.wh >= 2)
+}
+
 function renderFrame(
   ctx: CanvasRenderingContext2D,
   fr: string[][],
-  palette: Record<string, string | null>
+  palette: Record<string, string | null>,
+  pupilPos?: PupilPos,
+  isIdle?: boolean,
 ) {
   ctx.clearRect(0, 0, GRID * PX, GRID * PX)
+
+  const trackEyes = isIdle && pupilPos !== undefined
+
+  // Draw everything except pupils (K) when tracking
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
       const key = fr[y]?.[x]
       if (!key || key === ".") continue
+      if (trackEyes && key === "K") continue
       const color = palette[key]
       if (!color) continue
       ctx.fillStyle = color
       ctx.fillRect(x * PX, y * PX, PX, PX)
     }
   }
+
+  // Draw shifted 2x2 pupils
+  if (trackEyes) {
+    const eyeRegions = findEyeRegions(fr)
+    const pupilColor = palette["K"]
+    if (pupilColor && eyeRegions.length > 0) {
+      ctx.fillStyle = pupilColor
+
+      for (const eye of eyeRegions) {
+        // Pupil is 2x2, can sit at corners or center of the W region
+        const maxDx = Math.max(0, eye.ww - 2)
+        const maxDy = Math.max(0, eye.wh - 2)
+
+        let px: number, py: number
+        switch (pupilPos) {
+          case "tl": px = 0; py = 0; break
+          case "tr": px = maxDx; py = 0; break
+          case "bl": px = 0; py = maxDy; break
+          case "br": px = maxDx; py = maxDy; break
+          default:   px = Math.floor(maxDx / 2); py = Math.floor(maxDy / 2); break
+        }
+
+        const ax = eye.wx + px
+        const ay = eye.wy + py
+        ctx.fillRect(ax * PX, ay * PX, PX, PX)
+        ctx.fillRect((ax + 1) * PX, ay * PX, PX, PX)
+        ctx.fillRect(ax * PX, (ay + 1) * PX, PX, PX)
+        ctx.fillRect((ax + 1) * PX, (ay + 1) * PX, PX, PX)
+      }
+    }
+  }
 }
 
 export function MascotOverlay() {
-  const { state, enabled, character } = useMascot()
+  const { state, enabled, soundEnabled, character, setEnabled, setSoundEnabled } = useMascot()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [frameIndex, setFrameIndex] = useState(0)
   const animRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevStateRef = useRef(state)
   const prevCharRef = useRef(character)
+
+  const mouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+
+  // Track mouse position globally for eye tracking
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY }
+    }
+    window.addEventListener("mousemove", onMove, { passive: true })
+    return () => window.removeEventListener("mousemove", onMove)
+  }, [])
 
   const [corner, setCorner] = useState<Corner>("bottom-right")
   const [dragging, setDragging] = useState(false)
@@ -111,15 +220,35 @@ export function MascotOverlay() {
     }
   }, [state, enabled, character])
 
-  // Render pixel art
+  // Render pixel art with eye tracking
   useEffect(() => {
     if (!enabled) return
     const ctx = canvasRef.current?.getContext("2d")
     if (!ctx) return
-    const frames = CHARACTER_FRAMES[character][state]
-    const fr = frames[frameIndex % frames.length]
-    const palette = PALETTES[character]
-    renderFrame(ctx, fr, palette)
+
+    const isIdle = state === "idle"
+
+    const draw = () => {
+      const frames = CHARACTER_FRAMES[character][state]
+      const fr = frames[frameIndex % frames.length]
+      const palette = PALETTES[character]
+
+      let pupilPos: PupilPos | undefined
+      if (isIdle) {
+        pupilPos = cursorToPupilPos(mouseRef.current.x, mouseRef.current.y)
+      }
+
+      renderFrame(ctx, fr, palette, pupilPos, isIdle)
+    }
+
+    // For idle state, redraw frequently to track cursor
+    if (isIdle) {
+      draw()
+      const id = setInterval(draw, 100) // 10fps eye tracking
+      return () => clearInterval(id)
+    } else {
+      draw()
+    }
   }, [state, frameIndex, enabled, character])
 
   // ── Drag handlers ────────────────────────────────────────────────────────
@@ -168,6 +297,24 @@ export function MascotOverlay() {
     dragStartRef.current = null
   }, [dragging, dragPos])
 
+  // Context menu
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setMenuPos({ x: e.clientX, y: e.clientY })
+    setMenuOpen(true)
+  }, [])
+
+  // Close menu on click outside
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(false)
+    window.addEventListener("pointerdown", close)
+    return () => window.removeEventListener("pointerdown", close)
+  }, [menuOpen])
+
   if (!enabled) return null
 
   // While dragging, use absolute pixel position. Otherwise, use corner CSS.
@@ -176,26 +323,74 @@ export function MascotOverlay() {
     : { ...CORNER_POSITIONS[corner], transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }
 
   return (
-    <div
-      ref={wrapperRef}
-      className="fixed z-50 cursor-grab select-none active:cursor-grabbing"
-      style={positionStyle}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
-      <canvas
-        ref={canvasRef}
-        width={GRID * PX}
-        height={GRID * PX}
-        style={{
-          imageRendering: "pixelated",
-          width: MASCOT_SIZE,
-          height: MASCOT_SIZE,
-          opacity: 1,
-        }}
-      />
-    </div>
+    <>
+      <div
+        ref={wrapperRef}
+        className="fixed z-50 cursor-grab select-none active:cursor-grabbing"
+        style={positionStyle}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onContextMenu={onContextMenu}
+      >
+        <canvas
+          ref={canvasRef}
+          width={GRID * PX}
+          height={GRID * PX}
+          style={{
+            imageRendering: "pixelated",
+            width: MASCOT_SIZE,
+            height: MASCOT_SIZE,
+            opacity: 1,
+          }}
+        />
+      </div>
+
+      {/* Right-click context menu */}
+      {menuOpen && (
+        <div
+          className="fixed z-[60] min-w-[180px] rounded-xl border border-border/30 bg-card p-1.5 shadow-xl"
+          style={{ top: menuPos.y, left: menuPos.x }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              setEnabled(false)
+              setMenuOpen(false)
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+          >
+            Turn Off
+          </button>
+          {soundEnabled && (
+            <button
+              onClick={() => {
+                setSoundEnabled(false)
+                setMenuOpen(false)
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+            >
+              Mute Sounds
+            </button>
+          )}
+          {!soundEnabled && (
+            <button
+              onClick={() => {
+                setSoundEnabled(true)
+                setMenuOpen(false)
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+            >
+              Enable Sounds
+            </button>
+          )}
+          <div className="my-1 h-px bg-border/20" />
+          <p className="px-3 py-1.5 text-xs text-muted-foreground/50">
+            You can turn it back on anytime in Settings.
+          </p>
+        </div>
+      )}
+    </>
   )
 }

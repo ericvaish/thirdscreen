@@ -245,6 +245,57 @@ The long-term goal is a fully customizable dashboard platform inspired by Home A
 
 **Architectural principle:** Every zone and integration should consume CSS custom properties and data abstractions so that future theming/plugin layers can override them without modifying component internals. Keep the boundary between "what data to show" and "how it looks" clean.
 
+## Pixel Buddy (Mascot System)
+
+A floating pixel art companion that reacts to user actions. Lives in a fixed corner of the screen, draggable to any corner.
+
+### Architecture
+
+```
+lib/
+  mascot.tsx              # MascotProvider context: state, character, sound toggle, trigger()
+  mascot-characters.ts    # 32x32 pixel art frame data for all 5 characters + color palettes
+  sounds.ts               # Web Audio API synthesized sound effects (no external audio files)
+components/
+  MascotOverlay.tsx        # Canvas renderer, eye tracking, drag-to-corner, right-click menu
+```
+
+### How it works
+
+- **Frame data**: Each character is a set of 32x32 grids where each cell is a palette key (single character). Frames are defined as arrays of 32-character strings. Different palettes map the same keys to different colors per character.
+- **Rendering**: A `<canvas>` element draws pixel art at 3x native size (96px canvas, displayed at 192px via CSS scaling with `image-rendering: pixelated`).
+- **Animation**: `setInterval` cycles through frame arrays per state. Each state (idle, drink, eat, celebrate, sleep, wave) has its own frame set and speed.
+- **Eye tracking**: During idle state, the renderer scans the current frame for `W` (white) pixel clusters to find eye regions dynamically. It skips `K` (pupil) pixels from the frame data and redraws them as a 2x2 block shifted to one of 4 corners based on which screen quadrant the cursor is in. This means eyes follow the cursor and work correctly even when the idle animation bounces the character up/down.
+- **Event bus**: Zone components call `mascotTrigger("water")` etc. after successful actions. The `trigger()` function in MascotProvider sets the animation state and plays the matching sound.
+- **Sounds**: All synthesized with Web Audio API oscillators and noise buffers. No external audio files. Each event type has a unique sound (bubbles for water, crunch for food, chime for task, etc.).
+- **Draggable**: Pointer events let users drag the mascot. On release, it snaps to the nearest screen corner. Corner preference persists in localStorage.
+- **Right-click menu**: Context menu on the mascot offers "Turn Off" and "Mute/Enable Sounds" with a note about re-enabling in Settings.
+
+### Characters
+
+5 characters with unique pixel art silhouettes (not palette swaps):
+
+| ID | Name | Shape |
+|----|------|-------|
+| `robot` | Bolt | Square head, antenna, screen-bezel eyes, boxy body with panel |
+| `cat` | Whiskers | Round head, pointy triangle ears, whiskers, tail |
+| `ghost` | Boo | Dome top, no legs, wavy scalloped bottom edge |
+| `cactus` | Spike | Oval body, flower on top, branch arms |
+| `octopus` | Inky | Large dome head, four curling tentacles |
+
+### Adding a new character
+
+1. Add the character ID to `MascotCharacter` type in `lib/mascot.tsx`
+2. Add entry to `MASCOT_CHARACTERS` array with id, name, emoji
+3. Add a color palette to `PALETTES` in `lib/mascot-characters.ts`
+4. Create frame data (32x32 grids) for all 6 states: idle (2 frames min), drink, eat, celebrate, sleep, wave
+5. Add to `CHARACTER_FRAMES` mapping
+6. For eye tracking to work in idle: use `W` for eye whites, `K` for default pupil position. Remove `K` from idle frames if you want dynamic tracking (the renderer will find `W` regions and draw 2x2 pupils automatically).
+
+### Adding a new sound
+
+Add a function to `lib/sounds.ts` using the Web Audio API pattern (oscillators + gain nodes). Map it to a `MascotEvent` in the `EVENT_SOUNDS` record in `lib/mascot.tsx`.
+
 ## Dashboard Design Principles
 
 - **Zero scroll by default.** Everything must fit in a single viewport. No page-level scrollbar. Internal scroll only for lists that grow beyond their zone (tasks, notes).
@@ -313,6 +364,12 @@ This app runs on iPads and touchscreen displays where readability at a glance is
 - When editing existing code that uses banned sizes, upgrade them to the nearest allowed size.
 - Monospace text (timestamps, counters) at `text-xs` (12px) is the smallest allowed.
 - Zone header labels should be at least `text-sm` (14px).
+
+## Data Persistence Rules
+
+- **Never save layout data to localStorage.** Layout persistence is D1-only. If the D1 save fails, show the user an error. Do not silently fall back to localStorage.
+- **D1 is the single source of truth** for dashboard layouts, zone min sizes, and any user-customizable settings that need to persist across sessions.
+- **localStorage is only for ephemeral UI preferences** (theme, clock style, sun arc toggle, view mode) -- things that are cheap to lose and don't need cross-device sync.
 
 ## Style Guidelines
 

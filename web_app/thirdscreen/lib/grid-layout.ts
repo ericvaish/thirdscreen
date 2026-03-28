@@ -1,14 +1,18 @@
 // ── Grid layout types and utilities ──────────────────────────────────────────
 
-export const GRID_COLS = 16
-export const GRID_ROWS = 16
+// Layout uses percentage values (0-100) for x, y, w, h.
+// Rendered as percentages of container width/height.
+export const GRID_COLS = 100
+export const GRID_ROWS = 100
 
 export const ZONE_IDS = [
   "timeline",
+  "clock",
   "tasks",
   "notes",
   "vitals",
   "media",
+  "habits",
 ] as const
 
 export type ZoneId = (typeof ZONE_IDS)[number]
@@ -24,23 +28,50 @@ export type DashboardLayout = Record<ZoneId, ZonePosition>
 
 // ── Minimum sizes per zone ──────────────────────────────────────────────────
 
+// Min sizes as percentage of container (multiples of 5% grid)
 export const ZONE_MIN_SIZES: Record<ZoneId, { minW: number; minH: number }> = {
-  timeline: { minW: 3, minH: 2 },
-  tasks: { minW: 3, minH: 3 },
-  notes: { minW: 3, minH: 3 },
-  vitals: { minW: 3, minH: 3 },
-  media: { minW: 3, minH: 3 },
+  timeline: { minW: 10, minH: 10 },
+  clock:    { minW: 10, minH: 10 },
+  tasks:    { minW: 10, minH: 10 },
+  notes:    { minW: 10, minH: 10 },
+  vitals:   { minW: 10, minH: 10 },
+  media:    { minW: 10, minH: 10 },
+  habits:   { minW: 15, minH: 10 },
 }
 
-// ── Default layout ──────────────────────────────────────────────────────────
-
-export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
-  timeline: { x: 0, y: 0, w: 16, h: 3 },
-  tasks: { x: 0, y: 3, w: 7, h: 5 },
-  media: { x: 0, y: 8, w: 7, h: 8 },
-  notes: { x: 7, y: 8, w: 4, h: 8 },
-  vitals: { x: 11, y: 3, w: 5, h: 13 },
+// Default layout as percentages (0-100)
+// All values are multiples of LCM(2,3,5)=30 or simple fractions to align with any snap grid
+export function getDefaultLayout(): DashboardLayout {
+  return {
+    timeline: { x: 0,  y: 0,  w: 100, h: 15 },
+    tasks:    { x: 0,  y: 15, w: 36,  h: 40 },
+    clock:    { x: 36, y: 15, w: 18,  h: 20 },
+    notes:    { x: 36, y: 35, w: 18,  h: 30 },
+    media:    { x: 0,  y: 55, w: 36,  h: 45 },
+    vitals:   { x: 54, y: 15, w: 22,  h: 50 },
+    habits:   { x: 76, y: 15, w: 24,  h: 50 },
+  }
 }
+
+// Snap a layout to a given grid step
+export function snapLayout(layout: DashboardLayout, snapW: number, snapH: number): DashboardLayout {
+  const snap = (v: number, step: number) => Math.round(v / step) * step
+  const result = {} as Record<string, ZonePosition>
+  for (const id of ZONE_IDS) {
+    const pos = layout[id]
+    if (pos) {
+      result[id] = {
+        x: snap(pos.x, snapW),
+        y: snap(pos.y, snapH),
+        w: snap(pos.w, snapW),
+        h: snap(pos.h, snapH),
+      }
+    }
+  }
+  return result as DashboardLayout
+}
+
+export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = getDefaultLayout()
 
 // ── RGL conversion ──────────────────────────────────────────────────────────
 
@@ -127,27 +158,41 @@ function isOldLayout(value: unknown): value is OldGridLayout {
   )
 }
 
+function isPartialLayout(value: unknown): value is Partial<DashboardLayout> {
+  if (!value || typeof value !== "object") return false
+  const obj = value as Record<string, unknown>
+  // At least one valid zone position exists
+  return ZONE_IDS.some((id) => {
+    const pos = obj[id]
+    if (!pos || typeof pos !== "object") return false
+    const p = pos as Record<string, unknown>
+    return typeof p.x === "number" && typeof p.y === "number" && typeof p.w === "number" && typeof p.h === "number"
+  })
+}
+
 export function migrateLayout(stored: unknown): DashboardLayout {
-  if (isValidLayout(stored)) {
-    // Only scale if the layout was clearly from a different grid size
-    // (i.e., zones exceed the current grid bounds). Don't scale layouts
-    // that simply don't fill the full width -- that's a valid user choice.
-    const maxX = Math.max(...ZONE_IDS.map((id) => stored[id].x + stored[id].w))
-    const maxY = Math.max(...ZONE_IDS.map((id) => stored[id].y + stored[id].h))
-    if (maxX > GRID_COLS || maxY > GRID_ROWS) {
-      const scaleX = maxX > GRID_COLS ? GRID_COLS / maxX : 1
-      const scaleY = maxY > GRID_ROWS ? GRID_ROWS / maxY : 1
-      const scaled: DashboardLayout = { ...DEFAULT_DASHBOARD_LAYOUT }
-      for (const id of ZONE_IDS) {
-        scaled[id] = {
-          x: Math.round(stored[id].x * scaleX),
-          y: Math.round(stored[id].y * scaleY),
-          w: Math.max(1, Math.round(stored[id].w * scaleX)),
-          h: Math.max(1, Math.round(stored[id].h * scaleY)),
-        }
-      }
-      return scaled
+  // Check grid version first -- if outdated, always return fresh defaults
+  if (stored && typeof stored === "object") {
+    const obj = stored as Record<string, unknown>
+    const savedVersion = typeof obj._gridVersion === "number" ? obj._gridVersion : 0
+    if (savedVersion < GRID_VERSION) {
+      return DEFAULT_DASHBOARD_LAYOUT
     }
+  }
+
+  // Handle saved layouts that are missing newly added zones (e.g., "clock")
+  if (!isValidLayout(stored) && isPartialLayout(stored)) {
+    const merged = { ...DEFAULT_DASHBOARD_LAYOUT }
+    for (const id of ZONE_IDS) {
+      const pos = (stored as Record<string, unknown>)[id] as Record<string, unknown> | undefined
+      if (pos && typeof pos.x === "number" && typeof pos.y === "number" && typeof pos.w === "number" && typeof pos.h === "number") {
+        merged[id] = { x: pos.x, y: pos.y, w: pos.w, h: pos.h }
+      }
+    }
+    return merged
+  }
+
+  if (isValidLayout(stored)) {
     return stored
   }
   if (isOldLayout(stored)) {
@@ -156,6 +201,7 @@ export function migrateLayout(stored: unknown): DashboardLayout {
     const mainW = sidebarStart - 1
     return {
       timeline: { x: 0, y: 0, w: 12, h: timelineEnd },
+      clock: { x: 0, y: 0, w: 3, h: 3 }, // fallback position for migrated layouts
       tasks: {
         x: 0,
         y: timelineEnd,

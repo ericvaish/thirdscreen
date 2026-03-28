@@ -1,6 +1,14 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import {
+  playWaterSound,
+  playFoodSound,
+  playTaskSound,
+  playMedicineSound,
+  playEventSound,
+  playCelebrateSound,
+} from "./sounds"
 
 // ── Mascot event types ───────────────────────────────────────────────────────
 
@@ -37,11 +45,23 @@ const EVENT_TO_STATE: Record<MascotEvent, MascotState> = {
 
 // ── Context ──────────────────────────────────────────────────────────────────
 
+const EVENT_SOUNDS: Record<MascotEvent, (() => void) | null> = {
+  water: playWaterSound,
+  food: playFoodSound,
+  medicine: playMedicineSound,
+  task_done: playTaskSound,
+  event_added: playEventSound,
+  celebrate: playCelebrateSound,
+  greeting: null,
+}
+
 interface MascotContextType {
   state: MascotState
   enabled: boolean
+  soundEnabled: boolean
   character: MascotCharacter
   setEnabled: (enabled: boolean) => void
+  setSoundEnabled: (enabled: boolean) => void
   setCharacter: (character: MascotCharacter) => void
   trigger: (event: MascotEvent) => void
 }
@@ -49,8 +69,10 @@ interface MascotContextType {
 const MascotContext = createContext<MascotContextType>({
   state: "idle",
   enabled: true,
-  character: "robot",
+  soundEnabled: true,
+  character: "cat",
   setEnabled: () => {},
+  setSoundEnabled: () => {},
   setCharacter: () => {},
   trigger: () => {},
 })
@@ -60,12 +82,19 @@ const MascotContext = createContext<MascotContextType>({
 export function MascotProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<MascotState>("idle")
   const [enabled, setEnabledRaw] = useState(true)
+  const [soundEnabled, setSoundEnabledRaw] = useState(true)
   const [character, setCharacterRaw] = useState<MascotCharacter>("robot")
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const soundEnabledRef = useRef(true)
 
   useEffect(() => {
     const storedEnabled = localStorage.getItem("mascot-enabled")
     if (storedEnabled === "false") setEnabledRaw(false)
+    const storedSound = localStorage.getItem("mascot-sound")
+    if (storedSound === "false") {
+      setSoundEnabledRaw(false)
+      soundEnabledRef.current = false
+    }
     const storedChar = localStorage.getItem("mascot-character") as MascotCharacter | null
     if (storedChar && MASCOT_CHARACTERS.some((c) => c.id === storedChar)) {
       setCharacterRaw(storedChar)
@@ -75,6 +104,12 @@ export function MascotProvider({ children }: { children: React.ReactNode }) {
   const setEnabled = useCallback((val: boolean) => {
     setEnabledRaw(val)
     localStorage.setItem("mascot-enabled", String(val))
+  }, [])
+
+  const setSoundEnabled = useCallback((val: boolean) => {
+    setSoundEnabledRaw(val)
+    soundEnabledRef.current = val
+    localStorage.setItem("mascot-sound", String(val))
   }, [])
 
   const setCharacter = useCallback((val: MascotCharacter) => {
@@ -88,6 +123,12 @@ export function MascotProvider({ children }: { children: React.ReactNode }) {
 
     setState(newState)
 
+    // Play sound effect
+    if (soundEnabledRef.current) {
+      const soundFn = EVENT_SOUNDS[event]
+      if (soundFn) soundFn()
+    }
+
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => {
       setState("idle")
@@ -95,7 +136,7 @@ export function MascotProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <MascotContext value={{ state, enabled, character, setEnabled, setCharacter, trigger }}>
+    <MascotContext value={{ state, enabled, soundEnabled, character, setEnabled, setSoundEnabled, setCharacter, trigger }}>
       {children}
     </MascotContext>
   )
