@@ -20,6 +20,7 @@ import {
   CloudLightning,
   CloudFog,
   Wind,
+  Leaf,
   CircleDot,
   Coffee,
 } from "lucide-react"
@@ -90,11 +91,13 @@ const NOTIF_COLORS: Record<NotificationType, string> = {
 export function StatusBar() {
   return (
     <div className="zone-surface zone-status flex h-full items-center justify-between gap-3 px-4">
-      {/* Left cluster: clock + weather + air quality */}
-      <div className="flex items-center gap-4">
+      {/* Left cluster: clock + status widgets */}
+      <div className="flex items-center gap-2">
         <ClockDisplay />
-        <WeatherWidget />
-        <AirQualityWidget />
+        <div className="flex items-center gap-1">
+          <WeatherWidget />
+          <AirQualityWidget />
+        </div>
       </div>
 
       {/* Center */}
@@ -219,9 +222,9 @@ function WeatherWidget() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-foreground/[0.05]">
-          <WeatherIcon className="size-3.5 text-amber-400/80" />
-          <span className="font-[family-name:var(--font-display)] text-sm font-bold tabular-nums text-foreground">
+        <button className="flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg border border-border/20 bg-muted/10 px-2 py-1 transition-colors hover:border-border/30 hover:bg-muted/20 min-h-11">
+          <WeatherIcon className="size-3.5 shrink-0 text-amber-400/80" />
+          <span className="font-[family-name:var(--font-display)] text-xs font-bold tabular-nums text-foreground">
             {weather.temp}°
           </span>
         </button>
@@ -344,9 +347,9 @@ function AirQualityWidget() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors hover:bg-foreground/[0.05]">
-          <Wind className={cn("size-3", aqi.color)} />
-          <span className={cn("font-mono text-[0.625rem] font-bold tabular-nums", aqi.color)}>
+        <button className="flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg border border-border/20 bg-muted/10 px-2 py-1 transition-colors hover:border-border/30 hover:bg-muted/20 min-h-11">
+          <Leaf className={cn("size-3.5 shrink-0", aqi.color)} />
+          <span className={cn("font-[family-name:var(--font-display)] text-xs font-bold tabular-nums", aqi.color)}>
             {aqi.aqi}
           </span>
         </button>
@@ -534,7 +537,7 @@ function NotificationTicker() {
               )}
               <button
                 onClick={() => dismiss(notif.id)}
-                className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 size-11 flex items-center justify-center"
               >
                 <X className="size-2.5 text-muted-foreground/30 hover:text-foreground" />
               </button>

@@ -113,9 +113,9 @@ export function Dashboard() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
       {/* Header */}
-      <header className="h-12 shrink-0 bg-background/80 backdrop-blur-xl">
+      <header className="h-14 shrink-0 bg-background/80 backdrop-blur-xl">
         <div className="flex h-full items-center justify-between px-4">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             {view !== "dashboard" ? (
               <Button
                 variant="ghost"
@@ -184,7 +184,7 @@ export function Dashboard() {
                 <UserButton
                   appearance={{
                     elements: {
-                      avatarBox: "size-6",
+                      avatarBox: "size-9",
                     },
                   }}
                 />

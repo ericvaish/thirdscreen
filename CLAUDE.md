@@ -232,6 +232,35 @@ This project evolves rapidly. When you make structural changes (new components, 
 - **No fixed pixel sizes for layout.** Use percentages, fr units, and flex/grid to fill available space. Fixed pixel values cause scrollbars on different screen sizes.
 - **Integration-driven data.** Zones consume data from pluggable integrations (lib/integrations/). The UI does not care where data comes from -- Google Calendar, local DB, or Todoist all feed into the same timeline zone.
 
+## Touch Targets & Button Sizing
+
+This app is designed to run on tablets (iPad, Android tablets) as wall-mounted or desk dashboards with touchscreen input. All interactive elements must meet minimum touch target sizes.
+
+**Minimum touch target: 44x44px** (Apple HIG / WCAG 2.5.8). No interactive element should be smaller than this. This applies to buttons, icon buttons, checkboxes, links in lists, popover triggers, and any clickable element.
+
+**Button size variants** (defined in `components/ui/button.tsx`):
+
+| Variant | Current | Target | Use for |
+|---------|---------|--------|---------|
+| `icon-xs` | 24px (size-6) | **44px (size-11)** | Icon-only buttons in zone headers, inline actions |
+| `xs` | h-6 (24px) | **h-11 (44px)** | Small text buttons, tag-style actions |
+| `icon-sm` | 28px (size-7) | **44px (size-11)** | Dialog/sheet close buttons |
+| `sm` | h-7 (28px) | **h-11 (44px)** | Secondary actions, form buttons |
+| `default` | h-8 (32px) | **h-11 (44px)** | Primary actions |
+| `icon` | 32px (size-8) | **44px (size-11)** | Standard icon buttons |
+| `lg` | h-9 (36px) | **h-12 (48px)** | Large primary CTAs |
+| `icon-lg` | 36px (size-9) | **48px (size-12)** | Large icon buttons |
+
+**Rules:**
+- Every `<Button>` variant must produce a minimum 44px touch target.
+- Icon buttons that appear visually small can use padding to reach 44px (the visual icon stays small, but the hit area is large).
+- Inline text links inside lists/paragraphs should have at least 44px of vertical hit area via padding.
+- Checkboxes and toggles need a 44px tappable wrapper, even if the visual checkbox is smaller.
+- In the timeline/schedule zone, event bars are already tall enough; clickable pills (all-day events, medicine doses) should have min-height 44px hit area.
+- Do not make buttons so large that they dominate the glanceable UI. Use padding for hit area, not visual size. The visual footprint can stay compact.
+
+**Implementation approach:** Update `buttonVariants` in `components/ui/button.tsx` to set minimum heights/sizes to 44px across all variants. Consolidate `icon-xs`, `xs`, `icon-sm`, `sm`, `default`, and `icon` into fewer distinct sizes since they all converge to the same minimum.
+
 ## Style Guidelines
 
 - Do not use em dashes in public-facing website copy (signals AI-generated content).

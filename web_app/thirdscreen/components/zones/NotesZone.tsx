@@ -173,7 +173,7 @@ export function NotesZone() {
                   />
                 ) : (
                   <div
-                    className="cursor-pointer"
+                    className="min-h-11 cursor-pointer flex items-center"
                     onClick={() => {
                       setEditingId(note.id)
                       setEditContent(note.content)
@@ -192,7 +192,7 @@ export function NotesZone() {
                 <div className="mt-0.5 flex items-center gap-1">
                   <button
                     onClick={() => togglePin(note)}
-                    className="text-muted-foreground/30 transition-colors hover:text-primary"
+                    className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-primary"
                   >
                     {note.pinned ? (
                       <Pin className="size-2.5 text-primary" />
@@ -202,7 +202,7 @@ export function NotesZone() {
                   </button>
                   <button
                     onClick={() => deleteNote(note.id)}
-                    className="opacity-0 transition-opacity group-hover:opacity-100"
+                    className="flex min-h-11 min-w-11 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
                   >
                     <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
                   </button>
@@ -218,7 +218,7 @@ export function NotesZone() {
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-2 px-4 py-1.5 text-xs transition-colors hover:bg-foreground/[0.02]"
+                  className="group flex min-h-11 items-center gap-2 px-4 py-1.5 text-xs transition-colors hover:bg-foreground/[0.02]"
                 >
                   <LinkIcon className="size-3 shrink-0 text-muted-foreground/40" />
                   <span className="min-w-0 flex-1 truncate">

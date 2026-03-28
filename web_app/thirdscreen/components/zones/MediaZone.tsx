@@ -90,11 +90,13 @@ interface SpotifyPlayerState {
 export function MediaZone() {
   const [status, setStatus] = useState<ConnectionStatus>({ state: "loading" })
   const [albumColor, setAlbumColor] = useState<{ r: number; g: number; b: number } | null>(null)
+  const [smoothProgress, setSmoothProgress] = useState(0)
   const lastAlbumArtRef = useRef("")
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sdkLoadedRef = useRef(false)
   const clientIdRef = useRef<string | null>(null)
+  const progressSyncRef = useRef({ position: 0, time: 0 })
 
   // Fetch connection status
   const fetchState = useCallback(async () => {
@@ -240,7 +242,7 @@ export function MediaZone() {
     if (status.state === "connected") {
       initSDK()
       if (!pollRef.current) {
-        pollRef.current = setInterval(fetchState, 10000)
+        pollRef.current = setInterval(fetchState, 3000)
       }
     }
     return () => {
@@ -285,6 +287,28 @@ export function MediaZone() {
     window.addEventListener("message", handler)
     return () => window.removeEventListener("message", handler)
   }, [fetchState])
+
+  // Smooth progress: derive playback info and interpolate between polls
+  const connectedPlayback = status.state === "connected" ? status.playback : null
+  const isPlaying = connectedPlayback?.isPlaying ?? false
+  const serverProgress = connectedPlayback?.progressMs ?? 0
+  const duration = connectedPlayback?.durationMs ?? 0
+
+  useEffect(() => {
+    progressSyncRef.current = { position: serverProgress, time: Date.now() }
+    setSmoothProgress(serverProgress)
+  }, [serverProgress])
+
+  useEffect(() => {
+    if (!isPlaying || !duration) return
+    const tick = () => {
+      const elapsed = Date.now() - progressSyncRef.current.time
+      setSmoothProgress(Math.min(progressSyncRef.current.position + elapsed, duration))
+      rafId = requestAnimationFrame(tick)
+    }
+    let rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [isPlaying, duration])
 
   // ── Controls ──────────────────────────────────────────────────────────
 
@@ -481,8 +505,7 @@ export function MediaZone() {
                 variant="ghost"
                 size="sm"
                 onClick={() => sendControl(playback.isPlaying ? "pause" : "play")}
-                className="size-7 rounded-full transition-colors duration-1000"
-                style={{ color: accentColor }}
+                className="size-7 rounded-full text-foreground"
               >
                 {playback.isPlaying ? (
                   <Pause className="size-3.5" />
@@ -500,14 +523,14 @@ export function MediaZone() {
               </Button>
 
               <span className="ml-1 font-mono text-[0.5625rem] tabular-nums text-muted-foreground/50">
-                {formatMs(playback.progressMs)}
+                {formatMs(smoothProgress)}
               </span>
 
               <div className="h-1 flex-1 overflow-hidden rounded-full bg-border/30">
                 <div
                   className="h-full rounded-full"
                   style={{
-                    width: `${(playback.progressMs / Math.max(playback.durationMs, 1)) * 100}%`,
+                    width: `${(smoothProgress / Math.max(playback.durationMs, 1)) * 100}%`,
                     background: accentColor,
                   }}
                 />

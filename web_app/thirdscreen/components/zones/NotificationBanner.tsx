@@ -178,7 +178,7 @@ export function NotificationBanner() {
           <div className="flex shrink-0 items-center gap-0.5">
             <button
               onClick={prev}
-              className="rounded p-0.5 transition-colors hover:bg-foreground/10"
+              className="flex size-11 items-center justify-center rounded transition-colors hover:bg-foreground/10"
             >
               <ChevronLeft className="size-3 text-muted-foreground/50" />
             </button>
@@ -187,7 +187,7 @@ export function NotificationBanner() {
             </span>
             <button
               onClick={next}
-              className="rounded p-0.5 transition-colors hover:bg-foreground/10"
+              className="flex size-11 items-center justify-center rounded transition-colors hover:bg-foreground/10"
             >
               <ChevronRight className="size-3 text-muted-foreground/50" />
             </button>
@@ -203,7 +203,7 @@ export function NotificationBanner() {
               dismiss(notif.id)
             }
           }}
-          className="shrink-0 rounded p-0.5 transition-colors hover:bg-foreground/10"
+          className="flex size-11 shrink-0 items-center justify-center rounded transition-colors hover:bg-foreground/10"
           title={active.length > 1 ? "Dismiss this" : "Dismiss"}
         >
           <X className="size-3 text-muted-foreground/40 hover:text-foreground/70" />
