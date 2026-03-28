@@ -17,6 +17,14 @@ import { toast } from "sonner"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
 import { isLocal } from "@/lib/data-layer"
+import {
+  getLocalSpotifyTokens,
+  getLocalCurrentPlayback,
+  getValidLocalToken,
+  localPlaybackControl,
+  localTransferPlayback,
+  clearLocalSpotifyTokens,
+} from "@/lib/spotify/local-spotify"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,13 +93,41 @@ export function MediaZone() {
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sdkLoadedRef = useRef(false)
+  const clientIdRef = useRef<string | null>(null)
 
-  // Fetch connection status from server
+  // Fetch connection status
   const fetchState = useCallback(async () => {
     if (isLocal) {
-      setStatus({ state: "needs-client-id" })
+      // Local mode: fetch client ID from public endpoint, tokens from localStorage
+      try {
+        if (!clientIdRef.current) {
+          const res = await fetch("/api/spotify/client-id")
+          const data = await res.json()
+          clientIdRef.current = data.clientId ?? null
+        }
+        if (!clientIdRef.current) {
+          setStatus({ state: "needs-client-id" })
+          return
+        }
+        const tokens = getLocalSpotifyTokens()
+        if (!tokens.accessToken) {
+          setStatus({ state: "needs-auth", clientId: clientIdRef.current })
+          return
+        }
+        const playback = await getLocalCurrentPlayback(clientIdRef.current)
+        setStatus((prev) => ({
+          state: "connected",
+          playback,
+          sdkReady: prev.state === "connected" ? prev.sdkReady : false,
+          deviceId: prev.state === "connected" ? prev.deviceId : null,
+        }))
+      } catch {
+        setStatus({ state: "needs-client-id" })
+      }
       return
     }
+
+    // Server mode: existing flow
     try {
       const res = await fetch("/api/spotify")
       if (res.status === 401) {
@@ -133,9 +169,14 @@ export function MediaZone() {
         name: "Third Screen",
         getOAuthToken: async (cb) => {
           try {
-            const res = await fetch("/api/spotify/token")
-            const { token } = await res.json()
-            if (token) cb(token)
+            if (isLocal && clientIdRef.current) {
+              const token = await getValidLocalToken(clientIdRef.current)
+              if (token) cb(token)
+            } else {
+              const res = await fetch("/api/spotify/token")
+              const { token } = await res.json()
+              if (token) cb(token)
+            }
           } catch {}
         },
         volume: 0.5,
@@ -238,28 +279,35 @@ export function MediaZone() {
 
   const sendControl = async (action: string) => {
     try {
-      await fetch("/api/spotify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      })
+      if (isLocal && clientIdRef.current) {
+        await localPlaybackControl(action as "play" | "pause" | "next" | "previous", clientIdRef.current)
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        })
+      }
       setTimeout(fetchState, 300)
     } catch {}
   }
 
   const startPlayback = async () => {
     if (status.state !== "connected" || !status.deviceId) return
-    // Transfer playback to our SDK device and start playing
     try {
-      await fetch("/api/spotify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "transfer",
-          deviceId: status.deviceId,
-          play: true,
-        }),
-      })
+      if (isLocal && clientIdRef.current) {
+        await localTransferPlayback(status.deviceId, true, clientIdRef.current)
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "transfer",
+            deviceId: status.deviceId,
+            play: true,
+          }),
+        })
+      }
       setTimeout(fetchState, 500)
     } catch {}
   }
@@ -268,7 +316,11 @@ export function MediaZone() {
     playerRef.current?.disconnect()
     playerRef.current = null
     sdkLoadedRef.current = false
-    await fetch("/api/spotify", { method: "DELETE" })
+    if (isLocal) {
+      clearLocalSpotifyTokens()
+    } else {
+      await fetch("/api/spotify", { method: "DELETE" })
+    }
     fetchState()
     toast.success("Disconnected from Spotify")
   }
@@ -481,7 +533,8 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
     const { codeVerifier, codeChallenge } = await generatePKCE()
 
     const origin = window.location.origin.replace("://localhost", "://127.0.0.1")
-    const redirectUri = `${origin}/api/spotify/callback`
+    const callbackPath = isLocal ? "/spotify-callback" : "/api/spotify/callback"
+    const redirectUri = `${origin}${callbackPath}`
 
     const state = btoa(JSON.stringify({ v: codeVerifier, r: redirectUri }))
 
@@ -541,6 +594,11 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
               <Music className="size-3" />
               Connect Spotify
             </Button>
+            {isLocal && (
+              <p className="max-w-52 text-center text-[0.5rem] leading-relaxed text-muted-foreground/40">
+                Your session is stored locally. Clearing browser data or switching browsers will require re-connecting. Sign in to save permanently.
+              </p>
+            )}
           </>
         ) : (
           <p className="text-xs text-muted-foreground text-center">
