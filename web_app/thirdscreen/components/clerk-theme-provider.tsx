@@ -11,7 +11,7 @@ function ClerkSessionSync({ children }: { children: React.ReactNode }) {
     // page reload. Cloudflare Pages (next-on-pages) doesn't support POST
     // to page routes, which is what Clerk's default server action does.
     if (typeof window !== "undefined") {
-      (window as Record<string, unknown>).__internal_onBeforeSetActive =
+      (window as unknown as Record<string, unknown>).__internal_onBeforeSetActive =
         async () => {
           window.location.reload()
         }

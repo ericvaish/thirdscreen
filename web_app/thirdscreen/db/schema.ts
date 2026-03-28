@@ -208,6 +208,34 @@ export const googleServiceAccounts = sqliteTable("google_service_accounts", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+// Habits
+export const habits = sqliteTable("habits", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  name: text("name").notNull(),
+  color: text("color"), // oklch color string
+  icon: text("icon"), // emoji
+  sortOrder: integer("sort_order").notNull().default(0),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
+// Habit completion logs (one row per habit per date)
+export const habitLogs = sqliteTable("habit_logs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  habitId: text("habit_id")
+    .notNull()
+    .references(() => habits.id, { onDelete: "cascade" }),
+  date: text("date").notNull(), // YYYY-MM-DD
+  completed: integer("completed", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
 // Enabled integrations
 export const enabledIntegrations = sqliteTable("enabled_integrations", {
   id: text("id").primaryKey(),

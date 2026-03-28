@@ -407,6 +407,52 @@ export async function toggleIntegration(
   })
 }
 
+// ── Habits ─────────────────────────────────────────────────────────────────
+
+export interface HabitItem {
+  id: string
+  name: string
+  color: string | null
+  icon: string | null
+  sortOrder: number
+  createdAt: string
+}
+
+export interface HabitLog {
+  id: string
+  habitId: string
+  date: string
+  completed: boolean
+}
+
+export async function listHabits(startDate: string, endDate: string): Promise<{ habits: HabitItem[]; logs: HabitLog[] }> {
+  if (isLocal) return local.localListHabits(startDate, endDate)
+  return api(`/api/habits?startDate=${startDate}&endDate=${endDate}`)
+}
+
+export async function createHabit(data: { name: string; color?: string; icon?: string }) {
+  if (isLocal) return local.localCreateHabit(data)
+  return api("/api/habits", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteHabit(id: string) {
+  if (isLocal) return local.localDeleteHabit(id)
+  return api(`/api/habits?id=${id}`, { method: "DELETE" })
+}
+
+export async function toggleHabitLog(habitId: string, date: string) {
+  if (isLocal) return local.localToggleHabitLog(habitId, date)
+  return api("/api/habits", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "toggle", habitId, date }),
+  })
+}
+
 // ── Data export (for migration to server when user signs in) ──────────────
 
 export function exportLocalData() {

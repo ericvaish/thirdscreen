@@ -351,8 +351,9 @@ function AirQualityWidget() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg border border-border/20 bg-muted/10 px-2 py-1 transition-colors hover:border-border/30 hover:bg-muted/20 min-h-11">
-          <Leaf className={cn("size-3.5 shrink-0", aqi.color)} />
+        <button className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border/20 bg-muted/10 px-2 py-1 transition-colors hover:border-border/30 hover:bg-muted/20">
+          <Wind className={cn("size-3.5 shrink-0", aqi.color)} />
+          <span className="font-mono text-xs text-muted-foreground/50">AQI</span>
           <span className={cn("font-[family-name:var(--font-display)] text-xs font-bold tabular-nums", aqi.color)}>
             {aqi.aqi}
           </span>

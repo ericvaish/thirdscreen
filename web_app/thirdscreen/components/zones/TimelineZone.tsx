@@ -1984,6 +1984,23 @@ export function TimelineZone() {
             }}
           >
             <div className="relative" style={{ height: `${WINDOW_MINUTES * 0.8}px` }}>
+              {/* Daylight indicator -- subtle background tint for daytime hours */}
+              {mounted && showSunArc && (() => {
+                const sunrisePct = minutesToPercent(SUNRISE_MIN, windowStart)
+                const sunsetPct = minutesToPercent(SUNSET_MIN, windowStart)
+                if (sunrisePct > 100 || sunsetPct < 0) return null
+                return (
+                  <div
+                    className="pointer-events-none absolute left-0 w-full"
+                    style={{
+                      top: `${Math.max(0, sunrisePct)}%`,
+                      height: `${Math.min(100, sunsetPct) - Math.max(0, sunrisePct)}%`,
+                      background: "linear-gradient(to bottom, oklch(0.85 0.08 85 / 0.04), oklch(0.85 0.08 85 / 0.08) 50%, oklch(0.85 0.08 85 / 0.04))",
+                    }}
+                  />
+                )
+              })()}
+
               {/* Hour markers */}
               {(() => {
                 const firstHour = Math.ceil(windowStart / 60)
@@ -2178,33 +2195,40 @@ export function TimelineZone() {
           onPointerLeave={handlePointerLeave}
         >
 
-          {/* Hour markers */}
+          {/* Hour markers — adaptively skip hours when the zone is narrow */}
           {(() => {
             const firstHour = Math.ceil(windowStart / 60)
             const lastHour = Math.floor(windowEnd / 60)
+            const totalHours = lastHour - firstHour + 1
+
+            // Determine step: each label needs ~35px to not overlap
+            const containerW = timelineRef.current?.clientWidth ?? 800
+            const pxPerHour = containerW / totalHours
+            const step = pxPerHour >= 35 ? 1 : pxPerHour >= 18 ? 2 : pxPerHour >= 12 ? 3 : pxPerHour >= 8 ? 4 : 6
+
             const markers = []
             for (let hour = firstHour; hour <= lastHour; hour++) {
               const mins = hour * 60
               const pct = minutesToPercent(mins, windowStart)
               const displayHour = ((hour % 24) + 24) % 24
-              const isEven = hour % 2 === 0
+              const showLabel = (hour - firstHour) % step === 0
               markers.push(
                 <div
                   key={hour}
                   className="absolute top-0 h-full"
                   style={{ left: `${pct}%` }}
                 >
-                  <span
-                    className={`absolute top-0 -translate-x-1/2 font-mono text-xs leading-none text-muted-foreground/40 ${!isEven ? "hidden sm:inline" : ""}`}
-                  >
-                    {displayHour === 0
-                      ? "12a"
-                      : displayHour < 12
-                        ? `${displayHour}a`
-                        : displayHour === 12
-                          ? "12p"
-                          : `${displayHour - 12}p`}
-                  </span>
+                  {showLabel && (
+                    <span className="absolute top-0 -translate-x-1/2 font-mono text-xs leading-none text-muted-foreground/40">
+                      {displayHour === 0
+                        ? "12a"
+                        : displayHour < 12
+                          ? `${displayHour}a`
+                          : displayHour === 12
+                            ? "12p"
+                            : `${displayHour - 12}p`}
+                    </span>
+                  )}
                   <div className="mt-2.5 h-[calc(100%-10px)] w-px bg-border/15" />
                 </div>,
               )

@@ -444,6 +444,71 @@ export function localToggleIntegration(
   return { success: true }
 }
 
+// ── Habits ────────────────────────────────────────────────────────────────────
+
+interface LocalHabit {
+  id: string
+  name: string
+  color: string | null
+  icon: string | null
+  sortOrder: number
+  archived: boolean
+  createdAt: string
+}
+
+interface LocalHabitLog {
+  id: string
+  habitId: string
+  date: string
+  completed: boolean
+  createdAt: string
+}
+
+export function localListHabits(startDate: string, endDate: string) {
+  const allHabits = read<LocalHabit[]>("habits", []).filter((h) => !h.archived)
+  const allLogs = read<LocalHabitLog[]>("habit_logs", [])
+  const logs = allLogs.filter((l) => l.date >= startDate && l.date <= endDate)
+  return { habits: allHabits, logs }
+}
+
+export function localCreateHabit(data: { name: string; color?: string; icon?: string }) {
+  const list = read<LocalHabit[]>("habits", [])
+  const habit: LocalHabit = {
+    id: uid(),
+    name: data.name,
+    color: data.color ?? null,
+    icon: data.icon ?? null,
+    sortOrder: list.length,
+    archived: false,
+    createdAt: now(),
+  }
+  list.push(habit)
+  write("habits", list)
+  return habit
+}
+
+export function localDeleteHabit(id: string) {
+  const habits = read<LocalHabit[]>("habits", []).filter((h) => h.id !== id)
+  write("habits", habits)
+  const logs = read<LocalHabitLog[]>("habit_logs", []).filter((l) => l.habitId !== id)
+  write("habit_logs", logs)
+  return { success: true }
+}
+
+export function localToggleHabitLog(habitId: string, date: string) {
+  const logs = read<LocalHabitLog[]>("habit_logs", [])
+  const idx = logs.findIndex((l) => l.habitId === habitId && l.date === date)
+  if (idx >= 0) {
+    logs.splice(idx, 1)
+    write("habit_logs", logs)
+    return { completed: false }
+  } else {
+    logs.push({ id: uid(), habitId, date, completed: true, createdAt: now() })
+    write("habit_logs", logs)
+    return { completed: true }
+  }
+}
+
 // ── Export all local data (for future migration to server) ──────────────────
 
 export function exportAllLocalData(): Record<string, unknown> {

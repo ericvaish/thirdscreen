@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Volumes/DAS/Development_SSD_DAS/thirdscreen/web_app/thirdscreen/logs/.0035113b52bfd1d73dde8166166a170e5163e48a-audit.json",
+    "files": [
+        {
+            "date": 1774726663985,
+            "name": "/Volumes/DAS/Development_SSD_DAS/thirdscreen/web_app/thirdscreen/logs/mcp-puppeteer-2026-03-29.log",
+            "hash": "71a104b4479216f0e028bfeed8c801b82a8814167933fc423b4a66b095b73493"
+        }
+    ],
+    "hashType": "sha256"
+}

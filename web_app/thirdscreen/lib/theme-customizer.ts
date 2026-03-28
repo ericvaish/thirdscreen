@@ -5,7 +5,7 @@ import { setSetting, getSettings } from "./data-layer"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export const ZONE_KEYS = ["timeline", "tasks", "notes", "vitals", "media", "status"] as const
+export const ZONE_KEYS = ["timeline", "clock", "tasks", "notes", "vitals", "media", "status"] as const
 export type ThemeZone = (typeof ZONE_KEYS)[number]
 
 export type GradientStyle = "glow" | "border" | "flat"
@@ -29,6 +29,7 @@ export const DEFAULT_THEME: ThemeCustomization = {
 
 export const ZONE_META: Record<ThemeZone, { label: string; defaultHue: { light: number; dark: number }; defaultAccent: { light: string; dark: string } }> = {
   timeline: { label: "Schedule", defaultHue: { light: 220, dark: 210 }, defaultAccent: { light: "oklch(0.45 0.16 220)", dark: "oklch(0.72 0.17 210)" } },
+  clock:    { label: "Clock",    defaultHue: { light: 195, dark: 195 }, defaultAccent: { light: "oklch(0.45 0.16 195)", dark: "oklch(0.74 0.17 195)" } },
   tasks:    { label: "Tasks",    defaultHue: { light: 85, dark: 80 },   defaultAccent: { light: "oklch(0.5 0.14 85)",  dark: "oklch(0.82 0.16 80)" } },
   notes:    { label: "Notes",    defaultHue: { light: 300, dark: 300 }, defaultAccent: { light: "oklch(0.45 0.16 300)", dark: "oklch(0.74 0.18 300)" } },
   vitals:   { label: "Vitals",   defaultHue: { light: 160, dark: 160 }, defaultAccent: { light: "oklch(0.45 0.16 160)", dark: "oklch(0.74 0.17 160)" } },

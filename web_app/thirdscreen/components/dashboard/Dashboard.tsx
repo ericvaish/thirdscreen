@@ -16,15 +16,26 @@ import {
   Maximize,
   Minimize,
   RotateCcw,
+  Save,
+  HardDrive,
+  X,
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useTheme } from "next-themes"
 import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
-import { getSettings, setSetting } from "@/lib/data-layer"
+import { getSettings } from "@/lib/data-layer"
 import { toast } from "sonner"
 import { ThemeCustomizer } from "./ThemeCustomizer"
+import { MascotProvider } from "@/lib/mascot"
+import { MascotOverlay } from "@/components/MascotOverlay"
 import {
+  GRID_COLS,
   DEFAULT_DASHBOARD_LAYOUT,
-  migrateLayout,
   type DashboardLayout,
 } from "@/lib/grid-layout"
 
@@ -57,8 +68,6 @@ export function Dashboard() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { isSignedIn, isLoaded: authLoaded } = useAuth()
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const minSizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => setMounted(true), [])
 
@@ -87,117 +96,88 @@ export function Dashboard() {
     }
   }, [])
 
-  // Load saved layouts for both orientations
-  const layoutLoadedRef = useRef(false)
+  // Load BOTH portrait and landscape layouts from D1 on mount
   useEffect(() => {
-    const loadSettings = (s: Record<string, unknown>) => {
-      // Load landscape layout
-      if (s.dashboardLayoutLandscape) {
-        setLandscapeLayout(migrateLayout(s.dashboardLayoutLandscape))
-      } else if (s.dashboardLayout) {
-        // Migrate old single layout to landscape
-        setLandscapeLayout(migrateLayout(s.dashboardLayout))
-      }
-      // Load portrait layout
-      if (s.dashboardLayoutPortrait) {
-        setPortraitLayout(migrateLayout(s.dashboardLayoutPortrait))
-      }
-      if (s.zoneMinSizes && typeof s.zoneMinSizes === "object") {
-        setMinSizes(s.zoneMinSizes as MinSizes)
-      }
-      layoutLoadedRef.current = true
-    }
-
-    fetch("/api/settings", { cache: "no-store" })
+    fetch("/api/settings")
       .then((res) => {
         if (!res.ok) throw new Error(`API ${res.status}`)
         return res.json()
       })
-      .then((s) => loadSettings(s as Record<string, unknown>))
-      .catch(() => {
-        getSettings()
-          .then((s) => loadSettings(s as Record<string, unknown>))
-          .catch(() => {})
-          .finally(() => { layoutLoadedRef.current = true })
-      })
-  }, [])
-
-  const orientationRef = useRef(orientation)
-  orientationRef.current = orientation
-
-  const persistLayout = useCallback((l: DashboardLayout) => {
-    if (!layoutLoadedRef.current) return
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    saveTimeoutRef.current = setTimeout(async () => {
-      const key = orientationRef.current === "portrait"
-        ? "dashboardLayoutPortrait"
-        : "dashboardLayoutLandscape"
-      try {
-        const res = await fetch("/api/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, value: l }),
-        })
-        if (!res.ok) {
-          const resBody = await res.text()
-          throw new Error(`Save failed: ${res.status} ${resBody}`)
+      .then((s: Record<string, unknown>) => {
+        if (s.dashboardLayoutLandscape) {
+          setLandscapeLayout(s.dashboardLayoutLandscape as unknown as DashboardLayout)
         }
-      } catch (err) {
-        console.error("[Layout] save error:", err)
-        toast.error(`Layout save failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+        if (s.dashboardLayoutPortrait) {
+          setPortraitLayout(s.dashboardLayoutPortrait as unknown as DashboardLayout)
+        }
+      })
+      .catch((err) => {
+        console.error("[Layout] Failed to load from D1:", err)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // only on mount
+
+  const saveLayoutToServer = useCallback(async (l: DashboardLayout) => {
+    const key = orientation === "portrait"
+      ? "dashboardLayoutPortrait"
+      : "dashboardLayoutLandscape"
+    try {
+      // Save
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value: l }),
+      })
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(`Save failed (${res.status}): ${body}`)
       }
-      setSetting(key, l).catch(() => {})
-    }, 300)
-  }, [])
+
+      // Verify by reading it back
+      const verifyRes = await fetch("/api/settings")
+      if (!verifyRes.ok) throw new Error(`Verify read failed (${verifyRes.status})`)
+      const saved = await verifyRes.json() as Record<string, unknown>
+      const savedLayout = JSON.stringify(saved[key])
+      const expected = JSON.stringify(l)
+      if (savedLayout !== expected) {
+        console.error("[Layout] Verification mismatch!\nExpected:", expected, "\nGot:", savedLayout)
+        throw new Error("Verification failed: saved data doesn't match")
+      }
+
+      toast.success("Layout saved and verified")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      console.error("[Layout] D1 save failed:", msg)
+      toast.error(`Failed to save layout: ${msg}`)
+    }
+  }, [orientation])
 
   const handleLayoutChange = useCallback(
     (newLayout: DashboardLayout) => {
       setLayout(newLayout)
-      persistLayout(newLayout)
     },
-    [persistLayout],
+    [setLayout],
   )
 
   const handleMinSizesChange = useCallback(
     (newMinSizes: MinSizes) => {
       setMinSizes(newMinSizes)
-      if (!layoutLoadedRef.current) return
-      if (minSizeTimeoutRef.current) clearTimeout(minSizeTimeoutRef.current)
-      minSizeTimeoutRef.current = setTimeout(async () => {
-        try {
-          const res = await fetch("/api/settings", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "zoneMinSizes", value: newMinSizes }),
-          })
-          if (!res.ok) throw new Error(`${res.status}`)
-          console.log("[Layout] Min sizes saved to D1")
-        } catch (err) {
-          console.error("[Layout] Min sizes save error:", err)
-          toast.error("Failed to save zone min sizes")
-        }
-        setSetting("zoneMinSizes", newMinSizes).catch(() => {})
-      }, 300)
     },
     [],
   )
 
   const resetLayout = useCallback(() => {
-    layoutLoadedRef.current = true // ensure save goes through
     setLayout(DEFAULT_DASHBOARD_LAYOUT)
     setMinSizes({})
-    persistLayout(DEFAULT_DASHBOARD_LAYOUT)
-    // Also clear min sizes in D1
-    fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "zoneMinSizes", value: {} }),
-    }).catch(() => {})
     toast.success("Layout reset to default")
-  }, [persistLayout])
+  }, [setLayout])
 
   return (
+    <MascotProvider>
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
+      {/* Local storage notice for anonymous users */}
+      {mounted && authLoaded && !isSignedIn && <LocalStorageNotice />}
+
       {/* Header */}
       <header className="h-14 shrink-0 bg-background/80 backdrop-blur-xl">
         <div className="flex h-full items-center justify-between px-4">
@@ -262,30 +242,47 @@ export function Dashboard() {
                     <Maximize className="size-4" />
                   )}
                 </Button>
-                {editMode && (
+                {editMode ? (
+                  <div className="flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={resetLayout}
+                      className="text-muted-foreground hover:text-foreground"
+                      title="Reset to default layout"
+                    >
+                      <RotateCcw className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => saveLayoutToServer(layout)}
+                      className="text-muted-foreground hover:text-primary"
+                      title="Save layout"
+                    >
+                      <Save className="size-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon-xs"
+                      onClick={() => setEditMode(false)}
+                      className="text-primary"
+                      title="Done editing"
+                    >
+                      <Grid3x3 className="size-4" />
+                    </Button>
+                  </div>
+                ) : (
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    onClick={resetLayout}
+                    onClick={() => setEditMode(true)}
                     className="text-muted-foreground hover:text-foreground"
-                    title="Reset layout"
+                    title="Edit layout"
                   >
-                    <RotateCcw className="size-4" />
+                    <Grid3x3 className="size-4" />
                   </Button>
                 )}
-                <Button
-                  variant={editMode ? "secondary" : "ghost"}
-                  size="icon-xs"
-                  onClick={() => setEditMode(!editMode)}
-                  className={
-                    editMode
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  }
-                  title="Edit layout"
-                >
-                  <Grid3x3 className="size-4" />
-                </Button>
                 <ThemeCustomizer />
                 <Button
                   variant="ghost"
@@ -324,7 +321,7 @@ export function Dashboard() {
 
       {/* Content */}
       {view === "dashboard" ? (
-        <DashboardContext value={{ editMode }}>
+        <DashboardContext value={{ editMode, layout, onLayoutChange: handleLayoutChange }}>
           <GridDashboard
             editMode={editMode}
             layout={layout}
@@ -340,5 +337,58 @@ export function Dashboard() {
         <SettingsView />
       )}
     </div>
+    <MascotOverlay />
+    </MascotProvider>
+  )
+}
+
+// ── One-time local storage notice for anonymous users ───────────────────────
+
+const LS_NOTICE_KEY = "ts_local_storage_notice_dismissed"
+
+function LocalStorageNotice() {
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    if (!localStorage.getItem(LS_NOTICE_KEY)) {
+      setShow(true)
+    }
+  }, [])
+
+  const dismiss = () => {
+    localStorage.setItem(LS_NOTICE_KEY, "1")
+    setShow(false)
+  }
+
+  if (!show) return null
+
+  return (
+    <Dialog open={show} onOpenChange={(open) => { if (!open) dismiss() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+              <HardDrive className="size-4 text-primary" />
+            </div>
+            <DialogTitle className="text-sm font-bold">Your data is stored locally</DialogTitle>
+          </div>
+        </DialogHeader>
+        <div className="space-y-3 text-xs text-muted-foreground">
+          <p>
+            Your dashboard, tasks, notes, and settings are saved in this browser's local storage. They'll persist across sessions, but will be lost if you clear your browser data or switch to a different browser or device.
+          </p>
+          <p>
+            To keep your data safe and synced across devices,{" "}
+            <SignInButton mode="modal">
+              <button className="font-semibold text-primary underline underline-offset-2 hover:text-primary/80">sign in</button>
+            </SignInButton>{" "}
+            to save everything to the cloud.
+          </p>
+        </div>
+        <Button onClick={dismiss} className="w-full">
+          Got it
+        </Button>
+      </DialogContent>
+    </Dialog>
   )
 }

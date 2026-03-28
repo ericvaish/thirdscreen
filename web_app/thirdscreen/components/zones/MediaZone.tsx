@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
 import { isLocal } from "@/lib/data-layer"
+import { useAuth, SignInButton } from "@clerk/nextjs"
 import {
   getLocalSpotifyTokens,
   saveLocalSpotifyTokens,
@@ -639,6 +640,7 @@ export function MediaZone() {
 // ── Spotify auth (open OAuth popup) ─────────────────────────────────────────
 
 function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComplete: () => void }) {
+  const { isSignedIn } = useAuth()
   const connect = async () => {
     if (!clientId) return
 
@@ -708,9 +710,9 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
               <Music className="size-3" />
               Connect Spotify
             </Button>
-            {isLocal && (
-              <p className="max-w-52 text-center text-xs leading-relaxed text-muted-foreground/40">
-                Your session is stored locally. Clearing browser data or switching browsers will require re-connecting. Sign in to save permanently.
+            {isLocal && !isSignedIn && (
+              <p className="text-xs text-muted-foreground/30">
+                Saved in local storage only
               </p>
             )}
           </>
