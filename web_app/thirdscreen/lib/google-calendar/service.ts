@@ -52,6 +52,10 @@ export interface GoogleCalendarEvent {
   description: string | null
   date: string // YYYY-MM-DD
   accountEmail: string
+  meetingLink: string | null
+  htmlLink: string | null
+  organizer: string | null
+  attendees: { email: string; name: string | null; status: string }[] | null
   source: "google"
 }
 
@@ -337,6 +341,27 @@ export async function fetchEventsForAccount(
         const start = parseGoogleDateTime(item.start, date)
         const end = parseGoogleDateTime(item.end, date)
 
+        // Extract meeting link from conferenceData or description
+        let meetingLink: string | null = null
+        if (item.conferenceData?.entryPoints) {
+          const videoEntry = item.conferenceData.entryPoints.find(
+            (ep: { entryPointType: string; uri: string }) => ep.entryPointType === "video"
+          )
+          if (videoEntry) meetingLink = videoEntry.uri
+        }
+        if (!meetingLink && item.hangoutLink) {
+          meetingLink = item.hangoutLink
+        }
+
+        // Extract attendees
+        const attendees = item.attendees
+          ? item.attendees.map((a: { email: string; displayName?: string; responseStatus?: string }) => ({
+              email: a.email,
+              name: a.displayName ?? null,
+              status: a.responseStatus ?? "needsAction",
+            }))
+          : null
+
         allEvents.push({
           id: `gcal-${account.id}-${item.id}`,
           title: item.summary ?? "(No title)",
@@ -348,6 +373,10 @@ export async function fetchEventsForAccount(
           description: item.description ?? null,
           date: start.date,
           accountEmail: account.email,
+          meetingLink,
+          htmlLink: item.htmlLink ?? null,
+          organizer: item.organizer?.displayName ?? item.organizer?.email ?? null,
+          attendees,
           source: "google",
         })
       }

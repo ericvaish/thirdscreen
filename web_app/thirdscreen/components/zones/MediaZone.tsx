@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { extractDominantColor } from "@/lib/spotify/color"
+import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { toast } from "sonner"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
@@ -88,6 +90,7 @@ interface SpotifyPlayerState {
 // ── MediaZone ───────────────────────────────────────────────────────────────
 
 export function MediaZone() {
+  const { editMode } = useDashboard()
   const [status, setStatus] = useState<ConnectionStatus>({ state: "loading" })
   const [albumColor, setAlbumColor] = useState<{ r: number; g: number; b: number } | null>(null)
   const [smoothProgress, setSmoothProgress] = useState(0)
@@ -313,6 +316,14 @@ export function MediaZone() {
   // ── Controls ──────────────────────────────────────────────────────────
 
   const sendControl = async (action: string) => {
+    // Optimistic update for play/pause
+    if ((action === "play" || action === "pause") && status.state === "connected" && status.playback) {
+      setStatus({
+        ...status,
+        playback: { ...status.playback, isPlaying: action === "play" },
+      })
+    }
+
     try {
       if (isLocal && clientIdRef.current) {
         await localPlaybackControl(action as "play" | "pause" | "next" | "previous", clientIdRef.current)
@@ -404,8 +415,9 @@ export function MediaZone() {
       className="zone-surface zone-media flex h-full flex-col transition-[background] duration-1000"
       style={zoneBg}
     >
-      <div className="flex shrink-0 items-center justify-between px-4 py-1.5">
+      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         <div className="flex items-center gap-2">
+          <ZoneDragHandle />
           <div
             className="h-4 w-[3px] rounded-full transition-colors duration-1000"
             style={{ background: accentColor }}
@@ -452,7 +464,7 @@ export function MediaZone() {
                 <Play className="size-3" />
                 Start Playback
               </Button>
-              <p className="max-w-48 text-center text-[0.5625rem] text-muted-foreground/30">
+              <p className="max-w-48 text-center text-xs text-muted-foreground/30">
                 Starts your last played track on this device
               </p>
             </>
@@ -461,7 +473,7 @@ export function MediaZone() {
               <p className="text-xs text-muted-foreground/50">
                 Connecting to Spotify...
               </p>
-              <p className="text-[0.625rem] text-muted-foreground/30">
+              <p className="text-xs text-muted-foreground/30">
                 Play something on Spotify, or wait for the player to initialize
               </p>
             </>
@@ -483,7 +495,7 @@ export function MediaZone() {
                 <p className="truncate text-xs font-semibold text-foreground">
                   {playback.title}
                 </p>
-                <p className="truncate text-[0.625rem] text-muted-foreground/60">
+                <p className="truncate text-xs text-muted-foreground/60">
                   {playback.artist}
                 </p>
               </div>
@@ -522,7 +534,7 @@ export function MediaZone() {
                 <SkipForward className="size-3" />
               </Button>
 
-              <span className="ml-1 font-mono text-[0.5625rem] tabular-nums text-muted-foreground/50">
+              <span className="ml-1 font-mono text-xs tabular-nums text-muted-foreground/50">
                 {formatMs(smoothProgress)}
               </span>
 
@@ -536,7 +548,7 @@ export function MediaZone() {
                 />
               </div>
 
-              <span className="font-mono text-[0.5625rem] tabular-nums text-muted-foreground/30">
+              <span className="font-mono text-xs tabular-nums text-muted-foreground/30">
                 {formatMs(playback.durationMs)}
               </span>
             </div>
@@ -631,7 +643,7 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
               Connect Spotify
             </Button>
             {isLocal && (
-              <p className="max-w-52 text-center text-[0.5rem] leading-relaxed text-muted-foreground/40">
+              <p className="max-w-52 text-center text-xs leading-relaxed text-muted-foreground/40">
                 Your session is stored locally. Clearing browser data or switching browsers will require re-connecting. Sign in to save permanently.
               </p>
             )}

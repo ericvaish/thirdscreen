@@ -162,12 +162,12 @@ export function NotificationBanner() {
             >
               {notif.title}
             </span>
-            <span className="shrink-0 font-mono text-[0.5rem] text-muted-foreground/40">
+            <span className="shrink-0 font-mono text-xs text-muted-foreground/40">
               {timeAgo(notif.createdAt)}
             </span>
           </div>
           {notif.body && (
-            <p className="truncate text-[0.625rem] text-foreground/50">
+            <p className="truncate text-xs text-foreground/50">
               {notif.body}
             </p>
           )}
@@ -182,7 +182,7 @@ export function NotificationBanner() {
             >
               <ChevronLeft className="size-3 text-muted-foreground/50" />
             </button>
-            <span className="font-mono text-[0.5rem] tabular-nums text-muted-foreground/40">
+            <span className="font-mono text-xs tabular-nums text-muted-foreground/40">
               {currentIndex + 1}/{active.length}
             </span>
             <button

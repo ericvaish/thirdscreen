@@ -135,10 +135,10 @@ function ClockDisplay() {
       <span className="font-[family-name:var(--font-display)] text-xl font-bold tabular-nums tracking-tight text-foreground">
         {display}
       </span>
-      <span className="font-mono text-[0.5625rem] font-medium text-muted-foreground/60">
+      <span className="font-mono text-xs font-medium text-muted-foreground/60">
         {ampm}
       </span>
-      <span className="ml-3 font-mono text-[0.625rem] tracking-wide text-muted-foreground/40">
+      <span className="ml-3 font-mono text-xs tracking-wide text-muted-foreground/40">
         {time.toLocaleDateString("en-US", {
           weekday: "short",
           month: "short",
@@ -230,7 +230,7 @@ function WeatherWidget() {
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" className="w-48">
-        <p className="mb-2 font-mono text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {weather.city}
         </p>
         <div className="space-y-1.5 text-xs">
@@ -355,7 +355,7 @@ function AirQualityWidget() {
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" className="w-44">
-        <p className="mb-2 font-mono text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Air Quality
         </p>
         <div className="space-y-1.5 text-xs">
@@ -472,14 +472,14 @@ function PomodoroWidget() {
       )}
       <span
         className={cn(
-          "font-mono text-[0.625rem] font-bold tabular-nums",
+          "font-mono text-xs font-bold tabular-nums",
           isBreak ? "text-emerald-400" : "text-primary"
         )}
       >
         {mm}:{ss}
       </span>
       {sessions > 0 && (
-        <span className="font-mono text-[0.5rem] text-muted-foreground/40">
+        <span className="font-mono text-xs text-muted-foreground/40">
           x{sessions}
         </span>
       )}
@@ -508,7 +508,7 @@ function NotificationTicker() {
     <div className="flex items-center gap-2 overflow-hidden">
       <div className="flex items-center gap-1">
         <Bell className="size-3 text-primary" />
-        <span className="font-mono text-[0.5625rem] font-bold text-primary">
+        <span className="font-mono text-xs font-bold text-primary">
           {activeCount}
         </span>
       </div>
@@ -527,17 +527,17 @@ function NotificationTicker() {
               )}
             >
               <Icon className={cn("size-2.5 shrink-0", color)} />
-              <span className="max-w-[140px] truncate text-[0.5625rem] text-foreground/80">
+              <span className="max-w-[140px] truncate text-xs text-foreground/80">
                 {notif.title}
               </span>
               {notif.body && (
-                <span className="max-w-[80px] truncate text-[0.5rem] text-muted-foreground/50">
+                <span className="max-w-[80px] truncate text-xs text-muted-foreground/50">
                   {notif.body}
                 </span>
               )}
               <button
                 onClick={() => dismiss(notif.id)}
-                className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 size-11 flex items-center justify-center"
+                className="shrink-0 size-11 flex items-center justify-center"
               >
                 <X className="size-2.5 text-muted-foreground/30 hover:text-foreground" />
               </button>
@@ -545,7 +545,7 @@ function NotificationTicker() {
           )
         })}
         {active.length > 3 && (
-          <span className="shrink-0 font-mono text-[0.5rem] text-muted-foreground/40">
+          <span className="shrink-0 font-mono text-xs text-muted-foreground/40">
             +{active.length - 3}
           </span>
         )}

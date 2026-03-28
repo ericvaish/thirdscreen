@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { format } from "date-fns"
-import { Flame, Droplets, Pill, Plus, Minus, Trash2, X, Check } from "lucide-react"
+import { Flame, Droplets, Pill, Plus, Minus, Trash2, X, Check, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,7 +21,10 @@ import {
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { FoodItem, MedicineItem } from "@/lib/types"
+import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { listFoodItems, createFoodItem, deleteFoodItem, getWater, upsertWater, listMedicines, createMedicine, deleteMedicine as deleteMedicineApi, listDoses, toggleDose as toggleDoseApi } from "@/lib/data-layer"
+import { useMascot } from "@/lib/mascot"
 
 // ── Progress Meter ──────────────────────────────────────────────────────────
 
@@ -79,7 +82,7 @@ function Meter({ value, max, color, label, unit, icon, children }: MeterProps) {
       </PopoverTrigger>
       <PopoverContent side="left" className="w-60">
         <p
-          className="mb-3 font-mono text-[0.625rem] font-medium uppercase tracking-wider"
+          className="mb-3 font-mono text-xs font-medium uppercase tracking-wider"
           style={{ color }}
         >
           {label}
@@ -98,11 +101,15 @@ const CARD_ID_CALORIES = "calories-1"
 const CARD_ID_MEDICINES = "medicines-1"
 
 export function VitalsZone() {
+  const { editMode } = useDashboard()
+  const { trigger: mascotTrigger } = useMascot()
   const [today, setToday] = useState("")
 
   const [foodItems, setFoodItems] = useState<FoodItem[]>([])
   const [calorieGoal] = useState(DEFAULT_CALORIE_GOAL)
   const [waterMl, setWaterMl] = useState(0)
+  const [waterUnit, setWaterUnit] = useState<"cups" | "ml">("cups")
+  const [waterGoalMl, setWaterGoalMl] = useState(DEFAULT_WATER_GOAL)
   const [medicines, setMedicines] = useState<MedicineItem[]>([])
   const [doseLogs, setDoseLogs] = useState<Map<string, Set<string>>>(new Map())
   const [dayOfWeek, setDayOfWeek] = useState(-1)
@@ -142,6 +149,11 @@ export function VitalsZone() {
   useEffect(() => {
     setToday(format(new Date(), "yyyy-MM-dd"))
     setDayOfWeek(new Date().getDay())
+    // Load water preferences
+    const storedUnit = localStorage.getItem("water-unit")
+    if (storedUnit === "ml" || storedUnit === "cups") setWaterUnit(storedUnit)
+    const storedGoal = localStorage.getItem("water-goal-ml")
+    if (storedGoal) setWaterGoalMl(Number(storedGoal))
   }, [])
 
   useEffect(() => {
@@ -153,7 +165,11 @@ export function VitalsZone() {
 
   const totalCalories = foodItems.reduce((sum, f) => sum + f.calories, 0)
   const waterCups = Math.round(waterMl / 250)
-  const waterGoalCups = Math.round(DEFAULT_WATER_GOAL / 250)
+  const waterGoalCups = Math.round(waterGoalMl / 250)
+  const waterDisplay = waterUnit === "cups" ? waterCups : waterMl
+  const waterGoalDisplay = waterUnit === "cups" ? waterGoalCups : waterGoalMl
+  const waterUnitLabel = waterUnit === "cups" ? "cups" : "ml"
+  const waterIncrement = waterUnit === "cups" ? 250 : 100 // 1 cup or 100ml
   const todayMeds = medicines.filter((m) => m.activeDays.includes(dayOfWeek))
 
   const addFood = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -165,6 +181,7 @@ export function VitalsZone() {
     try {
       await createFoodItem({ cardId: CARD_ID_CALORIES, name, calories, date: today })
       fetchCalories()
+      mascotTrigger("food")
       e.currentTarget.reset()
     } catch {
       toast.error("Failed to log food")
@@ -176,6 +193,7 @@ export function VitalsZone() {
     setWaterMl(newMl)
     try {
       await upsertWater({ cardId: CARD_ID_CALORIES, date: today, intake: newMl })
+      if (delta > 0) mascotTrigger("water")
     } catch {
       setWaterMl(waterMl)
     }
@@ -195,6 +213,7 @@ export function VitalsZone() {
     })
     try {
       await toggleDoseApi({ medicineId, timeId, date: today })
+      mascotTrigger("medicine")
     } catch {
       fetchMedicines()
     }
@@ -232,8 +251,9 @@ export function VitalsZone() {
 
   return (
     <div className="zone-surface zone-vitals flex h-full flex-col">
-      <div className="shrink-0 px-4 py-1.5">
+      <div className={`shrink-0 px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         <div className="flex items-center gap-2">
+          <ZoneDragHandle />
           <div className="h-4 w-[3px] rounded-full" style={{ background: "var(--zone-vitals-accent)" }} />
           <span className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight" style={{ color: "var(--zone-vitals-accent)" }}>
             Vitals
@@ -272,25 +292,114 @@ export function VitalsZone() {
           )}
         </Meter>
 
-        {/* Water meter */}
-        <Meter
-          value={waterCups}
-          max={waterGoalCups}
-          color="var(--vital-water)"
-          label="Water"
-          unit="cups"
-          icon={<Droplets className="size-3.5" />}
-        >
-          <div className="flex items-center justify-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => adjustWater(-250)} disabled={waterMl <= 0}>
-              <Minus className="size-3" />
-            </Button>
-            <span className="font-mono text-sm font-bold tabular-nums">{waterMl}ml</span>
-            <Button variant="outline" size="sm" onClick={() => adjustWater(250)}>
-              <Plus className="size-3" />
-            </Button>
+        {/* Water - inline +/- buttons with settings popover */}
+        <div className="w-full rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--vital-water)" }} className="opacity-80">
+                <Droplets className="size-3.5" />
+              </span>
+              <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Water
+              </span>
+              <div className="flex items-baseline gap-1 ml-1">
+                <span
+                  className="font-[family-name:var(--font-display)] text-lg font-bold tabular-nums"
+                  style={{ color: "var(--vital-water)" }}
+                >
+                  {waterDisplay}
+                </span>
+                <span className="text-xs text-muted-foreground/50">
+                  / {waterGoalDisplay} {waterUnitLabel}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => adjustWater(-waterIncrement)}
+                disabled={waterMl <= 0}
+                className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <Minus className="size-3.5" />
+              </button>
+              <button
+                onClick={() => adjustWater(waterIncrement)}
+                className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+              >
+                <Plus className="size-3.5" />
+              </button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
+                    <Settings className="size-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="left" className="w-56">
+                  <p className="mb-3 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-water)" }}>
+                    Water Settings
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Display unit</Label>
+                      <div className="mt-1 flex gap-1">
+                        <Button
+                          variant={waterUnit === "cups" ? "default" : "outline"}
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => {
+                            setWaterUnit("cups")
+                            localStorage.setItem("water-unit", "cups")
+                          }}
+                        >
+                          Cups
+                        </Button>
+                        <Button
+                          variant={waterUnit === "ml" ? "default" : "outline"}
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => {
+                            setWaterUnit("ml")
+                            localStorage.setItem("water-unit", "ml")
+                          }}
+                        >
+                          ML
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Daily goal ({waterUnit === "cups" ? "cups" : "ml"})
+                      </Label>
+                      <Input
+                        type="number"
+                        className="mt-1"
+                        value={waterUnit === "cups" ? waterGoalCups : waterGoalMl}
+                        onChange={(e) => {
+                          const val = Number(e.target.value)
+                          if (isNaN(val) || val <= 0) return
+                          const mlVal = waterUnit === "cups" ? val * 250 : val
+                          setWaterGoalMl(mlVal)
+                          localStorage.setItem("water-goal-ml", String(mlVal))
+                        }}
+                      />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
-        </Meter>
+          {/* Progress bar */}
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border/30">
+            <div
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{
+                width: `${Math.min((waterMl / Math.max(waterGoalMl, 1)) * 100, 100)}%`,
+                background: "var(--vital-water)",
+                boxShadow: "0 0 8px var(--vital-water)",
+              }}
+            />
+          </div>
+        </div>
 
         {/* Medicines - checkbox list */}
         <div className="px-3 py-2">
@@ -340,14 +449,14 @@ export function VitalsZone() {
                           {med.name}
                         </span>
                         {med.dosage && (
-                          <span className="ml-1 text-[0.625rem] text-muted-foreground/50">
+                          <span className="ml-1 text-xs text-muted-foreground/50">
                             {med.dosage}
                           </span>
                         )}
                       </div>
                       <span
                         className={cn(
-                          "shrink-0 font-mono text-[0.625rem]",
+                          "shrink-0 font-mono text-xs",
                           taken ? "text-muted-foreground/40" : "text-muted-foreground"
                         )}
                       >
@@ -358,7 +467,7 @@ export function VitalsZone() {
                           e.stopPropagation()
                           deleteMedicine(med.id)
                         }}
-                        className="flex size-11 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+                        className="flex size-11 shrink-0 items-center justify-center"
                       >
                         <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
                       </button>

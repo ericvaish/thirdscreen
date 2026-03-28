@@ -261,6 +261,37 @@ This app is designed to run on tablets (iPad, Android tablets) as wall-mounted o
 
 **Implementation approach:** Update `buttonVariants` in `components/ui/button.tsx` to set minimum heights/sizes to 44px across all variants. Consolidate `icon-xs`, `xs`, `icon-sm`, `sm`, `default`, and `icon` into fewer distinct sizes since they all converge to the same minimum.
 
+## Touch-First Interaction Design
+
+This app targets iPads and touchscreen displays. Hover states are unreliable on touch interfaces.
+
+- **Never hide UI behind hover.** Do not use `opacity-0 group-hover:opacity-100` or similar patterns to reveal buttons, icons, or actions. On touch devices, users cannot hover, so these elements become undiscoverable.
+- **Always-visible, subtle actions.** Action buttons (delete, pin, dismiss) should always be visible but use low-contrast colors (e.g. `text-muted-foreground/30`) so they don't dominate the glanceable UI. They become more prominent on press via `hover:text-destructive` or `active:` states, which do work on touch (fired on tap).
+- **No hover-dependent tooltips for critical info.** If information is important, show it inline. Tooltips via `title` attributes are acceptable for supplementary info since they don't affect functionality.
+
+## Minimum Font Sizes
+
+This app runs on iPads and touchscreen displays where readability at a glance is critical. All text must meet minimum size requirements based on Apple HIG, Material Design, and WCAG guidelines.
+
+**Hard minimum: 11px (0.6875rem).** No text in the app should be smaller than this. This matches Apple's smallest allowed size in Human Interface Guidelines.
+
+| Tailwind Class | Size | Use for |
+|---------------|------|---------|
+| `text-xs` | 12px | Smallest standard text: labels, metadata, timestamps, captions |
+| `text-sm` | 14px | Body text, list items, descriptions |
+| `text-base` | 16px | Primary readable content |
+| `text-[0.6875rem]` | 11px | Absolute minimum: only for decorative/non-essential labels (e.g. source badges) |
+
+**Banned sizes** (all below 11px):
+- `text-[0.625rem]` (10px), `text-[0.5625rem]` (9px), `text-[0.5rem]` (8px), `text-[0.4375rem]` (7px), `text-[0.375rem]` (6px)
+- These exist in the current codebase and should be migrated to `text-xs` (12px) or `text-[0.6875rem]` (11px) over time.
+
+**Rules:**
+- New code must not use any font size below 11px.
+- When editing existing code that uses banned sizes, upgrade them to the nearest allowed size.
+- Monospace text (timestamps, counters) at `text-xs` (12px) is the smallest allowed.
+- Zone header labels should be at least `text-sm` (14px).
+
 ## Style Guidelines
 
 - Do not use em dashes in public-facing website copy (signals AI-generated content).
