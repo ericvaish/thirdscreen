@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { StatusBar } from "@/components/zones/StatusBar"
-import { NotificationBanner } from "@/components/zones/NotificationBanner"
 import { SettingsView } from "./SettingsView"
-import { GridDashboard } from "./GridDashboard"
+import { GridDashboard, type MinSizes } from "./GridDashboard"
 import { DashboardContext } from "./DashboardContext"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +21,7 @@ import { useTheme } from "next-themes"
 import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
 import { getSettings, setSetting } from "@/lib/data-layer"
 import { toast } from "sonner"
+import { ThemeCustomizer } from "./ThemeCustomizer"
 import {
   DEFAULT_DASHBOARD_LAYOUT,
   migrateLayout,
@@ -38,16 +38,40 @@ const THEME_ICON = { dark: Moon, light: Sun, system: Monitor }
 export function Dashboard() {
   const [view, setView] = useState<View>("dashboard")
   const { theme, setTheme } = useTheme()
-  const [layout, setLayout] = useState<DashboardLayout>(
-    DEFAULT_DASHBOARD_LAYOUT,
+  // Orientation-aware layouts: portrait and landscape each get their own saved layout
+  type Orientation = "portrait" | "landscape"
+  const [orientation, setOrientation] = useState<Orientation>(
+    typeof window !== "undefined" && window.innerHeight > window.innerWidth
+      ? "portrait"
+      : "landscape",
   )
+  const [portraitLayout, setPortraitLayout] = useState<DashboardLayout>(DEFAULT_DASHBOARD_LAYOUT)
+  const [landscapeLayout, setLandscapeLayout] = useState<DashboardLayout>(DEFAULT_DASHBOARD_LAYOUT)
+
+  // Active layout is derived from current orientation
+  const layout = orientation === "portrait" ? portraitLayout : landscapeLayout
+  const setLayout = orientation === "portrait" ? setPortraitLayout : setLandscapeLayout
+
+  const [minSizes, setMinSizes] = useState<MinSizes>({})
   const [editMode, setEditMode] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { isSignedIn, isLoaded: authLoaded } = useAuth()
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const minSizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => setMounted(true), [])
+
+  // Detect orientation changes
+  useEffect(() => {
+    const update = () => {
+      const newOrientation: Orientation =
+        window.innerHeight > window.innerWidth ? "portrait" : "landscape"
+      setOrientation(newOrientation)
+    }
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [])
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -63,23 +87,66 @@ export function Dashboard() {
     }
   }, [])
 
-  // Load saved layout (with migration from old format)
+  // Load saved layouts for both orientations
+  const layoutLoadedRef = useRef(false)
   useEffect(() => {
-    getSettings()
-      .then((s) => {
-        const settings = s as Record<string, unknown>
-        if (settings.dashboardLayout) {
-          const migrated = migrateLayout(settings.dashboardLayout)
-          setLayout(migrated)
-        }
+    const loadSettings = (s: Record<string, unknown>) => {
+      // Load landscape layout
+      if (s.dashboardLayoutLandscape) {
+        setLandscapeLayout(migrateLayout(s.dashboardLayoutLandscape))
+      } else if (s.dashboardLayout) {
+        // Migrate old single layout to landscape
+        setLandscapeLayout(migrateLayout(s.dashboardLayout))
+      }
+      // Load portrait layout
+      if (s.dashboardLayoutPortrait) {
+        setPortraitLayout(migrateLayout(s.dashboardLayoutPortrait))
+      }
+      if (s.zoneMinSizes && typeof s.zoneMinSizes === "object") {
+        setMinSizes(s.zoneMinSizes as MinSizes)
+      }
+      layoutLoadedRef.current = true
+    }
+
+    fetch("/api/settings", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`API ${res.status}`)
+        return res.json()
       })
-      .catch(() => {})
+      .then((s) => loadSettings(s as Record<string, unknown>))
+      .catch(() => {
+        getSettings()
+          .then((s) => loadSettings(s as Record<string, unknown>))
+          .catch(() => {})
+          .finally(() => { layoutLoadedRef.current = true })
+      })
   }, [])
 
+  const orientationRef = useRef(orientation)
+  orientationRef.current = orientation
+
   const persistLayout = useCallback((l: DashboardLayout) => {
+    if (!layoutLoadedRef.current) return
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    saveTimeoutRef.current = setTimeout(() => {
-      setSetting("dashboardLayout", l).catch(() => {})
+    saveTimeoutRef.current = setTimeout(async () => {
+      const key = orientationRef.current === "portrait"
+        ? "dashboardLayoutPortrait"
+        : "dashboardLayoutLandscape"
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, value: l }),
+        })
+        if (!res.ok) {
+          const resBody = await res.text()
+          throw new Error(`Save failed: ${res.status} ${resBody}`)
+        }
+      } catch (err) {
+        console.error("[Layout] save error:", err)
+        toast.error(`Layout save failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      }
+      setSetting(key, l).catch(() => {})
     }, 300)
   }, [])
 
@@ -91,9 +158,41 @@ export function Dashboard() {
     [persistLayout],
   )
 
+  const handleMinSizesChange = useCallback(
+    (newMinSizes: MinSizes) => {
+      setMinSizes(newMinSizes)
+      if (!layoutLoadedRef.current) return
+      if (minSizeTimeoutRef.current) clearTimeout(minSizeTimeoutRef.current)
+      minSizeTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch("/api/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "zoneMinSizes", value: newMinSizes }),
+          })
+          if (!res.ok) throw new Error(`${res.status}`)
+          console.log("[Layout] Min sizes saved to D1")
+        } catch (err) {
+          console.error("[Layout] Min sizes save error:", err)
+          toast.error("Failed to save zone min sizes")
+        }
+        setSetting("zoneMinSizes", newMinSizes).catch(() => {})
+      }, 300)
+    },
+    [],
+  )
+
   const resetLayout = useCallback(() => {
+    layoutLoadedRef.current = true // ensure save goes through
     setLayout(DEFAULT_DASHBOARD_LAYOUT)
+    setMinSizes({})
     persistLayout(DEFAULT_DASHBOARD_LAYOUT)
+    // Also clear min sizes in D1
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "zoneMinSizes", value: {} }),
+    }).catch(() => {})
     toast.success("Layout reset to default")
   }, [persistLayout])
 
@@ -187,6 +286,7 @@ export function Dashboard() {
                 >
                   <Grid3x3 className="size-4" />
                 </Button>
+                <ThemeCustomizer />
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -222,9 +322,6 @@ export function Dashboard() {
         </div>
       </header>
 
-      {/* Notification banner */}
-      {view === "dashboard" && <NotificationBanner />}
-
       {/* Content */}
       {view === "dashboard" ? (
         <DashboardContext value={{ editMode }}>
@@ -232,6 +329,8 @@ export function Dashboard() {
             editMode={editMode}
             layout={layout}
             onLayoutChange={handleLayoutChange}
+            minSizes={minSizes}
+            onMinSizesChange={handleMinSizesChange}
           />
           <div className="h-9 shrink-0">
             <StatusBar />

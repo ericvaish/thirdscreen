@@ -16,6 +16,7 @@ import { listIntegrations, toggleIntegration } from "@/lib/data-layer"
 import { useMascot, MASCOT_CHARACTERS } from "@/lib/mascot"
 import * as Icons from "lucide-react"
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings"
+import { GoogleServicesSettings } from "./GoogleServicesSettings"
 
 function getIcon(name: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -161,6 +162,11 @@ export function SettingsView() {
               {category === "Calendar" && (
                 <div className="mb-4">
                   <GoogleCalendarSettings />
+                </div>
+              )}
+              {category === "Communication" && (
+                <div className="mb-4">
+                  <GoogleServicesSettings />
                 </div>
               )}
               <div className="space-y-1">

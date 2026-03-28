@@ -174,7 +174,8 @@ export function VitalsZone() {
 
   const addFood = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const form = new FormData(e.currentTarget)
+    const formEl = e.currentTarget
+    const form = new FormData(formEl)
     const name = form.get("name") as string
     const calories = Number(form.get("calories"))
     if (!name || !calories) return
@@ -182,8 +183,9 @@ export function VitalsZone() {
       await createFoodItem({ cardId: CARD_ID_CALORIES, name, calories, date: today })
       fetchCalories()
       mascotTrigger("food")
-      e.currentTarget.reset()
-    } catch {
+      formEl.reset()
+    } catch (err) {
+      console.error("Failed to log food:", err)
       toast.error("Failed to log food")
     }
   }
@@ -294,7 +296,7 @@ export function VitalsZone() {
 
         {/* Water - inline +/- buttons with settings popover */}
         <div className="w-full rounded-lg px-3 py-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-y-1.5">
             <div className="flex items-center gap-1.5">
               <span style={{ color: "var(--vital-water)" }} className="opacity-80">
                 <Droplets className="size-3.5" />

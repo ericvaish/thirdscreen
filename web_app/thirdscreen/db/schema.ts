@@ -194,6 +194,20 @@ export const calendarAccounts = sqliteTable("calendar_accounts", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+// Google service accounts (Gmail, Chat — separate from calendar_accounts)
+export const googleServiceAccounts = sqliteTable("google_service_accounts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  service: text("service").notNull(), // "gmail" | "chat"
+  email: text("email").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  tokenExpiry: integer("token_expiry").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
 // Enabled integrations
 export const enabledIntegrations = sqliteTable("enabled_integrations", {
   id: text("id").primaryKey(),

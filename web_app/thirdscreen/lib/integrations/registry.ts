@@ -189,6 +189,28 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     defaultEnabled: false,
   },
 
+  // ── Status zone · Communication ──────────────────────────────────────────
+  {
+    id: "gmail",
+    name: "Gmail",
+    description: "Unread email notifications from Gmail",
+    icon: "Mail",
+    zone: "status",
+    category: "Communication",
+    builtIn: false,
+    defaultEnabled: false,
+  },
+  {
+    id: "google-chat",
+    name: "Google Chat",
+    description: "New message notifications from Google Chat",
+    icon: "MessageSquare",
+    zone: "status",
+    category: "Communication",
+    builtIn: false,
+    defaultEnabled: false,
+  },
+
   // ── Status zone · Utilities & media ─────────────────────────────────────
   {
     id: "local-clock",

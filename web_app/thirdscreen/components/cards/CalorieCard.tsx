@@ -401,7 +401,7 @@ export default function CalorieCard({ cardId }: CalorieCardProps) {
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="opacity-0 group-hover:opacity-100"
+                className="hover-reveal"
                 onClick={() => deleteFood(item.id)}
               >
                 <Trash2 className="size-3 text-destructive" />

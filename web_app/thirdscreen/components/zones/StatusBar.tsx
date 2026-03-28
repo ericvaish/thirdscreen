@@ -23,6 +23,7 @@ import {
   Leaf,
   CircleDot,
   Coffee,
+  MessageSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,6 +36,7 @@ import {
   useNotifications,
   type NotificationType,
 } from "@/lib/notifications"
+import { useGoogleNotifications } from "@/lib/google-services/use-google-notifications"
 
 // ── Shared geolocation (used by weather + AQI) ──────────────────────────────
 
@@ -77,6 +79,7 @@ const NOTIF_ICONS: Record<NotificationType, typeof Bell> = {
   alarm: Clock,
   meeting: CalendarDays,
   email: Mail,
+  chat: MessageSquare,
   info: Info,
 }
 
@@ -85,6 +88,7 @@ const NOTIF_COLORS: Record<NotificationType, string> = {
   alarm: "text-amber-400",
   meeting: "text-blue-400",
   email: "text-violet-400",
+  chat: "text-cyan-400",
   info: "text-muted-foreground",
 }
 
@@ -500,56 +504,87 @@ function PomodoroWidget() {
 
 function NotificationTicker() {
   const { notifications, dismiss, activeCount } = useNotifications()
+  const unread = useGoogleNotifications()
   const active = notifications.filter((n) => !n.dismissed)
 
-  if (active.length === 0) return null
+  const hasUnread = unread.gmail > 0 || unread.chat > 0
+  const hasActive = active.length > 0
+
+  if (!hasActive && !hasUnread) return null
 
   return (
     <div className="flex items-center gap-2 overflow-hidden">
-      <div className="flex items-center gap-1">
-        <Bell className="size-3 text-primary" />
-        <span className="font-mono text-xs font-bold text-primary">
-          {activeCount}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-1.5 overflow-hidden">
-        {active.slice(0, 3).map((notif) => {
-          const Icon = NOTIF_ICONS[notif.type]
-          const color = NOTIF_COLORS[notif.type]
-
-          return (
-            <div
-              key={notif.id}
-              className={cn(
-                "group flex items-center gap-1.5 rounded-full border border-border/30 bg-muted/20 px-2 py-0.5 transition-all",
-                notif.dismissed && "scale-95 opacity-0"
-              )}
-            >
-              <Icon className={cn("size-2.5 shrink-0", color)} />
-              <span className="max-w-[140px] truncate text-xs text-foreground/80">
-                {notif.title}
+      {/* Unread count badges */}
+      {hasUnread && (
+        <div className="flex items-center gap-1.5">
+          {unread.gmail > 0 && (
+            <div className="flex items-center gap-1 rounded-full border border-violet-400/20 bg-violet-400/10 px-2 py-0.5">
+              <Mail className="size-2.5 text-violet-400" />
+              <span className="font-mono text-xs font-bold tabular-nums text-violet-400">
+                {unread.gmail}
               </span>
-              {notif.body && (
-                <span className="max-w-[80px] truncate text-xs text-muted-foreground/50">
-                  {notif.body}
-                </span>
-              )}
-              <button
-                onClick={() => dismiss(notif.id)}
-                className="shrink-0 size-11 flex items-center justify-center"
-              >
-                <X className="size-2.5 text-muted-foreground/30 hover:text-foreground" />
-              </button>
             </div>
-          )
-        })}
-        {active.length > 3 && (
-          <span className="shrink-0 font-mono text-xs text-muted-foreground/40">
-            +{active.length - 3}
-          </span>
-        )}
-      </div>
+          )}
+          {unread.chat > 0 && (
+            <div className="flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5">
+              <MessageSquare className="size-2.5 text-cyan-400" />
+              <span className="font-mono text-xs font-bold tabular-nums text-cyan-400">
+                {unread.chat}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Active notification count + pills */}
+      {hasActive && (
+        <>
+          <div className="flex items-center gap-1">
+            <Bell className="size-3 text-primary" />
+            <span className="font-mono text-xs font-bold text-primary">
+              {activeCount}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            {active.slice(0, 5).map((notif) => {
+              const Icon = NOTIF_ICONS[notif.type]
+              const color = NOTIF_COLORS[notif.type]
+
+              return (
+                <div
+                  key={notif.id}
+                  className={cn(
+                    "group flex items-center gap-1.5 rounded-full border border-border/30 bg-muted/20 px-2 py-0.5 transition-all",
+                    notif.dismissed && "scale-95 opacity-0"
+                  )}
+                >
+                  <Icon className={cn("size-2.5 shrink-0", color)} />
+                  <span className="max-w-[140px] truncate text-xs text-foreground/80">
+                    {notif.title}
+                  </span>
+                  {notif.body && (
+                    <span className="max-w-[80px] truncate text-xs text-muted-foreground/50">
+                      {notif.body}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => dismiss(notif.id)}
+                    className="shrink-0 size-11 flex items-center justify-center"
+                  >
+                    <X className="size-2.5 text-muted-foreground/30 hover:text-foreground" />
+                  </button>
+                </div>
+              )
+            })}
+            {active.length > 5 && (
+              <span className="shrink-0 font-mono text-xs text-muted-foreground/40">
+                +{active.length - 5}
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

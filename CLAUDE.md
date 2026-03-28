@@ -71,6 +71,12 @@ web_app/thirdscreen/
     google-calendar/
       constants.ts      # Google OAuth URLs, scopes, settings keys
       service.ts        # Multi-account OAuth, token refresh, event fetching
+    google-services/
+      constants.ts      # Gmail/Chat OAuth URLs, scopes
+      account.ts        # Shared account CRUD, token exchange/refresh for gmail/chat
+      gmail.ts          # Gmail API: unread count, message previews
+      chat.ts           # Google Chat API: spaces, recent messages
+      use-google-notifications.ts  # Client hook: polls every 30s, pushes notifications
     spotify/
       constants.ts      # Spotify OAuth URLs, scopes, settings keys
       service.ts        # OAuth token management, playback API
@@ -79,7 +85,9 @@ web_app/thirdscreen/
 
 ### DB Tables
 
-`cards`, `todos`, `notes`, `links`, `medicines`, `medicine_dose_logs`, `food_items`, `water_logs`, `schedule_events`, `settings`, `admin_config`, `enabled_integrations`, `calendar_accounts`, `lyrics_cache`. All use text UUIDs as primary keys. Child tables cascade-delete on card removal.
+`cards`, `todos`, `notes`, `links`, `medicines`, `medicine_dose_logs`, `food_items`, `water_logs`, `schedule_events`, `settings`, `admin_config`, `enabled_integrations`, `calendar_accounts`, `google_service_accounts`, `lyrics_cache`. All use text UUIDs as primary keys. Child tables cascade-delete on card removal.
+
+`google_service_accounts` stores OAuth tokens for Gmail and Google Chat (separate from `calendar_accounts`). Schema: `id, userId, service ("gmail"|"chat"), email, accessToken, refreshToken, tokenExpiry, createdAt`.
 
 ### External Calendar Integration (Multi-Account)
 
@@ -197,10 +205,12 @@ The web app has a separate Next.js config for Electron builds:
 
 ## Development
 
+**Always use `bun` as the package manager.** Do not use `npm`, `npx`, or `pnpm`. All install, run, and script commands must use `bun`. Use `bunx` instead of `npx` for one-off package execution.
+
 ### Web app (standalone browser use)
 ```bash
 cd web_app/thirdscreen
-bun install          # or npm install
+bun install
 bun run dev          # Next.js dev server with Turbopack on localhost:3000
 bun run build        # production build (server mode)
 bun run build:export # static export for Electron (outputs to out/)
@@ -212,10 +222,10 @@ bun run format       # Prettier
 ### Electron app (desktop use)
 ```bash
 cd electron-app
-npm install
-npm run dev          # compiles TS + launches Electron (expects web dev server on :3000)
-npm run build        # compile TypeScript only
-npm run dist:mac     # full build: compile + export web app + package .app/.dmg
+bun install
+bun run dev          # compiles TS + launches Electron (expects web dev server on :3000)
+bun run build        # compile TypeScript only
+bun run dist:mac     # full build: compile + export web app + package .app/.dmg
 ```
 
 DB file is auto-created on first run with default seed data. Web app stores in `web_app/thirdscreen/thirdscreen.db`. Electron stores in the OS user data directory.
@@ -223,6 +233,17 @@ DB file is auto-created on first run with default seed data. Web app stores in `
 ## Maintaining This File
 
 This project evolves rapidly. When you make structural changes (new components, new directories, new card types, architecture shifts, new build steps, etc.), update this CLAUDE.md to reflect them before finishing the task. This file is the primary context an AI reads at the start of every conversation -- if it's stale, the next session starts with wrong assumptions.
+
+## Long-Term Vision: Home Assistant-Style Extensibility
+
+The long-term goal is a fully customizable dashboard platform inspired by Home Assistant's extensibility model. Every new feature should move closer to this vision, not further away. The layers, in order of priority:
+
+1. **Theme layer (done)** -- CSS custom property overrides via the Theme Customizer sheet. Users pick zone accent colors, card backgrounds, gradient styles, and presets. Persisted to D1.
+2. **Custom CSS injection (future)** -- Let power users write raw CSS that gets injected into the dashboard (like HA's card-mod). Simple `<style>` tag from settings.
+3. **Plugin/widget system (future)** -- Dynamically loaded React components that render inside zones. Community-created widgets (stock ticker, habit tracker, SVG floorplan, photo slideshow). Needs a plugin API, sandboxing, and a loading system. Equivalent to HA's custom cards via HACS.
+4. **Theme/widget marketplace (future)** -- A registry where users browse, share, and install community themes and widgets. Export/import as JSON.
+
+**Architectural principle:** Every zone and integration should consume CSS custom properties and data abstractions so that future theming/plugin layers can override them without modifying component internals. Keep the boundary between "what data to show" and "how it looks" clean.
 
 ## Dashboard Design Principles
 
@@ -261,12 +282,13 @@ This app is designed to run on tablets (iPad, Android tablets) as wall-mounted o
 
 **Implementation approach:** Update `buttonVariants` in `components/ui/button.tsx` to set minimum heights/sizes to 44px across all variants. Consolidate `icon-xs`, `xs`, `icon-sm`, `sm`, `default`, and `icon` into fewer distinct sizes since they all converge to the same minimum.
 
-## Touch-First Interaction Design
+## Adaptive Hover/Touch Interaction Design
 
-This app targets iPads and touchscreen displays. Hover states are unreliable on touch interfaces.
+This app runs on both desktop (mouse/trackpad) and tablets (touch). Use `@media (hover: hover)` to adapt.
 
-- **Never hide UI behind hover.** Do not use `opacity-0 group-hover:opacity-100` or similar patterns to reveal buttons, icons, or actions. On touch devices, users cannot hover, so these elements become undiscoverable.
-- **Always-visible, subtle actions.** Action buttons (delete, pin, dismiss) should always be visible but use low-contrast colors (e.g. `text-muted-foreground/30`) so they don't dominate the glanceable UI. They become more prominent on press via `hover:text-destructive` or `active:` states, which do work on touch (fired on tap).
+- **Use the `hover-reveal` CSS class** (defined in `globals.css`) for destructive/secondary actions (delete, pin, dismiss). It shows elements at 20% opacity on touch devices (always visible but subtle) and hides them completely on hover-capable devices, revealing on parent `.group:hover`. This replaces the old `opacity-0 group-hover:opacity-100` pattern.
+- **Never use raw `opacity-0 group-hover:opacity-100`** without the media query. Always use the `hover-reveal` class or the equivalent `@media (hover: hover)` pattern so touch users can still see and tap the controls.
+- **Primary actions (add, toggle, navigate) should always be fully visible** regardless of device. The hover-reveal pattern is only for secondary/destructive actions.
 - **No hover-dependent tooltips for critical info.** If information is important, show it inline. Tooltips via `title` attributes are acceptable for supplementary info since they don't affect functionality.
 
 ## Minimum Font Sizes

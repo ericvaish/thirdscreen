@@ -11,6 +11,7 @@ export async function GET() {
   try {
     const [userId, authError] = await getAuthUserId()
     if (authError) return authError
+    console.log("[Settings GET] userId:", JSON.stringify(userId))
     const allSettings = await getDb()
       .select()
       .from(settings)
@@ -38,6 +39,7 @@ export async function PUT(request: Request) {
   try {
     const [userId, authError] = await getAuthUserId()
     if (authError) return authError
+    console.log("[Settings PUT] userId:", JSON.stringify(userId))
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json()
     const { key, value } = body

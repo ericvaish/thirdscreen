@@ -143,18 +143,19 @@
     --glass-bg: oklch(0.155 0.018 270 / 60%);
     --glass-border: oklch(1 0 0 / 6%);
     --glass-blur: blur(24px) saturate(1.4);
-    /* Zone backgrounds - deep tinted surfaces */
-    --zone-timeline: oklch(0.16 0.04 220);
+    /* Zone backgrounds - unified dark base, accent for gradients only */
+    --zone-base: oklch(0.13 0.01 260);
+    --zone-timeline: var(--zone-base);
     --zone-timeline-accent: oklch(0.72 0.17 210);
-    --zone-tasks: oklch(0.16 0.04 75);
+    --zone-tasks: var(--zone-base);
     --zone-tasks-accent: oklch(0.82 0.16 80);
-    --zone-notes: oklch(0.16 0.04 300);
+    --zone-notes: var(--zone-base);
     --zone-notes-accent: oklch(0.74 0.18 300);
-    --zone-vitals: oklch(0.16 0.04 160);
+    --zone-vitals: var(--zone-base);
     --zone-vitals-accent: oklch(0.74 0.17 160);
-    --zone-media: oklch(0.16 0.04 20);
+    --zone-media: var(--zone-base);
     --zone-media-accent: oklch(0.75 0.18 20);
-    --zone-status: oklch(0.14 0.02 270);
+    --zone-status: oklch(0.11 0.01 260);
     --zone-status-accent: oklch(0.6 0.03 270);
 }
 
@@ -169,6 +170,32 @@
     @apply font-sans;
     font-size: var(--ui-scale, 20px);
   }
+}
+
+/* ── Hover-reveal pattern ─────────────────────────────────────────────── */
+/* Use on destructive/secondary actions (delete, pin, dismiss).
+   - Hover-capable devices: hidden by default, revealed on parent hover.
+   - Touch devices: always visible at low opacity. */
+
+.hover-reveal {
+  opacity: 0.2;
+  transition: opacity 0.15s ease;
+}
+
+/* On hover-capable devices, hide by default and reveal on group hover */
+@media (hover: hover) {
+  .hover-reveal {
+    opacity: 0;
+  }
+  .group:hover .hover-reveal {
+    opacity: 1;
+  }
+}
+
+/* Always show on active/focus (works on both touch and mouse) */
+.hover-reveal:active,
+.hover-reveal:focus-visible {
+  opacity: 1;
 }
 
 /* ── Clerk components: reset to browser default so modals aren't scaled ── */
@@ -223,35 +250,35 @@
   background: var(--zone-timeline);
 }
 .zone-timeline::before {
-  background: radial-gradient(ellipse 50% 80% at 20% 0%, var(--zone-timeline-accent) / 8%, transparent 70%);
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.72 0.17 210 / 18%), transparent);
 }
 
 .zone-tasks {
   background: var(--zone-tasks);
 }
 .zone-tasks::before {
-  background: radial-gradient(ellipse 60% 60% at 10% 20%, var(--zone-tasks-accent) / 8%, transparent 70%);
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.82 0.16 80 / 18%), transparent);
 }
 
 .zone-notes {
   background: var(--zone-notes);
 }
 .zone-notes::before {
-  background: radial-gradient(ellipse 60% 60% at 10% 20%, var(--zone-notes-accent) / 8%, transparent 70%);
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.74 0.18 300 / 18%), transparent);
 }
 
 .zone-vitals {
   background: var(--zone-vitals);
 }
 .zone-vitals::before {
-  background: radial-gradient(ellipse 80% 40% at 50% 0%, var(--zone-vitals-accent) / 10%, transparent 70%);
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.74 0.17 160 / 18%), transparent);
 }
 
 .zone-media {
   background: var(--zone-media);
 }
 .zone-media::before {
-  background: none;
+  background: radial-gradient(circle 200px at 0% 0%, oklch(0.75 0.18 20 / 18%), transparent);
 }
 
 .zone-status {
@@ -260,6 +287,41 @@
 }
 .zone-status::before {
   background: none;
+}
+
+/* ── Zone gradient variants (controlled via data-gradient-{zone} on :root) */
+
+/* Flat: no gradient overlay */
+:root[data-gradient-timeline="flat"] .zone-timeline::before,
+:root[data-gradient-tasks="flat"] .zone-tasks::before,
+:root[data-gradient-notes="flat"] .zone-notes::before,
+:root[data-gradient-vitals="flat"] .zone-vitals::before,
+:root[data-gradient-media="flat"] .zone-media::before {
+  background: none !important;
+}
+
+/* Border: no gradient, colored top border instead */
+:root[data-gradient-timeline="border"] .zone-timeline::before,
+:root[data-gradient-tasks="border"] .zone-tasks::before,
+:root[data-gradient-notes="border"] .zone-notes::before,
+:root[data-gradient-vitals="border"] .zone-vitals::before,
+:root[data-gradient-media="border"] .zone-media::before {
+  background: none !important;
+}
+:root[data-gradient-timeline="border"] .zone-timeline {
+  border-top: 2px solid var(--zone-timeline-accent);
+}
+:root[data-gradient-tasks="border"] .zone-tasks {
+  border-top: 2px solid var(--zone-tasks-accent);
+}
+:root[data-gradient-notes="border"] .zone-notes {
+  border-top: 2px solid var(--zone-notes-accent);
+}
+:root[data-gradient-vitals="border"] .zone-vitals {
+  border-top: 2px solid var(--zone-vitals-accent);
+}
+:root[data-gradient-media="border"] .zone-media {
+  border-top: 2px solid var(--zone-media-accent);
 }
 
 /* ── Pulse animation for now-line ──────────────────────────────────────── */
@@ -301,22 +363,22 @@
 }
 
 .dark .sun-arc-stop-top {
-  stop-color: oklch(0.7 0.14 70 / 15%);
+  stop-color: oklch(0.8 0.14 70 / 30%);
 }
 .dark .sun-arc-stop-bottom {
-  stop-color: oklch(0.7 0.14 70 / 0%);
+  stop-color: oklch(0.8 0.14 70 / 0%);
 }
 .dark .sun-arc-stroke {
-  stroke: oklch(0.7 0.12 70 / 20%);
+  stroke: oklch(0.8 0.12 70 / 40%);
 }
 .dark .moon-arc-stop-top {
-  stop-color: oklch(0.45 0.1 270 / 0%);
+  stop-color: oklch(0.65 0.12 270 / 0%);
 }
 .dark .moon-arc-stop-bottom {
-  stop-color: oklch(0.45 0.1 270 / 12%);
+  stop-color: oklch(0.65 0.12 270 / 25%);
 }
 .dark .moon-arc-stroke {
-  stroke: oklch(0.45 0.1 270 / 18%);
+  stroke: oklch(0.65 0.12 270 / 35%);
 }
 .dark .horizon-line {
   stroke: oklch(0.5 0 0 / 10%);

@@ -199,6 +199,18 @@ export async function localPlaybackControl(
   return res !== null && (res.ok || res.status === 204)
 }
 
+export async function localSeekPlayback(
+  positionMs: number,
+  clientId: string
+): Promise<boolean> {
+  const res = await localSpotifyFetch(
+    `/me/player/seek?position_ms=${Math.round(positionMs)}`,
+    clientId,
+    { method: "PUT" }
+  )
+  return res !== null && (res.ok || res.status === 204)
+}
+
 export async function localTransferPlayback(
   deviceId: string,
   play = false,

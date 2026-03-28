@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useRef, useState } from "react"
 
 // ── Notification Types ──────────────────────────────────────────────────────
 
-export type NotificationType = "timer" | "alarm" | "meeting" | "email" | "info"
+export type NotificationType = "timer" | "alarm" | "meeting" | "email" | "chat" | "info"
 
 export interface AppNotification {
   id: string
