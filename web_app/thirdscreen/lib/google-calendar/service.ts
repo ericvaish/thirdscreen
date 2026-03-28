@@ -7,6 +7,7 @@ import {
   GOOGLE_USERINFO_URL,
   GOOGLE_CLIENT_ID_KEY,
 } from "./constants"
+import { getAdminConfig, ADMIN_KEYS } from "@/lib/admin-config"
 
 // ── DB helpers ──────────────────────────────────────────────────────────────
 
@@ -19,6 +20,9 @@ async function getSetting(key: string, userId: string): Promise<unknown> {
 }
 
 export async function getClientId(userId: string = ""): Promise<string | null> {
+  // Admin-provided env var takes priority, then per-user DB setting
+  const envClientId = getAdminConfig(ADMIN_KEYS.googleClientId)
+  if (envClientId) return envClientId
   return (await getSetting(GOOGLE_CLIENT_ID_KEY, userId)) as string | null
 }
 
@@ -132,19 +136,29 @@ export async function exchangeGoogleCode(
   if (!clientId) return null
 
   // Exchange authorization code for tokens
+  // Google requires client_secret for web app token exchange (unlike Spotify PKCE)
+  const clientSecret = getAdminConfig(ADMIN_KEYS.googleClientSecret)
+  const tokenBody: Record<string, string> = {
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    code_verifier: codeVerifier,
+  }
+  if (clientSecret) {
+    tokenBody.client_secret = clientSecret
+  }
+
   const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri,
-      client_id: clientId,
-      code_verifier: codeVerifier,
-    }),
+    body: new URLSearchParams(tokenBody),
   })
 
-  if (!tokenRes.ok) return null
+  if (!tokenRes.ok) {
+    console.error("Google token exchange failed:", tokenRes.status, await tokenRes.text())
+    return null
+  }
   const tokenData = await tokenRes.json()
 
   const accessToken = tokenData.access_token as string
@@ -216,14 +230,20 @@ async function refreshGoogleToken(
   const clientId = await getClientId(account.userId)
   if (!clientId) return null
 
+  const refreshBody: Record<string, string> = {
+    grant_type: "refresh_token",
+    refresh_token: account.refreshToken,
+    client_id: clientId,
+  }
+  const clientSecret = getAdminConfig(ADMIN_KEYS.googleClientSecret)
+  if (clientSecret) {
+    refreshBody.client_secret = clientSecret
+  }
+
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: account.refreshToken,
-      client_id: clientId,
-    }),
+    body: new URLSearchParams(refreshBody),
   })
 
   if (!res.ok) return null
