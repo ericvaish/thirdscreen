@@ -453,7 +453,7 @@ function NotesTab({
                       e.stopPropagation()
                       onDelete(note.id)
                     }}
-                    className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive"
+                    className="shrink-0 hover-reveal text-muted-foreground/50 hover:text-destructive"
                   >
                     <X className="size-3" />
                   </Button>
@@ -563,7 +563,7 @@ function LinksTab({
                       <ExternalLink className="size-2" />
                     </span>
                   </a>
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex shrink-0 items-center gap-0.5 hover-reveal">
                     <Button
                       variant="ghost"
                       size="icon-xs"

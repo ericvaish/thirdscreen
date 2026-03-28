@@ -344,19 +344,45 @@ export async function toggleDose(data: {
 // ── Settings ──────────────────────────────────────────────────────────────
 
 export async function getSettings() {
-  if (isLocal) return local.localGetSettings()
   if (isElectron) return ipc("db:settings:get")
-  return api("/api/settings")
+
+  // Always read from localStorage first (instant, works offline)
+  const localSettings = local.localGetSettings()
+
+  // If in server mode, merge server settings (server wins for keys not in local)
+  if (isServer) {
+    try {
+      const serverSettings = await api<Record<string, unknown>>("/api/settings")
+      return { ...localSettings, ...serverSettings }
+    } catch {
+      return localSettings
+    }
+  }
+
+  // In local mode, still try to hydrate from server if user might be signed in
+  // (best effort, don't block)
+  return localSettings
 }
 
 export async function setSetting(key: string, value: unknown) {
-  if (isLocal) return local.localSetSetting(key, value)
   if (isElectron) return ipc("db:settings:set", { key, value })
-  return api("/api/settings", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  })
+
+  // Always save to localStorage (instant, works offline)
+  local.localSetSetting(key, value)
+
+  // Also persist to D1 via API (best-effort, don't block on failure)
+  try {
+    await api("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value }),
+    })
+  } catch {
+    // Server save failed (user may not be signed in, or offline) -- that's fine,
+    // localStorage has the data
+  }
+
+  return { success: true }
 }
 
 // ── Integrations ──────────────────────────────────────────────────────────

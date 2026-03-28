@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import {
   getCurrentPlayback,
   playbackControl,
+  seekPlayback,
   transferPlayback,
   getTokens,
   clearTokens,
@@ -51,6 +52,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "deviceId required" }, { status: 400 })
       }
       const ok = await transferPlayback(deviceId, play ?? false, userId)
+      return NextResponse.json({ success: ok })
+    }
+
+    if (action === "seek") {
+      const { positionMs } = body
+      if (typeof positionMs !== "number") {
+        return NextResponse.json({ error: "positionMs required" }, { status: 400 })
+      }
+      const ok = await seekPlayback(positionMs, userId)
       return NextResponse.json({ success: ok })
     }
 

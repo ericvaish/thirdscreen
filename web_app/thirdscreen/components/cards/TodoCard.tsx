@@ -236,7 +236,7 @@ export function TodoCard({ cardId }: TodoCardProps) {
                     variant="ghost"
                     size="icon-xs"
                     onClick={() => deleteTodo(todo.id)}
-                    className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive"
+                    className="shrink-0 hover-reveal text-muted-foreground/50 hover:text-destructive"
                   >
                     <X className="size-3" />
                   </Button>

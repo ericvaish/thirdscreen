@@ -25,6 +25,7 @@ import {
   getLocalCurrentPlayback,
   getValidLocalToken,
   localPlaybackControl,
+  localSeekPlayback,
   localTransferPlayback,
   clearLocalSpotifyTokens,
 } from "@/lib/spotify/local-spotify"
@@ -100,6 +101,8 @@ export function MediaZone() {
   const sdkLoadedRef = useRef(false)
   const clientIdRef = useRef<string | null>(null)
   const progressSyncRef = useRef({ position: 0, time: 0 })
+  const [seekingMs, setSeekingMs] = useState<number | null>(null)
+  const progressBarRef = useRef<HTMLDivElement | null>(null)
 
   // Fetch connection status
   const fetchState = useCallback(async () => {
@@ -358,6 +361,52 @@ export function MediaZone() {
     } catch {}
   }
 
+  const sendSeek = async (positionMs: number) => {
+    // Optimistic: update local progress immediately
+    const clamped = Math.max(0, Math.min(positionMs, duration))
+    progressSyncRef.current = { position: clamped, time: Date.now() }
+    setSmoothProgress(clamped)
+
+    try {
+      if (isLocal && clientIdRef.current) {
+        await localSeekPlayback(clamped, clientIdRef.current)
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "seek", positionMs: clamped }),
+        })
+      }
+      setTimeout(fetchState, 300)
+    } catch {}
+  }
+
+  const getMsFromPointer = (clientX: number): number => {
+    const bar = progressBarRef.current
+    if (!bar || !duration) return 0
+    const rect = bar.getBoundingClientRect()
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    return fraction * duration
+  }
+
+  const onProgressPointerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const ms = getMsFromPointer(e.clientX)
+    setSeekingMs(ms)
+  }
+
+  const onProgressPointerMove = (e: React.PointerEvent) => {
+    if (seekingMs === null) return
+    setSeekingMs(getMsFromPointer(e.clientX))
+  }
+
+  const onProgressPointerUp = (e: React.PointerEvent) => {
+    if (seekingMs === null) return
+    const ms = getMsFromPointer(e.clientX)
+    setSeekingMs(null)
+    sendSeek(ms)
+  }
+
   const disconnect = async () => {
     playerRef.current?.disconnect()
     playerRef.current = null
@@ -399,11 +448,7 @@ export function MediaZone() {
   // Connected
   const { playback, sdkReady, deviceId } = status
 
-  // Build dynamic styles from album color
-  const accentColor = albumColor
-    ? `rgb(${albumColor.r}, ${albumColor.g}, ${albumColor.b})`
-    : "var(--zone-media-accent)"
-
+  // Build dynamic background gradient from album color
   const zoneBg = albumColor
     ? {
         background: `linear-gradient(135deg, rgba(${albumColor.r}, ${albumColor.g}, ${albumColor.b}, 0.15) 0%, var(--zone-media) 60%)`,
@@ -419,12 +464,12 @@ export function MediaZone() {
         <div className="flex items-center gap-2">
           <ZoneDragHandle />
           <div
-            className="h-4 w-[3px] rounded-full transition-colors duration-1000"
-            style={{ background: accentColor }}
+            className="h-4 w-[3px] rounded-full"
+            style={{ background: "var(--zone-media-accent)" }}
           />
           <span
-            className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight transition-colors duration-1000"
-            style={{ color: accentColor }}
+            className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight"
+            style={{ color: "var(--zone-media-accent)" }}
           >
             Now Playing
           </span>
@@ -459,7 +504,7 @@ export function MediaZone() {
                 size="sm"
                 onClick={startPlayback}
                 className="gap-1.5"
-                style={{ background: accentColor }}
+                style={{ background: "var(--zone-media-accent)" }}
               >
                 <Play className="size-3" />
                 Start Playback
@@ -481,18 +526,18 @@ export function MediaZone() {
         </div>
       ) : (
         <>
-          {/* Track info */}
-          <div className="shrink-0 px-4">
+          {/* Track info: album art + title/artist */}
+          <div className="shrink-0 px-4 pt-1">
             <div className="flex items-center gap-3">
               {playback.albumArt && (
                 <img
                   src={playback.albumArt}
                   alt=""
-                  className="size-10 shrink-0 rounded"
+                  className="size-12 shrink-0 rounded-md shadow-lg"
                 />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-foreground">
+                <p className="truncate text-sm font-semibold text-foreground">
                   {playback.title}
                 </p>
                 <p className="truncate text-xs text-muted-foreground/60">
@@ -502,56 +547,77 @@ export function MediaZone() {
             </div>
           </div>
 
-          {/* Controls + progress */}
-          <div className="shrink-0 px-4 py-1.5">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => sendControl("previous")}
-                className="text-muted-foreground/60 hover:text-foreground"
-              >
-                <SkipBack className="size-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => sendControl(playback.isPlaying ? "pause" : "play")}
-                className="size-7 rounded-full text-foreground"
-              >
-                {playback.isPlaying ? (
-                  <Pause className="size-3.5" />
-                ) : (
-                  <Play className="size-3.5" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => sendControl("next")}
-                className="text-muted-foreground/60 hover:text-foreground"
-              >
-                <SkipForward className="size-3" />
-              </Button>
+          {/* Playback controls: centered row */}
+          <div className="flex shrink-0 items-center justify-center gap-3 px-4 py-1.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => sendControl("previous")}
+              className="text-muted-foreground/60 hover:text-foreground"
+            >
+              <SkipBack className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => sendControl(playback.isPlaying ? "pause" : "play")}
+              className="rounded-full text-foreground"
+            >
+              {playback.isPlaying ? (
+                <Pause className="size-4" />
+              ) : (
+                <Play className="size-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => sendControl("next")}
+              className="text-muted-foreground/60 hover:text-foreground"
+            >
+              <SkipForward className="size-4" />
+            </Button>
+          </div>
 
-              <span className="ml-1 font-mono text-xs tabular-nums text-muted-foreground/50">
-                {formatMs(smoothProgress)}
-              </span>
-
-              <div className="h-1 flex-1 overflow-hidden rounded-full bg-border/30">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${(smoothProgress / Math.max(playback.durationMs, 1)) * 100}%`,
-                    background: accentColor,
-                  }}
-                />
-              </div>
-
-              <span className="font-mono text-xs tabular-nums text-muted-foreground/30">
-                {formatMs(playback.durationMs)}
-              </span>
-            </div>
+          {/* Progress bar: full width, interactive seek */}
+          <div className="shrink-0 px-4 pb-2">
+            {(() => {
+              const displayMs = seekingMs !== null ? seekingMs : smoothProgress
+              const pct = (displayMs / Math.max(playback.durationMs, 1)) * 100
+              return (
+                <>
+                  <div
+                    ref={progressBarRef}
+                    className="group/seek relative h-6 w-full cursor-pointer touch-none select-none"
+                    onPointerDown={onProgressPointerDown}
+                    onPointerMove={onProgressPointerMove}
+                    onPointerUp={onProgressPointerUp}
+                    onPointerCancel={() => setSeekingMs(null)}
+                  >
+                    {/* Track */}
+                    <div className="absolute top-1/2 h-1.5 w-full -translate-y-1/2 overflow-hidden rounded-full bg-border/30 transition-[height] group-active/seek:h-2">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: "var(--zone-media-accent)" }}
+                      />
+                    </div>
+                    {/* Thumb (visible on hover/drag) */}
+                    <div
+                      className="pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 shadow-md transition-opacity group-active/seek:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/seek:opacity-100"
+                      style={{ left: `${pct}%`, background: "var(--zone-media-accent)" }}
+                    />
+                  </div>
+                  <div className="-mt-1 flex items-center justify-between">
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground/50">
+                      {formatMs(displayMs)}
+                    </span>
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground/30">
+                      {formatMs(playback.durationMs)}
+                    </span>
+                  </div>
+                </>
+              )
+            })()}
           </div>
 
           {/* Lyrics */}
@@ -763,18 +829,20 @@ function SyncedLyrics({
     isNewTrackRef.current = false
 
     requestAnimationFrame(() => {
-      if (isNew && containerRef.current) {
-        // Reset scroll to top instantly, then snap to the active line
-        containerRef.current.scrollTop = 0
-        activeLineRef.current?.scrollIntoView({
-          behavior: "instant",
-          block: "center",
-        })
+      const container = containerRef.current
+      const activeLine = activeLineRef.current
+      if (!container || !activeLine) return
+
+      // Calculate scroll position to center the active line within the lyrics container
+      const lineTop = activeLine.offsetTop
+      const lineHeight = activeLine.offsetHeight
+      const containerHeight = container.clientHeight
+      const targetScroll = lineTop - containerHeight / 2 + lineHeight / 2
+
+      if (isNew) {
+        container.scrollTop = targetScroll
       } else {
-        activeLineRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        })
+        container.scrollTo({ top: targetScroll, behavior: "smooth" })
       }
     })
   }, [currentIndex])

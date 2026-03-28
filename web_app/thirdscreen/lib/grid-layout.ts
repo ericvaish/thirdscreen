@@ -1,7 +1,7 @@
 // ── Grid layout types and utilities ──────────────────────────────────────────
 
-export const GRID_COLS = 12
-export const GRID_ROWS = 12
+export const GRID_COLS = 16
+export const GRID_ROWS = 16
 
 export const ZONE_IDS = [
   "timeline",
@@ -25,21 +25,21 @@ export type DashboardLayout = Record<ZoneId, ZonePosition>
 // ── Minimum sizes per zone ──────────────────────────────────────────────────
 
 export const ZONE_MIN_SIZES: Record<ZoneId, { minW: number; minH: number }> = {
-  timeline: { minW: 2, minH: 1 },
-  tasks: { minW: 2, minH: 2 },
-  notes: { minW: 2, minH: 2 },
-  vitals: { minW: 2, minH: 2 },
-  media: { minW: 2, minH: 2 },
+  timeline: { minW: 3, minH: 2 },
+  tasks: { minW: 3, minH: 3 },
+  notes: { minW: 3, minH: 3 },
+  vitals: { minW: 3, minH: 3 },
+  media: { minW: 3, minH: 3 },
 }
 
 // ── Default layout ──────────────────────────────────────────────────────────
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
-  timeline: { x: 0, y: 0, w: 12, h: 2 },
-  tasks: { x: 0, y: 2, w: 5, h: 4 },
-  media: { x: 0, y: 6, w: 5, h: 6 },
-  notes: { x: 5, y: 6, w: 3, h: 6 },
-  vitals: { x: 8, y: 2, w: 4, h: 10 },
+  timeline: { x: 0, y: 0, w: 16, h: 3 },
+  tasks: { x: 0, y: 3, w: 7, h: 5 },
+  media: { x: 0, y: 8, w: 7, h: 8 },
+  notes: { x: 7, y: 8, w: 4, h: 8 },
+  vitals: { x: 11, y: 3, w: 5, h: 13 },
 }
 
 // ── RGL conversion ──────────────────────────────────────────────────────────
@@ -129,12 +129,14 @@ function isOldLayout(value: unknown): value is OldGridLayout {
 
 export function migrateLayout(stored: unknown): DashboardLayout {
   if (isValidLayout(stored)) {
-    // If layout was saved with a larger grid (24/48), scale down to 12x12
+    // Only scale if the layout was clearly from a different grid size
+    // (i.e., zones exceed the current grid bounds). Don't scale layouts
+    // that simply don't fill the full width -- that's a valid user choice.
     const maxX = Math.max(...ZONE_IDS.map((id) => stored[id].x + stored[id].w))
     const maxY = Math.max(...ZONE_IDS.map((id) => stored[id].y + stored[id].h))
     if (maxX > GRID_COLS || maxY > GRID_ROWS) {
-      const scaleX = GRID_COLS / maxX
-      const scaleY = GRID_ROWS / maxY
+      const scaleX = maxX > GRID_COLS ? GRID_COLS / maxX : 1
+      const scaleY = maxY > GRID_ROWS ? GRID_ROWS / maxY : 1
       const scaled: DashboardLayout = { ...DEFAULT_DASHBOARD_LAYOUT }
       for (const id of ZONE_IDS) {
         scaled[id] = {

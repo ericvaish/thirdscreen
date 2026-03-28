@@ -232,6 +232,15 @@ export async function playbackControl(
   return res !== null && (res.ok || res.status === 204)
 }
 
+export async function seekPlayback(positionMs: number, userId: string = ""): Promise<boolean> {
+  const res = await spotifyFetch(
+    `/me/player/seek?position_ms=${Math.round(positionMs)}`,
+    userId,
+    { method: "PUT" }
+  )
+  return res !== null && (res.ok || res.status === 204)
+}
+
 export async function transferPlayback(deviceId: string, play = false, userId: string = ""): Promise<boolean> {
   const res = await spotifyFetch("/me/player", userId, {
     method: "PUT",

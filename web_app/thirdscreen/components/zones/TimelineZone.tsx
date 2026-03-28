@@ -254,6 +254,8 @@ function computeEventLanes(
 
 const NEXT_SUNRISE_MIN = 24 * 60 + SUNRISE_MIN
 const PREV_SUNSET_MIN = SUNSET_MIN - 24 * 60
+const PREV_PREV_SUNSET_MIN = SUNSET_MIN - 2 * 24 * 60
+const PREV_SUNRISE_MIN = SUNRISE_MIN - 24 * 60
 
 interface ArcPaths {
   fill: string
@@ -277,59 +279,63 @@ function buildDaylightArcs(
   const moonTrough = height * 0.92
   const steps = 60
 
-  // Sun arc (sunrise → sunset, curves above horizon)
-  const sunriseX = (minutesToPercent(SUNRISE_MIN, startMin) / 100) * width
-  const sunsetX = (minutesToPercent(SUNSET_MIN, startMin) / 100) * width
-  const sunArcW = sunsetX - sunriseX
-
-  const sunPoints: string[] = []
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps
-    const x = sunriseX + t * sunArcW
-    const y = horizonY - (horizonY - sunPeak) * Math.sin(Math.PI * t)
-    sunPoints.push(`${x},${y}`)
+  // Sun arcs: build a helper, then draw today's + previous day's to cover the full window
+  function buildSunArc(rise: number, set: number) {
+    const rX = (minutesToPercent(rise, startMin) / 100) * width
+    const sX = (minutesToPercent(set, startMin) / 100) * width
+    const arcW = sX - rX
+    const pts: string[] = []
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const x = rX + t * arcW
+      const y = horizonY - (horizonY - sunPeak) * Math.sin(Math.PI * t)
+      pts.push(`${x},${y}`)
+    }
+    const fill = `M ${rX},${horizonY} L ${pts.join(" L ")} L ${sX},${horizonY} Z`
+    const stroke = `M ${pts.join(" L ")}`
+    return { fill, stroke, riseX: rX, arcW }
   }
 
-  const sunFill = `M ${sunriseX},${horizonY} L ${sunPoints.join(" L ")} L ${sunsetX},${horizonY} Z`
-  const sunStroke = `M ${sunPoints.join(" L ")}`
+  const sunToday = buildSunArc(SUNRISE_MIN, SUNSET_MIN)
+  const sunPrev = buildSunArc(PREV_SUNRISE_MIN, PREV_SUNSET_MIN)
 
-  // Moon arc (sunset → next sunrise, curves below horizon)
-  const moonStartX = (minutesToPercent(SUNSET_MIN, startMin) / 100) * width
-  const moonEndX =
-    (minutesToPercent(NEXT_SUNRISE_MIN, startMin) / 100) * width
-  const moonArcW = moonEndX - moonStartX
+  // Today's sun arc coords (used for indicator)
+  const sunriseX = sunToday.riseX
+  const sunArcW = sunToday.arcW
 
-  const moonPoints: string[] = []
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps
-    const x = moonStartX + t * moonArcW
-    const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
-    moonPoints.push(`${x},${y}`)
+  const sunFill = sunPrev.fill + " " + sunToday.fill
+  const sunStroke = sunPrev.stroke + " " + sunToday.stroke
+
+  // Moon arcs: each night is one continuous arc from sunset to next sunrise.
+  // We draw two full night arcs to cover the visible window:
+  //   Night 1: PREV_SUNSET → SUNRISE (the night before today's daytime)
+  //   Night 2: SUNSET → NEXT_SUNRISE (tonight)
+  function buildMoonArc(nightStart: number, nightEnd: number) {
+    const x0 = (minutesToPercent(nightStart, startMin) / 100) * width
+    const x1 = (minutesToPercent(nightEnd, startMin) / 100) * width
+    const arcW = x1 - x0
+    const pts: string[] = []
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const x = x0 + t * arcW
+      const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
+      pts.push(`${x},${y}`)
+    }
+    const fill = `M ${x0},${horizonY} L ${pts.join(" L ")} L ${x1},${horizonY} Z`
+    const stroke = `M ${pts.join(" L ")}`
+    return { fill, stroke, x0, arcW }
   }
 
-  const moonFill = `M ${moonStartX},${horizonY} L ${moonPoints.join(" L ")} L ${moonEndX},${horizonY} Z`
-  const moonStroke = `M ${moonPoints.join(" L ")}`
+  // Draw 3 night arcs to cover any 24h window position:
+  //   Night 0: PREV_PREV_SUNSET → PREV_SUNRISE (two days ago evening → yesterday morning)
+  //   Night 1: PREV_SUNSET → SUNRISE (yesterday evening → this morning)
+  //   Night 2: SUNSET → NEXT_SUNRISE (this evening → tomorrow morning)
+  const night0 = buildMoonArc(PREV_PREV_SUNSET_MIN, PREV_SUNRISE_MIN)
+  const night1 = buildMoonArc(PREV_SUNSET_MIN, SUNRISE_MIN)
+  const night2 = buildMoonArc(SUNSET_MIN, NEXT_SUNRISE_MIN)
 
-  // Pre-sunrise moon arc
-  const prevMoonStartX =
-    (minutesToPercent(PREV_SUNSET_MIN, startMin) / 100) * width
-  const prevMoonEndX =
-    (minutesToPercent(SUNRISE_MIN, startMin) / 100) * width
-  const prevMoonArcW = prevMoonEndX - prevMoonStartX
-
-  const prevMoonPoints: string[] = []
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps
-    const x = prevMoonStartX + t * prevMoonArcW
-    const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
-    prevMoonPoints.push(`${x},${y}`)
-  }
-
-  const prevMoonFill = `M ${prevMoonStartX},${horizonY} L ${prevMoonPoints.join(" L ")} L ${prevMoonEndX},${horizonY} Z`
-  const prevMoonStroke = `M ${prevMoonPoints.join(" L ")}`
-
-  const combinedMoonFill = moonFill + " " + prevMoonFill
-  const combinedMoonStroke = moonStroke + " " + prevMoonStroke
+  const combinedMoonFill = night0.fill + " " + night1.fill + " " + night2.fill
+  const combinedMoonStroke = night0.stroke + " " + night1.stroke + " " + night2.stroke
 
   // Current position indicator
   let indicator: DaylightArcs["indicator"] = null
@@ -341,20 +347,21 @@ function buildDaylightArcs(
     const y = horizonY - (horizonY - sunPeak) * Math.sin(Math.PI * t)
     indicator = { x, y, isSun: true }
   } else {
+    // Determine which night arc the current time falls in
+    let nightStart: number, nightEnd: number, arc: typeof night1
     if (nowMin >= SUNSET_MIN) {
-      const t = (nowMin - SUNSET_MIN) / (NEXT_SUNRISE_MIN - SUNSET_MIN)
-      const x = moonStartX + t * moonArcW
-      const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
-      indicator = { x, y, isSun: false }
+      nightStart = SUNSET_MIN
+      nightEnd = NEXT_SUNRISE_MIN
+      arc = night2
     } else {
-      const span = SUNRISE_MIN - PREV_SUNSET_MIN
-      const tPrev = (nowMin - PREV_SUNSET_MIN) / span
-      const clampedT = Math.max(0, Math.min(1, tPrev))
-      const x = prevMoonStartX + clampedT * prevMoonArcW
-      const y =
-        horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * clampedT)
-      indicator = { x, y, isSun: false }
+      nightStart = PREV_SUNSET_MIN
+      nightEnd = SUNRISE_MIN
+      arc = night1
     }
+    const t = (nowMin - nightStart) / (nightEnd - nightStart)
+    const x = arc.x0 + t * arc.arcW
+    const y = horizonY + (moonTrough - horizonY) * Math.sin(Math.PI * t)
+    indicator = { x, y, isSun: false }
   }
 
   return {
@@ -502,20 +509,24 @@ function WeekView({
                 const bottomPct = Math.min(100, ((endH - 5) / 19) * 100)
                 const heightPct = Math.max(bottomPct - topPct, 2)
 
+                const isThin = heightPct < 4
                 return (
                   <div
                     key={ev.id}
-                    className="absolute left-0.5 right-0.5 overflow-hidden rounded-sm"
+                    className="absolute left-0.5 right-0.5 overflow-hidden"
                     style={{
                       top: `${topPct}%`,
                       height: `${heightPct}%`,
-                      backgroundColor:
-                        ev.color ?? eventColor(ev.id),
+                      backgroundColor: ev.color ?? eventColor(ev.id),
+                      minHeight: "3px",
                     }}
+                    title={ev.title}
                   >
-                    <span className="block truncate px-0.5 text-xs font-medium leading-tight text-white/90">
-                      {ev.title}
-                    </span>
+                    {!isThin && (
+                      <span className="block truncate px-0.5 text-[0.5rem] font-medium leading-tight text-white/90">
+                        {ev.title}
+                      </span>
+                    )}
                   </div>
                 )
               })}
@@ -871,6 +882,80 @@ function EventDetailDialog({
 
 // ── Main component ───────────────────────────────────────────────────────────
 
+// ── Event list sidebar/panel ────────────────────────────────────────────────
+
+function EventListPanel({
+  events,
+  direction,
+  onSelectEvent,
+}: {
+  events: TimelineEvent[]
+  direction: "vertical" | "horizontal"
+  onSelectEvent: (ev: TimelineEvent) => void
+}) {
+  const sorted = [...events].sort((a, b) => {
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
+    return a.startTime.localeCompare(b.startTime)
+  })
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex items-center justify-center p-4 text-xs text-muted-foreground/40">
+        No events today
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={`overflow-y-auto ${
+        direction === "vertical"
+          ? "flex shrink-0 flex-wrap gap-1.5 border-t border-border/10 px-3 py-2"
+          : "flex flex-col gap-0.5 px-2 py-1.5"
+      }`}
+    >
+      {sorted.map((ev) => {
+        const evColor = ev.color ?? eventColor(ev.id)
+        return (
+          <button
+            key={ev.id}
+            onClick={() => onSelectEvent(ev)}
+            className={`group flex min-h-11 items-start gap-2 rounded-md border border-transparent px-2 py-1.5 text-left transition-colors hover:border-border/20 hover:bg-muted/20 ${
+              direction === "vertical" ? "w-auto shrink-0" : "w-full"
+            }`}
+          >
+            <div
+              className="mt-1 h-full w-[3px] shrink-0 rounded-full"
+              style={{ backgroundColor: evColor, minHeight: "1rem" }}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-foreground/80">
+                {ev.title}
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/50">
+                {ev.allDay ? (
+                  <span>All day</span>
+                ) : (
+                  <span className="font-mono tabular-nums">
+                    {ev.startTime} - {ev.endTime}
+                  </span>
+                )}
+                {ev.location && (
+                  <>
+                    <span className="text-border/30">|</span>
+                    <MapPin className="size-2.5 shrink-0" />
+                    <span className="truncate">{ev.location}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function TimelineZone() {
   const { editMode } = useDashboard()
   const { isSignedIn } = useAuth()
@@ -899,6 +984,29 @@ export function TimelineZone() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  // Overlap detection: collapse sun-arc toggle + D/W/M into one dropdown
+  const [headerCompact, setHeaderCompact] = useState(false)
+  const centerNavRef = useRef<HTMLDivElement>(null)
+  const rightActionsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const zone = zoneRef.current
+    if (!zone) return
+    const check = () => {
+      const center = centerNavRef.current
+      const right = rightActionsRef.current
+      if (!center || !right) return
+      const centerRect = center.getBoundingClientRect()
+      const rightRect = right.getBoundingClientRect()
+      // Compact when center nav's right edge is within 8px of the right actions' left edge
+      setHeaderCompact(centerRect.right + 8 > rightRect.left)
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(zone)
+    return () => ro.disconnect()
+  }, [])
+
   const [showSunArc, setShowSunArc] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [nowMinutes, setNowMinutes] = useState(720)
@@ -923,16 +1031,31 @@ export function TimelineZone() {
   const [windowStart, setWindowStart] = useState(targetWindowStart)
   const windowEnd = windowStart + WINDOW_MINUTES
   const animRef = useRef<number | null>(null)
+  const prevDateRef = useRef(selectedDate)
 
-  // Smoothly animate windowStart toward targetWindowStart
+  // Smoothly animate windowStart toward targetWindowStart.
+  // When navigating to a different day, start the animation from an offset
+  // in the correct direction so the slide feels natural:
+  //   Next day → content slides left (start from a high value, animate down to target)
+  //   Prev day → content slides right (start from a low value, animate up to target)
   useEffect(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current)
+
+    const prevDate = prevDateRef.current
+    prevDateRef.current = selectedDate
+
+    if (prevDate && !isSameDay(prevDate, selectedDate)) {
+      const goingForward = selectedDate > prevDate
+      // Offset by half a window so the slide is visible but not jarring
+      const offset = WINDOW_MINUTES * 0.4
+      setWindowStart(goingForward ? targetWindowStart - offset : targetWindowStart + offset)
+    }
 
     const animate = () => {
       setWindowStart((prev) => {
         const diff = targetWindowStart - prev
         if (Math.abs(diff) < 0.5) return targetWindowStart
-        const next = prev + diff * 0.15 // ease factor
+        const next = prev + diff * 0.15
         animRef.current = requestAnimationFrame(animate)
         return next
       })
@@ -942,7 +1065,7 @@ export function TimelineZone() {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current)
     }
-  }, [targetWindowStart])
+  }, [targetWindowStart, selectedDate])
 
   useEffect(() => {
     setMounted(true)
@@ -972,6 +1095,7 @@ export function TimelineZone() {
 
   const [prefillStart, setPrefillStart] = useState("")
   const [prefillEnd, setPrefillEnd] = useState("")
+  const [prefillDate, setPrefillDate] = useState("")
 
   // Calendar accounts state
   const [calendarAccounts, setCalendarAccounts] = useState<
@@ -1071,8 +1195,39 @@ export function TimelineZone() {
   const fetchEvents = useCallback(async () => {
     try {
       if (viewMode === "day") {
-        const dayEvents = await fetchEventsForDate(selectedDateStr)
-        setEvents(dayEvents)
+        // Fetch selected day + adjacent days that the window might extend into
+        const prevDateStr = format(subDays(selectedDate, 1), "yyyy-MM-dd")
+        const nextDateStr = format(addDays(selectedDate, 1), "yyyy-MM-dd")
+        const [prevEvents, dayEvents, nextEvents] = await Promise.all([
+          fetchEventsForDate(prevDateStr),
+          fetchEventsForDate(selectedDateStr),
+          fetchEventsForDate(nextDateStr),
+        ])
+
+        // Offset adjacent-day events so they position correctly on the timeline.
+        // The timeline uses minutes-since-midnight of the selected date,
+        // so previous day events need -1440 offset and next day events need +1440.
+        const offsetEvents = (evts: TimelineEvent[], offsetMin: number): TimelineEvent[] =>
+          evts.filter((ev) => !ev.allDay).map((ev) => {
+            const [sh, sm] = ev.startTime.split(":").map(Number)
+            const [eh, em] = ev.endTime.split(":").map(Number)
+            const newStart = sh * 60 + sm + offsetMin
+            const newEnd = eh * 60 + em + offsetMin
+            return {
+              ...ev,
+              id: `${ev.id}_offset${offsetMin}`,
+              startTime: `${String(Math.floor(newStart / 60)).padStart(2, "0")}:${String(newStart % 60).padStart(2, "0")}`,
+              endTime: `${String(Math.floor(newEnd / 60)).padStart(2, "0")}:${String(newEnd % 60).padStart(2, "0")}`,
+              _offsetMin: offsetMin,
+              _originalDate: offsetMin < 0 ? prevDateStr : nextDateStr,
+            } as TimelineEvent
+          })
+
+        setEvents([
+          ...offsetEvents(prevEvents, -1440),
+          ...dayEvents,
+          ...offsetEvents(nextEvents, 1440),
+        ])
       } else {
         // Compute date range for week or month
         let rangeStart: Date
@@ -1239,10 +1394,11 @@ export function TimelineZone() {
       const pct = (relX / rect.width) * 100
       const raw = percentToMinutes(pct, windowStart)
       const snapped = snapTo15(raw)
-      if (snapped < 0 || snapped > 23 * 60 + 59) return null
+      // Allow values outside 0-1439 since the window can span into adjacent days
+      if (snapped < windowStart || snapped > windowEnd) return null
       return snapped
     },
-    [windowStart],
+    [windowStart, windowEnd],
   )
 
   const handlePointerMove = useCallback(
@@ -1287,15 +1443,27 @@ export function TimelineZone() {
         const start = Math.min(dragStart, dragEnd)
         const end = Math.max(dragStart, dragEnd)
 
+        // Determine which date this falls on
+        const dayOffset = Math.floor(start / 1440)
+        const eventDate = dayOffset === 0
+          ? selectedDate
+          : dayOffset > 0
+            ? addDays(selectedDate, dayOffset)
+            : subDays(selectedDate, Math.abs(dayOffset))
+        const normStart = ((start % 1440) + 1440) % 1440
+        const normEnd = ((end % 1440) + 1440) % 1440
+
         if (end - start >= 15) {
-          // Drag: use the dragged range
-          setPrefillStart(minutesToTimeStr(start))
-          setPrefillEnd(minutesToTimeStr(end))
+          setPrefillDate(format(eventDate, "yyyy-MM-dd"))
+          setPrefillStart(minutesToTimeStr(normStart))
+          setPrefillEnd(minutesToTimeStr(normEnd || normStart + (end - start)))
           setDialogOpen(true)
-        } else if (dragStart === dragEnd && dragStart > nowMinutes) {
-          // Single click ahead of current time: start=exact now, end=clicked time
-          setPrefillStart(minutesToTimeStr(nowMinutes))
-          setPrefillEnd(minutesToTimeStr(dragStart))
+        } else {
+          // Single click: create a 1-hour event
+          const clickEnd = normStart + 60 > 1440 ? 1440 - 1 : normStart + 60
+          setPrefillDate(format(eventDate, "yyyy-MM-dd"))
+          setPrefillStart(minutesToTimeStr(normStart))
+          setPrefillEnd(minutesToTimeStr(clickEnd))
           setDialogOpen(true)
         }
       }
@@ -1332,13 +1500,39 @@ export function TimelineZone() {
     }
   }
 
+  // Determine the actual date for a time that may be in an adjacent day
+  const dateForMinutes = useCallback(
+    (timeStr: string): string => {
+      const [h] = timeStr.split(":").map(Number)
+      const totalMin = h * 60
+      if (totalMin >= 1440) {
+        // Next day
+        return format(addDays(selectedDate, 1), "yyyy-MM-dd")
+      }
+      if (totalMin < 0) {
+        // Previous day
+        return format(subDays(selectedDate, 1), "yyyy-MM-dd")
+      }
+      return selectedDateStr
+    },
+    [selectedDate, selectedDateStr],
+  )
+
+  // Normalize a time string that might have hours >= 24 back to 0-23 range
+  const normalizeTimeStr = (timeStr: string): string => {
+    const [h, m] = timeStr.split(":").map(Number)
+    const normalized = ((h % 24) + 24) % 24
+    return `${String(normalized).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+
   const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
     const title = form.get("title") as string
     const startTime = form.get("startTime") as string
     const endTime = form.get("endTime") as string
-    if (!title || !startTime || !endTime) return
+    const eventDate = form.get("date") as string
+    if (!title || !startTime || !endTime || !eventDate) return
 
     try {
       await createScheduleEvent({
@@ -1346,13 +1540,14 @@ export function TimelineZone() {
         title,
         startTime,
         endTime,
-        date: selectedDateStr,
+        date: eventDate,
         allDay: false,
         color: EVENT_COLORS[Math.floor(Math.random() * EVENT_COLORS.length)],
       })
       setDialogOpen(false)
       setPrefillStart("")
       setPrefillEnd("")
+      setPrefillDate("")
       fetchEvents()
       toast.success("Event added")
       mascotTrigger("event_added")
@@ -1381,13 +1576,19 @@ export function TimelineZone() {
   }
 
   const goBack = () => {
-    if (viewMode === "day") setSelectedDate((d) => subDays(d, 1))
+    if (viewMode === "day") {
+      setEvents([]) // Clear instantly so old events don't animate
+      setSelectedDate((d) => subDays(d, 1))
+    }
     else if (viewMode === "week") setSelectedDate((d) => subWeeks(d, 1))
     else setSelectedDate((d) => subMonths(d, 1))
   }
 
   const goForward = () => {
-    if (viewMode === "day") setSelectedDate((d) => addDays(d, 1))
+    if (viewMode === "day") {
+      setEvents([]) // Clear instantly so old events don't animate
+      setSelectedDate((d) => addDays(d, 1))
+    }
     else if (viewMode === "week") setSelectedDate((d) => addWeeks(d, 1))
     else setSelectedDate((d) => addMonths(d, 1))
   }
@@ -1444,7 +1645,7 @@ export function TimelineZone() {
 
         {/* Center: date navigation - absolutely centered on card */}
         <div className="absolute inset-x-0 flex items-center justify-center">
-          <div className="relative flex items-center gap-1">
+          <div ref={centerNavRef} className="relative flex items-center gap-1">
             <button
               onClick={goBack}
               className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
@@ -1499,38 +1700,92 @@ export function TimelineZone() {
         </div>
 
         {/* Right: view mode switcher + actions */}
-        <div className="z-10 flex items-center gap-1">
-          {/* Sun arc toggle (day view only) - before D/W/M */}
-          {viewMode === "day" && (
-            <button
-              onClick={toggleSunArc}
-              className={`flex size-11 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
-                showSunArc
-                  ? "border-amber-400/30 bg-amber-400/10 text-amber-400"
-                  : "border-border/25 bg-muted/15 text-muted-foreground/40 hover:border-amber-400/30 hover:text-amber-400"
-              }`}
-              title="Toggle daylight arc"
-            >
-              <Sun className="size-4" />
-            </button>
+        <div ref={rightActionsRef} className="z-10 flex items-center gap-1">
+          {/* Expanded: separate sun arc toggle + D/W/M tabs */}
+          {!headerCompact && (
+            <>
+              {viewMode === "day" && (
+                <button
+                  onClick={toggleSunArc}
+                  className={`flex size-11 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
+                    showSunArc
+                      ? "border-amber-400/30 bg-amber-400/10 text-amber-400"
+                      : "border-border/25 bg-muted/15 text-muted-foreground/40 hover:border-amber-400/30 hover:text-amber-400"
+                  }`}
+                  title="Toggle daylight arc"
+                >
+                  <Sun className="size-4" />
+                </button>
+              )}
+              <div className="flex items-center rounded-lg border border-border/25 bg-muted/15 p-0.5">
+                {(["day", "week", "month"] as ViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => handleViewChange(mode)}
+                    className={`flex size-10 items-center justify-center rounded-md font-mono text-xs font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                      viewMode === mode
+                        ? "bg-[var(--zone-timeline-accent)]/20 text-[var(--zone-timeline-accent)] shadow-sm"
+                        : "text-muted-foreground/40 hover:bg-muted/20 hover:text-muted-foreground/70"
+                    }`}
+                  >
+                    {mode === "day" ? "D" : mode === "week" ? "W" : "M"}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
-          {/* View mode tabs */}
-          <div className="flex items-center rounded-lg border border-border/25 bg-muted/15 p-0.5">
-            {(["day", "week", "month"] as ViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => handleViewChange(mode)}
-                className={`flex h-10 items-center justify-center rounded-md px-3 font-mono text-xs font-bold uppercase tracking-wider transition-all active:scale-95 ${
-                  viewMode === mode
-                    ? "bg-[var(--zone-timeline-accent)]/20 text-[var(--zone-timeline-accent)] shadow-sm"
-                    : "text-muted-foreground/40 hover:bg-muted/20 hover:text-muted-foreground/70"
-                }`}
-              >
-                {mode === "day" ? "D" : mode === "week" ? "W" : "M"}
-              </button>
-            ))}
-          </div>
+          {/* Compact: single dropdown combining view mode + sun arc */}
+          {headerCompact && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 font-mono text-xs font-bold uppercase tracking-wider text-[var(--zone-timeline-accent)] transition-colors hover:border-border/40 hover:bg-muted/30 active:scale-95"
+                  title="View options"
+                >
+                  {viewMode === "day" ? "D" : viewMode === "week" ? "W" : "M"}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="end" className="w-44 p-1">
+                <p className="px-2 py-1 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/40">
+                  View
+                </p>
+                {(["day", "week", "month"] as ViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => handleViewChange(mode)}
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                      viewMode === mode
+                        ? "bg-[var(--zone-timeline-accent)]/15 text-[var(--zone-timeline-accent)]"
+                        : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                    }`}
+                  >
+                    <span className="font-mono font-bold uppercase tracking-wider">
+                      {mode === "day" ? "D" : mode === "week" ? "W" : "M"}
+                    </span>
+                    {mode === "day" ? "Day" : mode === "week" ? "Week" : "Month"}
+                  </button>
+                ))}
+                {viewMode === "day" && (
+                  <>
+                    <div className="my-1 h-px bg-border/20" />
+                    <button
+                      onClick={toggleSunArc}
+                      className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                        showSunArc
+                          ? "text-amber-400"
+                          : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                      }`}
+                    >
+                      <Sun className="size-3.5" />
+                      Daylight Arc
+                      {showSunArc && <span className="ml-auto text-amber-400">On</span>}
+                    </button>
+                  </>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
 
           {/* Calendar accounts popover -- always visible */}
           <Popover>
@@ -1651,6 +1906,17 @@ export function TimelineZone() {
                     autoFocus
                   />
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input
+                    id="date"
+                    name="date"
+                    type="date"
+                    required
+                    defaultValue={prefillDate || selectedDateStr}
+                    key={`date-${prefillDate || selectedDateStr}`}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="grid gap-2">
                     <Label htmlFor="startTime">Start</Label>
@@ -1686,7 +1952,7 @@ export function TimelineZone() {
 
       {viewMode === "day" && isVertical && (
         /* ── Vertical day view ──────────────────────────────────────── */
-        <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* All-day events */}
           {events.filter((ev) => ev.allDay).length > 0 && (
             <div className="flex shrink-0 gap-1 border-b border-border/10 px-3 py-1.5">
@@ -1697,8 +1963,8 @@ export function TimelineZone() {
                   return (
                     <span
                       key={ev.id}
-                      className="rounded-full px-2 py-0.5 text-[0.5rem] font-medium"
-                      style={{ backgroundColor: evColor, color: "var(--primary-foreground)" }}
+                      className="rounded-full border border-border/20 bg-card/80 px-2 py-0.5 text-[0.5rem] font-medium text-foreground/80"
+                      style={{ borderColor: evColor }}
                     >
                       {ev.title}
                     </span>
@@ -1707,7 +1973,7 @@ export function TimelineZone() {
             </div>
           )}
           <div
-            className="absolute inset-0 overflow-y-auto"
+            className="relative min-h-0 flex-1 overflow-y-auto"
             ref={(el) => {
               // Auto-scroll to current time on mount
               if (el && isViewingToday && mounted) {
@@ -1765,17 +2031,16 @@ export function TimelineZone() {
                       <PopoverTrigger asChild>
                         <button
                           data-event
-                          className="absolute left-12 right-2 cursor-pointer overflow-hidden rounded-lg px-3 py-1.5 text-left text-xs font-medium leading-tight shadow-sm transition-all hover:brightness-110 hover:shadow-md"
+                          className="absolute left-12 right-2 cursor-pointer overflow-hidden rounded-lg border border-border/20 bg-card/80 px-3 py-1.5 text-left text-xs font-medium leading-tight shadow-sm backdrop-blur-sm transition-all hover:bg-card"
                           style={{
                             top: `${topPct}%`,
                             height: `${heightPct}%`,
-                            backgroundColor: evColor,
-                            color: "var(--primary-foreground)",
+                            borderColor: evColor,
                           }}
                         >
-                          <span className="line-clamp-2">{ev.title}</span>
+                          <span className="line-clamp-2 text-foreground/80">{ev.title}</span>
                           {ev.location && (
-                            <span className="mt-0.5 flex items-center gap-1 text-[0.5rem] opacity-70">
+                            <span className="mt-0.5 flex items-center gap-1 text-[0.5rem] text-muted-foreground/40">
                               <MapPin className="size-2" />
                               {ev.location}
                             </span>
@@ -1824,86 +2089,94 @@ export function TimelineZone() {
               )}
             </div>
           </div>
+          {/* Event list at bottom */}
+          <EventListPanel
+            events={events}
+            direction="vertical"
+            onSelectEvent={setSelectedEvent}
+          />
         </div>
       )}
 
       {viewMode === "day" && !isVertical && (
         /* ── Horizontal day view ────────────────────────────────────── */
+        <div className="relative flex min-h-0 flex-1">
+        {/* Sun/moon arcs — spans full width including event list */}
+        {mounted && showSunArc && (
+          <svg
+            className="pointer-events-none absolute inset-0 z-0"
+            width="100%"
+            height="100%"
+            preserveAspectRatio="none"
+            viewBox="0 0 1000 100"
+            overflow="visible"
+          >
+            <defs>
+              <linearGradient
+                id="sun-arc-fill"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" className="sun-arc-stop-top" />
+                <stop offset="50%" className="sun-arc-stop-bottom" />
+              </linearGradient>
+              <linearGradient
+                id="moon-arc-fill"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="50%" className="moon-arc-stop-top" />
+                <stop offset="100%" className="moon-arc-stop-bottom" />
+              </linearGradient>
+            </defs>
+            {(() => {
+              const arcs = buildDaylightArcs(
+                1000,
+                100,
+                windowStart,
+                nowMinutes,
+              )
+              return (
+                <>
+                  <line
+                    x1="0"
+                    y1="50"
+                    x2="1000"
+                    y2="50"
+                    className="horizon-line"
+                    strokeWidth="0.3"
+                  />
+                  <path d={arcs.sun.fill} fill="url(#sun-arc-fill)" />
+                  <path
+                    d={arcs.sun.stroke}
+                    fill="none"
+                    className="sun-arc-stroke"
+                    strokeWidth="0.5"
+                  />
+                  <path d={arcs.moon.fill} fill="url(#moon-arc-fill)" />
+                  <path
+                    d={arcs.moon.stroke}
+                    fill="none"
+                    className="moon-arc-stroke"
+                    strokeWidth="0.5"
+                  />
+                </>
+              )
+            })()}
+          </svg>
+        )}
         <div
           ref={timelineRef}
-          className="relative min-h-0 flex-1 cursor-crosshair select-none"
+          className="relative min-h-0 min-w-0 flex-1 cursor-crosshair select-none"
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerLeave}
         >
-          {/* Sun/moon arcs */}
-          {mounted && showSunArc && (
-            <svg
-              className="pointer-events-none absolute inset-0 z-0"
-              width="100%"
-              height="100%"
-              preserveAspectRatio="none"
-              viewBox="0 0 1000 100"
-            >
-              <defs>
-                <linearGradient
-                  id="sun-arc-fill"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop offset="0%" className="sun-arc-stop-top" />
-                  <stop offset="50%" className="sun-arc-stop-bottom" />
-                </linearGradient>
-                <linearGradient
-                  id="moon-arc-fill"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop offset="50%" className="moon-arc-stop-top" />
-                  <stop offset="100%" className="moon-arc-stop-bottom" />
-                </linearGradient>
-              </defs>
-              {(() => {
-                const arcs = buildDaylightArcs(
-                  1000,
-                  100,
-                  windowStart,
-                  nowMinutes,
-                )
-                return (
-                  <>
-                    <line
-                      x1="0"
-                      y1="50"
-                      x2="1000"
-                      y2="50"
-                      className="horizon-line"
-                      strokeWidth="0.3"
-                    />
-                    <path d={arcs.sun.fill} fill="url(#sun-arc-fill)" />
-                    <path
-                      d={arcs.sun.stroke}
-                      fill="none"
-                      className="sun-arc-stroke"
-                      strokeWidth="0.5"
-                    />
-                    <path d={arcs.moon.fill} fill="url(#moon-arc-fill)" />
-                    <path
-                      d={arcs.moon.stroke}
-                      fill="none"
-                      className="moon-arc-stroke"
-                      strokeWidth="0.5"
-                    />
-                  </>
-                )
-              })()}
-            </svg>
-          )}
 
           {/* Hour markers */}
           {(() => {
@@ -1973,7 +2246,7 @@ export function TimelineZone() {
 
               const evColor = ev.color ?? eventColor(ev.id)
               const assignment = lanes.get(ev.id) ?? { lane: 0, totalLanes: 1 }
-              const eventAreaTop = 16 // px below hour markers
+              const eventAreaTop = 28 // px below hour markers
               const eventAreaBottom = 16 // px above bottom
               const laneHeightPct = 100 / assignment.totalLanes
               const topPct = assignment.lane * laneHeightPct
@@ -1983,19 +2256,18 @@ export function TimelineZone() {
                   key={ev.id}
                   data-event
                   onClick={() => setSelectedEvent(ev)}
-                  className="absolute flex cursor-pointer items-center gap-1 overflow-hidden rounded-md px-2 py-0.5 text-left text-xs font-medium leading-tight shadow-sm transition-all hover:brightness-110 hover:shadow-md"
+                  className="absolute flex cursor-pointer items-center gap-1 overflow-hidden rounded-md border border-border/20 bg-card/80 px-2 py-0.5 text-left text-xs font-medium leading-tight shadow-sm backdrop-blur-sm transition-all hover:bg-card"
                   style={{
                     left: `${leftPct}%`,
                     width: `${widthPct}%`,
                     top: `calc(${eventAreaTop}px + (100% - ${eventAreaTop + eventAreaBottom}px) * ${topPct / 100})`,
                     height: `calc((100% - ${eventAreaTop + eventAreaBottom}px) * ${laneHeightPct / 100} - 2px)`,
-                    backgroundColor: evColor,
-                    color: "var(--primary-foreground)",
+                    borderColor: evColor,
                   }}
                 >
-                  <span className="truncate">{ev.title}</span>
+                  <span className="truncate text-foreground/80">{ev.title}</span>
                   {ev.location && (
-                    <MapPin className="size-2 shrink-0 opacity-70" />
+                    <MapPin className="size-2 shrink-0 text-muted-foreground/40" />
                   )}
                 </button>
               )
@@ -2014,10 +2286,10 @@ export function TimelineZone() {
                       key={ev.id}
                       data-event
                       onClick={() => setSelectedEvent(ev)}
-                      className="cursor-pointer rounded-full px-1.5 py-0.5 text-xs font-medium transition-all hover:brightness-110"
+                      className="cursor-pointer rounded-full border border-border/20 bg-card/80 px-1.5 py-0.5 text-xs font-medium text-foreground/80 backdrop-blur-sm transition-all hover:bg-card"
                       style={{
-                        backgroundColor: evColor,
-                        color: "var(--primary-foreground)",
+                        borderLeftWidth: "3px",
+                        borderLeftColor: evColor,
                       }}
                     >
                       {ev.title}
@@ -2081,6 +2353,15 @@ export function TimelineZone() {
               <div className="now-dot absolute top-[10px] -translate-x-1/2 size-2 rounded-full bg-amber-400" />
             </div>
           )}
+        </div>
+        {/* Event list sidebar */}
+        <div className="w-48 shrink-0 overflow-hidden border-l border-border/10">
+          <EventListPanel
+            events={events}
+            direction="horizontal"
+            onSelectEvent={setSelectedEvent}
+          />
+        </div>
         </div>
       )}
 
