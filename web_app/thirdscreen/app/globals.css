@@ -371,3 +371,115 @@
 .glow-blue { box-shadow: 0 0 20px -4px oklch(0.65 0.2 260 / 15%); }
 .glow-orange { box-shadow: 0 0 20px -4px oklch(0.7 0.18 50 / 15%); }
 .glow-rose { box-shadow: 0 0 20px -4px oklch(0.65 0.2 15 / 15%); }
+
+/* ── React Grid Layout overrides ───────────────────────────────────────── */
+
+.react-grid-item {
+  transition: none !important;
+}
+
+.react-grid-item.cssTransforms {
+  transition: transform 0.15s ease !important;
+}
+
+.react-grid-item.react-draggable-dragging {
+  z-index: 50;
+  opacity: 0.9;
+  transition: none !important;
+}
+
+.react-grid-item.resizing {
+  z-index: 50;
+  transition: none !important;
+}
+
+.react-grid-placeholder {
+  background: oklch(0.6 0.15 200 / 0.12) !important;
+  border: 2px dashed oklch(0.6 0.15 200 / 0.35) !important;
+  border-radius: 8px !important;
+  z-index: 1 !important;
+}
+
+/* ── Resize handles ─────────────────────────────────────────────────────── */
+
+/* Hidden outside edit mode */
+.react-grid-item > .react-resizable-handle {
+  display: none !important;
+}
+
+/* Only show corner handles in edit mode (no edge handles) */
+.edit-mode .react-grid-item > .react-resizable-handle-se,
+.edit-mode .react-grid-item > .react-resizable-handle-sw,
+.edit-mode .react-grid-item > .react-resizable-handle-ne,
+.edit-mode .react-grid-item > .react-resizable-handle-nw {
+  display: block !important;
+  opacity: 1 !important;
+  width: 44px;
+  height: 44px;
+  background-image: none !important;
+  transform: none !important;
+  touch-action: none;
+  z-index: 50;
+}
+
+/* L-shaped corner arcs -- always visible in edit mode */
+.edit-mode .react-grid-item > .react-resizable-handle-se::after,
+.edit-mode .react-grid-item > .react-resizable-handle-sw::after,
+.edit-mode .react-grid-item > .react-resizable-handle-ne::after,
+.edit-mode .react-grid-item > .react-resizable-handle-nw::after {
+  content: "" !important;
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-style: solid;
+  border-color: oklch(0.75 0.15 200 / 0.85);
+  transition: border-color 0.15s;
+}
+
+/* SE corner */
+.edit-mode .react-grid-item > .react-resizable-handle-se::after {
+  right: 0;
+  bottom: 0;
+  border-width: 0 3px 3px 0;
+  border-radius: 0 0 6px 0;
+}
+
+/* SW corner */
+.edit-mode .react-grid-item > .react-resizable-handle-sw::after {
+  left: 0;
+  bottom: 0;
+  border-width: 0 0 3px 3px;
+  border-radius: 0 0 0 6px;
+}
+
+/* NE corner */
+.edit-mode .react-grid-item > .react-resizable-handle-ne::after {
+  right: 0;
+  top: 0;
+  border-width: 3px 3px 0 0;
+  border-radius: 0 6px 0 0;
+}
+
+/* NW corner */
+.edit-mode .react-grid-item > .react-resizable-handle-nw::after {
+  left: 0;
+  top: 0;
+  border-width: 3px 0 0 3px;
+  border-radius: 6px 0 0 0;
+}
+
+/* Active/hover: brighten */
+.edit-mode .react-grid-item > .react-resizable-handle:hover::after,
+.edit-mode .react-grid-item > .react-resizable-handle:active::after {
+  border-color: oklch(0.9 0.15 200 / 1);
+}
+
+/* Drag handle cursor */
+.zone-drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.zone-drag-handle:active {
+  cursor: grabbing;
+}

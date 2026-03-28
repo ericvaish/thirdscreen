@@ -6,6 +6,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkThemeProvider } from "@/components/clerk-theme-provider"
 import { ScaleProvider } from "@/components/scale-provider"
 import { NotificationProvider } from "@/lib/notifications"
+import { MascotProvider } from "@/lib/mascot"
+import { MascotOverlay } from "@/components/MascotOverlay"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
@@ -52,7 +54,10 @@ export default function RootLayout({
           <ClerkThemeProvider>
             <ScaleProvider>
               <NotificationProvider>
-                {children}
+                <MascotProvider>
+                  {children}
+                  <MascotOverlay />
+                </MascotProvider>
               </NotificationProvider>
             </ScaleProvider>
             <Toaster position="bottom-right" />

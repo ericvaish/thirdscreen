@@ -6,11 +6,16 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { TodoItem } from "@/lib/types"
+import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { listTodos, createTodo, updateTodo as updateTodoApi, deleteTodo as deleteTodoApi } from "@/lib/data-layer"
+import { useMascot } from "@/lib/mascot"
 
 const CARD_ID = "todo-1"
 
 export function TasksZone() {
+  const { editMode } = useDashboard()
+  const { trigger: mascotTrigger } = useMascot()
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [newTitle, setNewTitle] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -48,6 +53,7 @@ export function TasksZone() {
     )
     try {
       await updateTodoApi({ id: todo.id, completed: !todo.completed })
+      if (!todo.completed) mascotTrigger("task_done")
     } catch {
       setTodos((prev) =>
         prev.map((t) =>
@@ -78,16 +84,17 @@ export function TasksZone() {
   return (
     <div className="zone-surface zone-tasks flex h-full flex-col">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between px-4 py-1.5">
+      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         <div className="flex items-baseline gap-2">
           <div className="flex items-center gap-2">
+            <ZoneDragHandle />
             <div className="h-4 w-[3px] rounded-full" style={{ background: "var(--zone-tasks-accent)" }} />
             <span className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight" style={{ color: "var(--zone-tasks-accent)" }}>
               Tasks
             </span>
           </div>
           {active.length > 0 && (
-            <span className="rounded-full bg-[var(--zone-tasks-accent)]/15 px-1.5 py-0.5 font-mono text-[0.5625rem] font-bold text-[var(--zone-tasks-accent)]">
+            <span className="rounded-full bg-[var(--zone-tasks-accent)]/15 px-1.5 py-0.5 font-mono text-xs font-bold text-[var(--zone-tasks-accent)]">
               {active.length}
             </span>
           )}
@@ -104,7 +111,7 @@ export function TasksZone() {
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addTodo()}
             placeholder="Add a task..."
-            className="h-7 border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+            className="h-11 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
         </div>
       </div>
@@ -128,7 +135,7 @@ export function TasksZone() {
             {completed.length > 0 && (
               <>
                 <div className="px-4 py-1.5">
-                  <span className="font-mono text-[0.5625rem] uppercase tracking-wider text-muted-foreground/40">
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
                     Completed ({completed.length})
                   </span>
                 </div>
@@ -181,13 +188,13 @@ function TaskRow({
         {todo.title}
       </span>
       {todo.scheduledDate && (
-        <span className="shrink-0 font-mono text-[0.5625rem] text-muted-foreground/40">
+        <span className="shrink-0 font-mono text-xs text-muted-foreground/40">
           {todo.scheduledDate}
         </span>
       )}
       <button
         onClick={() => onDelete(todo.id)}
-        className="flex size-11 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+        className="flex size-11 shrink-0 items-center justify-center"
       >
         <Trash2 className="size-3 text-muted-foreground/30 hover:text-destructive" />
       </button>

@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { NoteItem } from "@/lib/types"
+import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { listNotes, createNote, updateNote as updateNoteApi, deleteNote as deleteNoteApi, listLinks, createLink, deleteLink as deleteLinkApi } from "@/lib/data-layer"
 
 interface LinkItem {
@@ -29,6 +31,7 @@ interface LinkItem {
 const CARD_ID = "notes-1"
 
 export function NotesZone() {
+  const { editMode } = useDashboard()
   const [notes, setNotes] = useState<NoteItem[]>([])
   const [links, setLinks] = useState<LinkItem[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -129,8 +132,9 @@ export function NotesZone() {
   return (
     <div className="zone-surface zone-notes flex h-full flex-col">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between px-4 py-1.5">
+      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         <div className="flex items-center gap-2">
+          <ZoneDragHandle />
           <div className="h-4 w-[3px] rounded-full" style={{ background: "var(--zone-notes-accent)" }} />
           <span className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight" style={{ color: "var(--zone-notes-accent)" }}>
             Notes
@@ -159,53 +163,55 @@ export function NotesZone() {
                 key={note.id}
                 className="group px-4 py-2 transition-colors hover:bg-foreground/[0.02]"
               >
-                {editingId === note.id ? (
-                  <Textarea
-                    autoFocus
-                    value={editContent}
-                    onChange={(e) => {
-                      setEditContent(e.target.value)
-                      saveNote(note.id, e.target.value)
-                    }}
-                    onBlur={() => setEditingId(null)}
-                    className="min-h-[40px] resize-none border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
-                    placeholder="Write something..."
-                  />
-                ) : (
-                  <div
-                    className="min-h-11 cursor-pointer flex items-center"
-                    onClick={() => {
-                      setEditingId(note.id)
-                      setEditContent(note.content)
-                    }}
-                  >
-                    <p
-                      className={cn(
-                        "line-clamp-1 text-xs",
-                        !note.content && "text-muted-foreground/40 italic"
-                      )}
+                <div className="flex items-center gap-1">
+                  {editingId === note.id ? (
+                    <Textarea
+                      autoFocus
+                      value={editContent}
+                      onChange={(e) => {
+                        setEditContent(e.target.value)
+                        saveNote(note.id, e.target.value)
+                      }}
+                      onBlur={() => setEditingId(null)}
+                      className="min-h-[40px] flex-1 resize-none rounded-none border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+                      placeholder="Write something..."
+                    />
+                  ) : (
+                    <div
+                      className="min-h-11 flex-1 cursor-pointer flex items-center"
+                      onClick={() => {
+                        setEditingId(note.id)
+                        setEditContent(note.content)
+                      }}
                     >
-                      {note.content || "Empty note"}
-                    </p>
+                      <p
+                        className={cn(
+                          "line-clamp-1 text-xs",
+                          !note.content && "text-muted-foreground/40 italic"
+                        )}
+                      >
+                        {note.content || "Empty note"}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      onClick={() => togglePin(note)}
+                      className="flex size-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-primary"
+                    >
+                      {note.pinned ? (
+                        <Pin className="size-2.5 text-primary" />
+                      ) : (
+                        <PinOff className="size-2.5 text-muted-foreground/30" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => deleteNote(note.id)}
+                      className="flex size-11 items-center justify-center"
+                    >
+                      <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
+                    </button>
                   </div>
-                )}
-                <div className="mt-0.5 flex items-center gap-1">
-                  <button
-                    onClick={() => togglePin(note)}
-                    className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-primary"
-                  >
-                    {note.pinned ? (
-                      <Pin className="size-2.5 text-primary" />
-                    ) : (
-                      <PinOff className="size-2.5 opacity-0 group-hover:opacity-100" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => deleteNote(note.id)}
-                    className="flex min-h-11 min-w-11 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
-                  </button>
                 </div>
               </div>
             ))}
@@ -241,7 +247,7 @@ export function NotesZone() {
           <Input
             name="url"
             placeholder="Paste a link..."
-            className="h-6 border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+            className="h-11 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
         </div>
       </form>

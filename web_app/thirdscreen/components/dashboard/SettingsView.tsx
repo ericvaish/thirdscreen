@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
-import { Moon, Sun, Monitor, ZoomIn } from "lucide-react"
+import { Moon, Sun, Monitor, ZoomIn, Bot } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useScale } from "@/components/scale-provider"
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/integrations/registry"
 import type { EnabledIntegration } from "@/lib/integrations/types"
 import { listIntegrations, toggleIntegration } from "@/lib/data-layer"
+import { useMascot, MASCOT_CHARACTERS } from "@/lib/mascot"
 import * as Icons from "lucide-react"
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings"
 
@@ -76,7 +77,7 @@ export function SettingsView() {
     <div className="mx-auto max-w-2xl overflow-auto px-6 py-8">
       {/* Appearance */}
       <section>
-        <Label className="font-mono text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Appearance
         </Label>
         <div className="mt-3 flex gap-2">
@@ -105,7 +106,7 @@ export function SettingsView() {
 
       {/* Display Scale */}
       <section>
-        <Label className="font-mono text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Display Scale
         </Label>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -125,7 +126,7 @@ export function SettingsView() {
             >
               <ZoomIn className="size-4" />
               {label}
-              <span className="font-mono text-[0.5625rem] text-muted-foreground/50">
+              <span className="font-mono text-xs text-muted-foreground/50">
                 {value}px
               </span>
             </button>
@@ -135,9 +136,14 @@ export function SettingsView() {
 
       <Separator className="my-8 bg-border/30" />
 
+      {/* Mascot Buddy */}
+      <MascotSettings />
+
+      <Separator className="my-8 bg-border/30" />
+
       {/* Integrations */}
       <section>
-        <Label className="font-mono text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Integrations
         </Label>
         <p className="mt-2 text-xs text-muted-foreground">
@@ -149,7 +155,7 @@ export function SettingsView() {
         <div className="mt-6 space-y-8">
           {Array.from(categories.entries()).map(([category, items]) => (
             <div key={category}>
-              <h3 className="mb-3 font-mono text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground/50">
+              <h3 className="mb-3 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
                 {category}
               </h3>
               {category === "Calendar" && (
@@ -178,13 +184,13 @@ export function SettingsView() {
                           {def.builtIn && (
                             <Badge
                               variant="secondary"
-                              className="px-1 py-0 font-mono text-[0.5rem] uppercase"
+                              className="px-1 py-0 font-mono text-xs uppercase"
                             >
                               built-in
                             </Badge>
                           )}
                         </div>
-                        <p className="mt-0.5 text-[0.6875rem] text-muted-foreground">
+                        <p className="mt-0.5 text-xs text-muted-foreground">
                           {def.description}
                         </p>
                       </div>
@@ -207,7 +213,7 @@ export function SettingsView() {
 
       {/* About */}
       <section className="pb-8">
-        <Label className="font-mono text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           About
         </Label>
         <div className="mt-3 space-y-1 text-sm text-muted-foreground">
@@ -218,5 +224,47 @@ export function SettingsView() {
         </div>
       </section>
     </div>
+  )
+}
+
+// ── Mascot Settings ──────────────────────────────────────────────────────────
+
+function MascotSettings() {
+  const { enabled, setEnabled, character, setCharacter } = useMascot()
+
+  return (
+    <section>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bot className="size-4 text-muted-foreground/60" />
+          <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Pixel Buddy
+          </Label>
+        </div>
+        <Switch checked={enabled} onCheckedChange={setEnabled} />
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        A little companion that reacts when you log water, food, complete tasks, and more.
+      </p>
+
+      {enabled && (
+        <div className="mt-4 grid grid-cols-5 gap-2">
+          {MASCOT_CHARACTERS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setCharacter(c.id)}
+              className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs transition-all ${
+                character === c.id
+                  ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
+                  : "border-border text-muted-foreground hover:bg-muted/30"
+              }`}
+            >
+              <span className="text-2xl">{c.emoji}</span>
+              <span className="font-medium">{c.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

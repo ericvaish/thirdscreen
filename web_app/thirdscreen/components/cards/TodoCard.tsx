@@ -164,7 +164,7 @@ export function TodoCard({ cardId }: TodoCardProps) {
             if (e.key === "Enter") addTodo()
           }}
           placeholder="Add a task..."
-          className="h-7 border-none bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+          className="h-11 rounded-none border-none bg-transparent px-1 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
         <Button
           variant="ghost"

@@ -387,7 +387,7 @@ function NotesTab({
               onUpdateContent(selectedNote.id, e.target.value)
             }
             placeholder="Start writing..."
-            className="h-full min-h-full resize-none border-none bg-transparent text-sm shadow-none focus-visible:ring-0"
+            className="h-full min-h-full resize-none rounded-none border-none bg-transparent text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
         </div>
       </div>
@@ -403,7 +403,7 @@ function NotesTab({
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search notes..."
-            className="h-6 border-none bg-transparent pl-6 text-xs shadow-none focus-visible:ring-0"
+            className="h-11 rounded-none border-none bg-transparent pl-6 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
         </div>
         <Button

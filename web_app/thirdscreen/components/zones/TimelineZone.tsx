@@ -33,6 +33,13 @@ import {
   LogIn,
   Clock,
   FileText,
+  Video,
+  ExternalLink,
+  Users,
+  Pencil,
+  Check,
+  X,
+  User,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -56,11 +63,16 @@ import type { ScheduleEvent, MedicineItem } from "@/lib/types"
 import {
   listScheduleEvents,
   createScheduleEvent,
+  updateScheduleEvent,
+  deleteScheduleEvent,
   listMedicines,
   listDoses,
   isLocal,
 } from "@/lib/data-layer"
 import { useNotifications } from "@/lib/notifications"
+import { useMascot } from "@/lib/mascot"
+import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { GOOGLE_AUTH_URL, GOOGLE_SCOPES } from "@/lib/google-calendar/constants"
 
@@ -68,13 +80,30 @@ import { GOOGLE_AUTH_URL, GOOGLE_SCOPES } from "@/lib/google-calendar/constants"
 
 const WINDOW_HOURS = 24 // total span: -12h to +12h
 const WINDOW_MINUTES = WINDOW_HOURS * 60
+// Muted, desaturated calendar colors inspired by Apple Calendar.
+// Low chroma so they look good on dark backgrounds without being garish.
+// 10 colors so events rarely repeat in a typical day.
 const EVENT_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+  "oklch(0.62 0.08 250)",  // slate blue
+  "oklch(0.65 0.09 160)",  // sage green
+  "oklch(0.60 0.09 310)",  // soft lavender
+  "oklch(0.68 0.08 75)",   // warm sand
+  "oklch(0.60 0.10 20)",   // dusty rose
+  "oklch(0.64 0.08 200)",  // muted teal
+  "oklch(0.62 0.09 280)",  // soft purple
+  "oklch(0.66 0.08 110)",  // olive
+  "oklch(0.60 0.08 350)",  // mauve
+  "oklch(0.65 0.08 55)",   // amber mist
 ]
+
+// Stable color from event ID (doesn't shift when events are added/removed)
+function eventColor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0
+  }
+  return EVENT_COLORS[Math.abs(hash) % EVENT_COLORS.length]
+}
 
 const SUNRISE_MIN = 6 * 60 + 30
 const SUNSET_MIN = 19 * 60
@@ -113,6 +142,112 @@ function formatTime12(minutes: number): string {
   const ampm = h >= 12 ? "PM" : "AM"
   const h12 = h % 12 || 12
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`
+}
+
+// ── Overlap lane assignment for events ────────────────────────────────────────
+
+interface LaneAssignment {
+  lane: number
+  totalLanes: number
+}
+
+function timeToMinutesRaw(time: string): number {
+  const [h, m] = time.split(":").map(Number)
+  return h * 60 + m
+}
+
+/**
+ * Assign each event a lane so overlapping events stack vertically
+ * instead of rendering on top of each other.
+ */
+function computeEventLanes(
+  events: { id: string; startTime: string; endTime: string }[]
+): Map<string, LaneAssignment> {
+  const result = new Map<string, LaneAssignment>()
+  if (events.length === 0) return result
+
+  // Sort by start time, then by duration (longer first)
+  const sorted = [...events].sort((a, b) => {
+    const aStart = timeToMinutesRaw(a.startTime)
+    const bStart = timeToMinutesRaw(b.startTime)
+    if (aStart !== bStart) return aStart - bStart
+    const aDur = timeToMinutesRaw(a.endTime) - aStart
+    const bDur = timeToMinutesRaw(b.endTime) - bStart
+    return bDur - aDur // longer events first
+  })
+
+  // Assign lanes greedily
+  const lanes: number[] = [] // each entry is the end-time (in minutes) of the event occupying that lane
+
+  const assignments: { id: string; lane: number }[] = []
+
+  for (const ev of sorted) {
+    const evStart = timeToMinutesRaw(ev.startTime)
+    const evEnd = timeToMinutesRaw(ev.endTime)
+
+    // Find the first lane where the event fits (no overlap)
+    let assigned = -1
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i] <= evStart) {
+        assigned = i
+        lanes[i] = evEnd
+        break
+      }
+    }
+
+    if (assigned === -1) {
+      assigned = lanes.length
+      lanes.push(evEnd)
+    }
+
+    assignments.push({ id: ev.id, lane: assigned })
+  }
+
+  // Now determine totalLanes for each overlap group
+  // Build overlap groups: events that share time with at least one other in the group
+  const groups: number[][] = [] // indices into assignments
+
+  for (let i = 0; i < sorted.length; i++) {
+    const evStart = timeToMinutesRaw(sorted[i].startTime)
+    const evEnd = timeToMinutesRaw(sorted[i].endTime)
+
+    // Find which group this event belongs to
+    let foundGroup = -1
+    for (let g = 0; g < groups.length; g++) {
+      for (const memberIdx of groups[g]) {
+        const mStart = timeToMinutesRaw(sorted[memberIdx].startTime)
+        const mEnd = timeToMinutesRaw(sorted[memberIdx].endTime)
+        if (evStart < mEnd && evEnd > mStart) {
+          foundGroup = g
+          break
+        }
+      }
+      if (foundGroup !== -1) break
+    }
+
+    if (foundGroup === -1) {
+      groups.push([i])
+    } else {
+      groups[foundGroup].push(i)
+    }
+  }
+
+  // For each group, find the max lane used
+  for (const group of groups) {
+    let maxLane = 0
+    for (const idx of group) {
+      maxLane = Math.max(maxLane, assignments[idx].lane)
+    }
+    const totalLanes = maxLane + 1
+    for (const idx of group) {
+      result.set(assignments[idx].id, {
+        lane: assignments[idx].lane,
+        totalLanes,
+      })
+    }
+  }
+
+  return result
 }
 
 // ── Daylight arcs ────────────────────────────────────────────────────────────
@@ -249,6 +384,12 @@ interface TimelineEvent {
   location: string | null
   description: string | null
   source: "local" | "google"
+  // Extended fields from Google Calendar
+  meetingLink: string | null
+  htmlLink: string | null
+  organizer: string | null
+  attendees: { email: string; name: string | null; status: string }[] | null
+  accountEmail: string | null
 }
 
 // ── Week view helper ─────────────────────────────────────────────────────────
@@ -295,11 +436,11 @@ function WeekView({
           >
             {/* Day header */}
             <div className="shrink-0 px-1 pt-1 pb-0.5 text-center">
-              <div className="font-mono text-[0.5rem] uppercase text-muted-foreground/50">
+              <div className="font-mono text-xs uppercase text-muted-foreground/50">
                 {format(day, "EEE")}
               </div>
               <div
-                className={`mx-auto flex size-5 items-center justify-center rounded-full font-mono text-[0.625rem] font-medium ${
+                className={`mx-auto flex size-5 items-center justify-center rounded-full font-mono text-xs font-medium ${
                   isDayToday
                     ? "bg-amber-400 text-black"
                     : "text-foreground/70"
@@ -318,7 +459,7 @@ function WeekView({
                     className="size-1 rounded-full"
                     style={{
                       backgroundColor:
-                        ev.color ?? EVENT_COLORS[i % EVENT_COLORS.length],
+                        ev.color ?? eventColor(ev.id),
                     }}
                   />
                 ))}
@@ -369,10 +510,10 @@ function WeekView({
                       top: `${topPct}%`,
                       height: `${heightPct}%`,
                       backgroundColor:
-                        ev.color ?? EVENT_COLORS[idx % EVENT_COLORS.length],
+                        ev.color ?? eventColor(ev.id),
                     }}
                   >
-                    <span className="block truncate px-0.5 text-[0.375rem] font-medium leading-tight text-white/90">
+                    <span className="block truncate px-0.5 text-xs font-medium leading-tight text-white/90">
                       {ev.title}
                     </span>
                   </div>
@@ -410,7 +551,7 @@ function MonthView({
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div
             key={d}
-            className="text-center font-mono text-[0.5rem] uppercase text-muted-foreground/40"
+            className="text-center font-mono text-xs uppercase text-muted-foreground/40"
           >
             {d}
           </div>
@@ -439,7 +580,7 @@ function MonthView({
               }`}
             >
               <span
-                className={`flex size-4 shrink-0 items-center justify-center rounded-full font-mono text-[0.5625rem] font-medium ${
+                className={`flex size-4 shrink-0 items-center justify-center rounded-full font-mono text-xs font-medium ${
                   isDayToday
                     ? "bg-amber-400 text-black"
                     : "text-foreground/60"
@@ -457,12 +598,12 @@ function MonthView({
                       className="size-[3px] rounded-full"
                       style={{
                         backgroundColor:
-                          ev.color ?? EVENT_COLORS[i % EVENT_COLORS.length],
+                          ev.color ?? eventColor(ev.id),
                       }}
                     />
                   ))}
                   {events.length > 4 && (
-                    <span className="text-[0.375rem] leading-none text-muted-foreground/50">
+                    <span className="text-xs leading-none text-muted-foreground/50">
                       +{events.length - 4}
                     </span>
                   )}
@@ -476,10 +617,264 @@ function MonthView({
   )
 }
 
+// ── Event detail dialog ──────────────────────────────────────────────────────
+
+const RESPONSE_ICONS: Record<string, { icon: typeof Check; color: string }> = {
+  accepted: { icon: Check, color: "text-emerald-400" },
+  declined: { icon: X, color: "text-red-400" },
+  tentative: { icon: Clock, color: "text-amber-400" },
+  needsAction: { icon: Clock, color: "text-muted-foreground/50" },
+}
+
+function EventDetailDialog({
+  event,
+  open,
+  onOpenChange,
+  onDelete,
+  onUpdate,
+}: {
+  event: TimelineEvent
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDelete: (id: string) => void
+  onUpdate: (id: string, data: { title?: string; startTime?: string; endTime?: string }) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(event.title)
+  const [editStart, setEditStart] = useState(event.startTime)
+  const [editEnd, setEditEnd] = useState(event.endTime)
+
+  const isEditable = event.source === "local"
+
+  const startMin = parseInt(event.startTime.split(":")[0]) * 60 + parseInt(event.startTime.split(":")[1])
+  const endMin = parseInt(event.endTime.split(":")[0]) * 60 + parseInt(event.endTime.split(":")[1])
+  const durationMin = endMin - startMin
+
+  const handleSave = () => {
+    onUpdate(event.id, { title: editTitle, startTime: editStart, endTime: editEnd })
+    setEditing(false)
+  }
+
+  const handleDelete = () => {
+    onDelete(event.id)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md p-0 overflow-hidden">
+        {/* Color header bar */}
+        <div
+          className="h-2 w-full"
+          style={{ backgroundColor: event.color ?? "var(--zone-timeline-accent)" }}
+        />
+
+        <div className="space-y-4 px-5 pb-5 pt-3">
+          {/* Title */}
+          {editing ? (
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="text-lg font-bold"
+              autoFocus
+            />
+          ) : (
+            <DialogHeader className="p-0">
+              <DialogTitle className="text-lg font-bold leading-snug">
+                {event.title}
+              </DialogTitle>
+            </DialogHeader>
+          )}
+
+          {/* Time */}
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/30">
+              <Clock className="size-4 text-muted-foreground/60" />
+            </div>
+            {editing ? (
+              <div className="flex items-center gap-2">
+                <Input type="time" value={editStart} onChange={(e) => setEditStart(e.target.value)} className="w-28" />
+                <span className="text-muted-foreground">to</span>
+                <Input type="time" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} className="w-28" />
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-medium">
+                  {event.allDay
+                    ? "All day"
+                    : `${formatTime12(startMin)} - ${formatTime12(endMin)}`}
+                </p>
+                {!event.allDay && durationMin > 0 && (
+                  <p className="text-xs text-muted-foreground/50">
+                    {durationMin >= 60
+                      ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ""}`
+                      : `${durationMin}m`}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Meeting link */}
+          {event.meetingLink && (
+            <a
+              href={event.meetingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
+            >
+              <Video className="size-4 shrink-0" />
+              <span className="flex-1 truncate">Join meeting</span>
+              <ExternalLink className="size-3 shrink-0 opacity-50" />
+            </a>
+          )}
+
+          {/* Location */}
+          {event.location && (
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/30">
+                <MapPin className="size-4 text-muted-foreground/60" />
+              </div>
+              <p className="text-sm">{event.location}</p>
+            </div>
+          )}
+
+          {/* Description */}
+          {event.description && (
+            <div className="flex gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/30">
+                <FileText className="size-4 text-muted-foreground/60" />
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground/80 leading-relaxed">
+                {event.description}
+              </p>
+            </div>
+          )}
+
+          {/* Organizer */}
+          {event.organizer && (
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/30">
+                <User className="size-4 text-muted-foreground/60" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground/50">Organizer</p>
+                <p className="text-sm">{event.organizer}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Attendees */}
+          {event.attendees && event.attendees.length > 0 && (
+            <div className="flex gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/30">
+                <Users className="size-4 text-muted-foreground/60" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <p className="text-xs text-muted-foreground/50">
+                  {event.attendees.length} attendee{event.attendees.length !== 1 ? "s" : ""}
+                </p>
+                <div className="space-y-0.5">
+                  {event.attendees.map((a) => {
+                    const resp = RESPONSE_ICONS[a.status] ?? RESPONSE_ICONS.needsAction
+                    const StatusIcon = resp.icon
+                    return (
+                      <div key={a.email} className="flex items-center gap-2 py-0.5">
+                        <StatusIcon className={`size-3 shrink-0 ${resp.color}`} />
+                        <span className="truncate text-sm">
+                          {a.name ?? a.email}
+                        </span>
+                        {a.name && (
+                          <span className="truncate text-xs text-muted-foreground/40">
+                            {a.email}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Source badge + Google Calendar link */}
+          <div className="flex items-center gap-2 pt-1">
+            <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+              {event.source}
+            </span>
+            {event.accountEmail && (
+              <span className="text-xs text-muted-foreground/40">
+                {event.accountEmail}
+              </span>
+            )}
+            {event.htmlLink && (
+              <a
+                href={event.htmlLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto text-xs text-muted-foreground/40 hover:text-foreground/60"
+              >
+                <ExternalLink className="size-3" />
+              </a>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 border-t border-border/20 pt-3">
+            {isEditable && !editing && (
+              <>
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-1.5"
+                  onClick={() => {
+                    setEditTitle(event.title)
+                    setEditStart(event.startTime)
+                    setEditEnd(event.endTime)
+                    setEditing(true)
+                  }}
+                >
+                  <Pencil className="size-3.5" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 gap-1.5"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </Button>
+              </>
+            )}
+            {isEditable && editing && (
+              <>
+                <Button className="flex-1 gap-1.5" onClick={handleSave}>
+                  <Check className="size-3.5" />
+                  Save
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setEditing(false)}>
+                  Cancel
+                </Button>
+              </>
+            )}
+            {!isEditable && (
+              <p className="text-xs text-muted-foreground/40">
+                This event is from Google Calendar and can only be edited there.
+              </p>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function TimelineZone() {
+  const { editMode } = useDashboard()
   const { isSignedIn } = useAuth()
+  const { trigger: mascotTrigger } = useMascot()
 
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [dateEvents, setDateEvents] = useState<Map<string, TimelineEvent[]>>(
@@ -487,7 +882,23 @@ export function TimelineZone() {
   )
   const [medDoses, setMedDoses] = useState<MedDose[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
+
+  // Orientation detection: vertical when taller than wide
+  const zoneRef = useRef<HTMLDivElement>(null)
+  const [isVertical, setIsVertical] = useState(false)
+
+  useEffect(() => {
+    const el = zoneRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      setIsVertical(height > width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const [showSunArc, setShowSunArc] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [nowMinutes, setNowMinutes] = useState(720)
@@ -614,6 +1025,11 @@ export function TimelineZone() {
           location: ev.location,
           description: ev.description,
           source: "local",
+          meetingLink: null,
+          htmlLink: null,
+          organizer: null,
+          attendees: null,
+          accountEmail: null,
         })
       }
 
@@ -635,6 +1051,11 @@ export function TimelineZone() {
                 location: ev.location,
                 description: ev.description ?? null,
                 source: "google",
+                meetingLink: ev.meetingLink ?? null,
+                htmlLink: ev.htmlLink ?? null,
+                organizer: ev.organizer ?? null,
+                attendees: ev.attendees ?? null,
+                accountEmail: ev.accountEmail ?? null,
               })
             }
           }
@@ -891,6 +1312,26 @@ export function TimelineZone() {
     }
   }, [])
 
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      await deleteScheduleEvent(id)
+      fetchEvents()
+      toast.success("Event deleted")
+    } catch {
+      toast.error("Failed to delete event")
+    }
+  }
+
+  const handleUpdateEvent = async (id: string, data: { title?: string; startTime?: string; endTime?: string }) => {
+    try {
+      await updateScheduleEvent({ id, ...data })
+      fetchEvents()
+      toast.success("Event updated")
+    } catch {
+      toast.error("Failed to update event")
+    }
+  }
+
   const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
@@ -907,13 +1348,14 @@ export function TimelineZone() {
         endTime,
         date: selectedDateStr,
         allDay: false,
-        color: EVENT_COLORS[events.length % EVENT_COLORS.length],
+        color: EVENT_COLORS[Math.floor(Math.random() * EVENT_COLORS.length)],
       })
       setDialogOpen(false)
       setPrefillStart("")
       setPrefillEnd("")
       fetchEvents()
       toast.success("Event added")
+      mascotTrigger("event_added")
     } catch {
       toast.error("Failed to add event")
     }
@@ -982,11 +1424,12 @@ export function TimelineZone() {
   const showTodayButton = !isToday(selectedDate)
 
   return (
-    <div className="zone-surface zone-timeline flex h-full flex-col">
+    <div ref={zoneRef} className="zone-surface zone-timeline flex h-full flex-col">
       {/* Header */}
-      <div className="relative flex shrink-0 items-center justify-between px-3 py-1.5">
+      <div className={`relative flex shrink-0 items-center justify-between px-3 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         {/* Left: title */}
         <div className="z-10 flex shrink-0 items-center gap-1.5">
+          <ZoneDragHandle />
           <div
             className="h-5 w-[3px] rounded-full"
             style={{ background: "var(--zone-timeline-accent)" }}
@@ -1047,7 +1490,7 @@ export function TimelineZone() {
             {showTodayButton && (
               <button
                 onClick={goToToday}
-                className="absolute left-[calc(100%+0.5rem)] top-1/2 -translate-y-1/2 h-11 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 font-mono text-[0.625rem] font-bold uppercase tracking-wider text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95 whitespace-nowrap"
+                className="absolute left-[calc(100%+0.5rem)] top-1/2 -translate-y-1/2 h-11 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 font-mono text-xs font-bold uppercase tracking-wider text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95 whitespace-nowrap"
               >
                 Today
               </button>
@@ -1078,7 +1521,7 @@ export function TimelineZone() {
               <button
                 key={mode}
                 onClick={() => handleViewChange(mode)}
-                className={`flex h-10 items-center justify-center rounded-md px-3 font-mono text-[0.625rem] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                className={`flex h-10 items-center justify-center rounded-md px-3 font-mono text-xs font-bold uppercase tracking-wider transition-all active:scale-95 ${
                   viewMode === mode
                     ? "bg-[var(--zone-timeline-accent)]/20 text-[var(--zone-timeline-accent)] shadow-sm"
                     : "text-muted-foreground/40 hover:bg-muted/20 hover:text-muted-foreground/70"
@@ -1100,7 +1543,7 @@ export function TimelineZone() {
               </button>
             </PopoverTrigger>
             <PopoverContent side="bottom" align="end" className="w-64">
-              <p className="mb-2 font-mono text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Connected Calendars
               </p>
 
@@ -1125,7 +1568,7 @@ export function TimelineZone() {
                           </span>
                           <button
                             onClick={() => removeCalendarAccount(acc.id)}
-                            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                            className="flex size-11 shrink-0 items-center justify-center"
                           >
                             <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
                           </button>
@@ -1241,7 +1684,151 @@ export function TimelineZone() {
 
       {/* ── View body ─────────────────────────────────────────────────────── */}
 
-      {viewMode === "day" && (
+      {viewMode === "day" && isVertical && (
+        /* ── Vertical day view ──────────────────────────────────────── */
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          {/* All-day events */}
+          {events.filter((ev) => ev.allDay).length > 0 && (
+            <div className="flex shrink-0 gap-1 border-b border-border/10 px-3 py-1.5">
+              {events
+                .filter((ev) => ev.allDay)
+                .map((ev) => {
+                  const evColor = ev.color ?? eventColor(ev.id)
+                  return (
+                    <span
+                      key={ev.id}
+                      className="rounded-full px-2 py-0.5 text-[0.5rem] font-medium"
+                      style={{ backgroundColor: evColor, color: "var(--primary-foreground)" }}
+                    >
+                      {ev.title}
+                    </span>
+                  )
+                })}
+            </div>
+          )}
+          <div
+            className="absolute inset-0 overflow-y-auto"
+            ref={(el) => {
+              // Auto-scroll to current time on mount
+              if (el && isViewingToday && mounted) {
+                const scrollPct = minutesToPercent(nowMinutes, windowStart) / 100
+                const target = scrollPct * WINDOW_MINUTES * 0.8 - el.clientHeight / 3
+                el.scrollTop = Math.max(0, target)
+              }
+            }}
+          >
+            <div className="relative" style={{ height: `${WINDOW_MINUTES * 0.8}px` }}>
+              {/* Hour markers */}
+              {(() => {
+                const firstHour = Math.ceil(windowStart / 60)
+                const lastHour = Math.floor(windowEnd / 60)
+                const markers = []
+                for (let hour = firstHour; hour <= lastHour; hour++) {
+                  const mins = hour * 60
+                  const pct = minutesToPercent(mins, windowStart)
+                  const displayHour = ((hour % 24) + 24) % 24
+                  markers.push(
+                    <div
+                      key={hour}
+                      className="absolute left-0 w-full"
+                      style={{ top: `${pct}%` }}
+                    >
+                      <div className="flex items-center gap-2 px-2">
+                        <span className="w-8 shrink-0 text-right font-mono text-[0.5rem] leading-none text-muted-foreground/40">
+                          {displayHour === 0
+                            ? "12a"
+                            : displayHour < 12
+                              ? `${displayHour}a`
+                              : displayHour === 12
+                                ? "12p"
+                                : `${displayHour - 12}p`}
+                        </span>
+                        <div className="h-px flex-1 bg-border/15" />
+                      </div>
+                    </div>,
+                  )
+                }
+                return markers
+              })()}
+
+              {/* Events */}
+              {events
+                .filter((ev) => !ev.allDay)
+                .map((ev) => {
+                  const topPct = timeToPercent(ev.startTime, windowStart)
+                  const bottomPct = timeToPercent(ev.endTime, windowStart)
+                  const heightPct = Math.max(bottomPct - topPct, 1.5)
+                  const evColor = ev.color ?? eventColor(ev.id)
+
+                  return (
+                    <Popover key={ev.id}>
+                      <PopoverTrigger asChild>
+                        <button
+                          data-event
+                          className="absolute left-12 right-2 cursor-pointer overflow-hidden rounded-lg px-3 py-1.5 text-left text-xs font-medium leading-tight shadow-sm transition-all hover:brightness-110 hover:shadow-md"
+                          style={{
+                            top: `${topPct}%`,
+                            height: `${heightPct}%`,
+                            backgroundColor: evColor,
+                            color: "var(--primary-foreground)",
+                          }}
+                        >
+                          <span className="line-clamp-2">{ev.title}</span>
+                          {ev.location && (
+                            <span className="mt-0.5 flex items-center gap-1 text-[0.5rem] opacity-70">
+                              <MapPin className="size-2" />
+                              {ev.location}
+                            </span>
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent side="left" align="start" className="w-64 p-0">
+                        <div className="h-1 w-full rounded-t-md" style={{ backgroundColor: evColor }} />
+                        <div className="space-y-2 p-3">
+                          <p className="text-sm font-semibold">{ev.title}</p>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="size-3 shrink-0" />
+                            {formatTime12(parseInt(ev.startTime.split(":")[0]) * 60 + parseInt(ev.startTime.split(":")[1]))}
+                            {" - "}
+                            {formatTime12(parseInt(ev.endTime.split(":")[0]) * 60 + parseInt(ev.endTime.split(":")[1]))}
+                          </div>
+                          {ev.location && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <MapPin className="size-3 shrink-0" />
+                              <span>{ev.location}</span>
+                            </div>
+                          )}
+                          {ev.description && (
+                            <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <FileText className="mt-0.5 size-3 shrink-0" />
+                              <span className="whitespace-pre-wrap">{ev.description}</span>
+                            </div>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )
+                })}
+
+              {/* Now line (horizontal) */}
+              {mounted && isViewingToday && nowPercent >= 0 && nowPercent <= 100 && (
+                <div
+                  className="pointer-events-none absolute left-0 z-10 w-full"
+                  style={{ top: `${nowPercent}%` }}
+                >
+                  <div className="flex items-center">
+                    <div className="now-dot size-2 shrink-0 rounded-full bg-amber-400" />
+                    <div className="h-px flex-1 bg-amber-400/70 shadow-[0_0_6px_oklch(0.8_0.16_85)]" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewMode === "day" && !isVertical && (
+        /* ── Horizontal day view ────────────────────────────────────── */
         <div
           ref={timelineRef}
           className="relative min-h-0 flex-1 cursor-crosshair select-none"
@@ -1335,7 +1922,7 @@ export function TimelineZone() {
                   style={{ left: `${pct}%` }}
                 >
                   <span
-                    className={`absolute top-0 -translate-x-1/2 font-mono text-[0.5rem] leading-none text-muted-foreground/40 ${!isEven ? "hidden sm:inline" : ""}`}
+                    className={`absolute top-0 -translate-x-1/2 font-mono text-xs leading-none text-muted-foreground/40 ${!isEven ? "hidden sm:inline" : ""}`}
                   >
                     {displayHour === 0
                       ? "12a"
@@ -1366,7 +1953,7 @@ export function TimelineZone() {
                 }}
               >
                 <div className="flex h-full items-center justify-center">
-                  <span className="whitespace-nowrap rounded bg-primary/20 px-1.5 py-0.5 font-mono text-[0.5rem] font-medium text-primary">
+                  <span className="whitespace-nowrap rounded bg-primary/20 px-1.5 py-0.5 font-mono text-xs font-medium text-primary">
                     {formatTime12(selectionStart)} -{" "}
                     {formatTime12(selectionEnd)}
                   </span>
@@ -1375,84 +1962,45 @@ export function TimelineZone() {
             )}
 
           {/* Calendar events */}
-          {events
-            .filter((ev) => !ev.allDay)
-            .map((ev, idx) => {
+          {(() => {
+            const timedEvents = events.filter((ev) => !ev.allDay)
+            const lanes = computeEventLanes(timedEvents)
+
+            return timedEvents.map((ev, idx) => {
               const leftPct = timeToPercent(ev.startTime, windowStart)
               const rightPct = timeToPercent(ev.endTime, windowStart)
               const widthPct = Math.max(rightPct - leftPct, 2)
 
-              const evColor = ev.color ?? EVENT_COLORS[idx % EVENT_COLORS.length]
+              const evColor = ev.color ?? eventColor(ev.id)
+              const assignment = lanes.get(ev.id) ?? { lane: 0, totalLanes: 1 }
+              const eventAreaTop = 16 // px below hour markers
+              const eventAreaBottom = 16 // px above bottom
+              const laneHeightPct = 100 / assignment.totalLanes
+              const topPct = assignment.lane * laneHeightPct
 
               return (
-                <Popover key={ev.id}>
-                  <PopoverTrigger asChild>
-                    <button
-                      data-event
-                      className="absolute flex cursor-pointer items-center gap-1 overflow-hidden rounded-md px-2 py-1 text-left text-[0.625rem] font-medium leading-tight shadow-sm transition-all hover:brightness-110 hover:shadow-md"
-                      style={{
-                        left: `${leftPct}%`,
-                        width: `${widthPct}%`,
-                        top: "16px",
-                        bottom: "16px",
-                        backgroundColor: evColor,
-                        color: "var(--primary-foreground)",
-                      }}
-                    >
-                      <span className="truncate">{ev.title}</span>
-                      {ev.location && (
-                        <MapPin className="size-2 shrink-0 opacity-70" />
-                      )}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    side="bottom"
-                    align="start"
-                    className="w-64 p-0"
-                  >
-                    {/* Color bar */}
-                    <div
-                      className="h-1 w-full rounded-t-md"
-                      style={{ backgroundColor: evColor }}
-                    />
-                    <div className="space-y-2 p-3">
-                      <p className="text-sm font-semibold">{ev.title}</p>
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Clock className="size-3 shrink-0" />
-                        {formatTime12(
-                          parseInt(ev.startTime.split(":")[0]) * 60 +
-                            parseInt(ev.startTime.split(":")[1]),
-                        )}{" "}
-                        -{" "}
-                        {formatTime12(
-                          parseInt(ev.endTime.split(":")[0]) * 60 +
-                            parseInt(ev.endTime.split(":")[1]),
-                        )}
-                      </div>
-                      {ev.location && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <MapPin className="size-3 shrink-0" />
-                          <span>{ev.location}</span>
-                        </div>
-                      )}
-                      {ev.description && (
-                        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                          <FileText className="mt-0.5 size-3 shrink-0" />
-                          <span className="whitespace-pre-wrap">
-                            {ev.description}
-                          </span>
-                        </div>
-                      )}
-                      <div className="pt-0.5">
-                        <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[0.5rem] uppercase tracking-wider text-muted-foreground">
-                          {ev.source}
-                        </span>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <button
+                  key={ev.id}
+                  data-event
+                  onClick={() => setSelectedEvent(ev)}
+                  className="absolute flex cursor-pointer items-center gap-1 overflow-hidden rounded-md px-2 py-0.5 text-left text-xs font-medium leading-tight shadow-sm transition-all hover:brightness-110 hover:shadow-md"
+                  style={{
+                    left: `${leftPct}%`,
+                    width: `${widthPct}%`,
+                    top: `calc(${eventAreaTop}px + (100% - ${eventAreaTop + eventAreaBottom}px) * ${topPct / 100})`,
+                    height: `calc((100% - ${eventAreaTop + eventAreaBottom}px) * ${laneHeightPct / 100} - 2px)`,
+                    backgroundColor: evColor,
+                    color: "var(--primary-foreground)",
+                  }}
+                >
+                  <span className="truncate">{ev.title}</span>
+                  {ev.location && (
+                    <MapPin className="size-2 shrink-0 opacity-70" />
+                  )}
+                </button>
               )
-            })}
+            })
+          })()}
 
           {/* All-day events */}
           {events.filter((ev) => ev.allDay).length > 0 && (
@@ -1460,44 +2008,20 @@ export function TimelineZone() {
               {events
                 .filter((ev) => ev.allDay)
                 .map((ev, idx) => {
-                  const evColor = ev.color ?? EVENT_COLORS[idx % EVENT_COLORS.length]
+                  const evColor = ev.color ?? eventColor(ev.id)
                   return (
-                    <Popover key={ev.id}>
-                      <PopoverTrigger asChild>
-                        <button
-                          data-event
-                          className="cursor-pointer rounded-full px-1.5 py-0.5 text-[0.5rem] font-medium transition-all hover:brightness-110"
-                          style={{
-                            backgroundColor: evColor,
-                            color: "var(--primary-foreground)",
-                          }}
-                        >
-                          {ev.title}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent side="bottom" align="start" className="w-64 p-0">
-                        <div className="h-1 w-full rounded-t-md" style={{ backgroundColor: evColor }} />
-                        <div className="space-y-2 p-3">
-                          <p className="text-sm font-semibold">{ev.title}</p>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <CalendarDays className="size-3 shrink-0" />
-                            All day
-                          </div>
-                          {ev.location && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <MapPin className="size-3 shrink-0" />
-                              <span>{ev.location}</span>
-                            </div>
-                          )}
-                          {ev.description && (
-                            <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                              <FileText className="mt-0.5 size-3 shrink-0" />
-                              <span className="whitespace-pre-wrap">{ev.description}</span>
-                            </div>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                    <button
+                      key={ev.id}
+                      data-event
+                      onClick={() => setSelectedEvent(ev)}
+                      className="cursor-pointer rounded-full px-1.5 py-0.5 text-xs font-medium transition-all hover:brightness-110"
+                      style={{
+                        backgroundColor: evColor,
+                        color: "var(--primary-foreground)",
+                      }}
+                    >
+                      {ev.title}
+                    </button>
                   )
                 })}
             </div>
@@ -1517,7 +2041,7 @@ export function TimelineZone() {
                 title={`${dose.medName}${dose.dosage ? ` (${dose.dosage})` : ""} at ${String(dose.hour).padStart(2, "0")}:${String(dose.minute).padStart(2, "0")}`}
               >
                 <div
-                  className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[0.4375rem] font-medium transition-opacity ${
+                  className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs font-medium transition-opacity ${
                     dose.taken
                       ? "border-[var(--vital-meds)]/30 bg-[var(--vital-meds)]/10 text-[var(--vital-meds)] opacity-50 line-through"
                       : "border-[var(--vital-meds)]/40 bg-[var(--vital-meds)]/15 text-[var(--vital-meds)]"
@@ -1540,7 +2064,7 @@ export function TimelineZone() {
                 left: `${minutesToPercent(hoverMinutes, windowStart)}%`,
               }}
             >
-              <div className="-translate-x-1/2 whitespace-nowrap rounded bg-muted/80 px-1 py-0.5 font-mono text-[0.5rem] font-medium text-foreground/70 backdrop-blur-sm">
+              <div className="-translate-x-1/2 whitespace-nowrap rounded bg-muted/80 px-1 py-0.5 font-mono text-xs font-medium text-foreground/70 backdrop-blur-sm">
                 {formatTime12(hoverMinutes)}
               </div>
               <div className="absolute top-5 bottom-0 left-0 w-px bg-foreground/10" />
@@ -1576,6 +2100,16 @@ export function TimelineZone() {
         />
       )}
 
+      {/* Event detail dialog */}
+      {selectedEvent && (
+        <EventDetailDialog
+          event={selectedEvent}
+          open={!!selectedEvent}
+          onOpenChange={(open) => { if (!open) setSelectedEvent(null) }}
+          onDelete={handleDeleteEvent}
+          onUpdate={handleUpdateEvent}
+        />
+      )}
     </div>
   )
 }
