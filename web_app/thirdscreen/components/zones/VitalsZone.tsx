@@ -42,7 +42,7 @@ function Meter({ value, max, color, label, unit, icon, children }: MeterProps) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="group w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-foreground/[0.03]">
+        <button className="group w-full min-h-11 rounded-lg px-3 py-2 text-left transition-colors hover:bg-foreground/[0.03]">
           {/* Top row: icon + label + value */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -318,7 +318,7 @@ export function VitalsZone() {
                     <button
                       key={`${med.id}-${t.id}`}
                       onClick={() => toggleDose(med.id, t.id)}
-                      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40"
+                      className="group flex w-full min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40"
                     >
                       <div
                         className={cn(
@@ -358,7 +358,7 @@ export function VitalsZone() {
                           e.stopPropagation()
                           deleteMedicine(med.id)
                         }}
-                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        className="flex size-11 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
                       >
                         <Trash2 className="size-2.5 text-muted-foreground/30 hover:text-destructive" />
                       </button>

@@ -159,10 +159,10 @@ function TaskRow({
   onDelete: (id: string) => void
 }) {
   return (
-    <div className="group flex items-center gap-2.5 px-4 py-2 transition-colors hover:bg-foreground/[0.03]">
+    <div className="group flex min-h-11 items-center gap-2.5 px-4 py-2 transition-colors hover:bg-foreground/[0.03]">
       <button
         onClick={() => onToggle(todo)}
-        className="shrink-0 transition-all"
+        className="flex size-11 shrink-0 items-center justify-center transition-all"
       >
         {todo.completed ? (
           <div className="flex size-4 items-center justify-center rounded" style={{ background: "var(--zone-tasks-accent)" }}>
@@ -187,7 +187,7 @@ function TaskRow({
       )}
       <button
         onClick={() => onDelete(todo.id)}
-        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+        className="flex size-11 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
       >
         <Trash2 className="size-3 text-muted-foreground/30 hover:text-destructive" />
       </button>
