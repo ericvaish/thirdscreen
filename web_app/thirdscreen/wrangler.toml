@@ -4,6 +4,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 STORAGE = "d1"
+# OAuth client IDs/secrets: set via `wrangler secret put` or Cloudflare dashboard
+# For local dev, use .env.local
 
 [[d1_databases]]
 binding = "DB"
