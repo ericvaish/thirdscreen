@@ -38,3 +38,4 @@ CLAUDE.md
 bun.lock
 *.db
 .wrangler/
+logs/
