@@ -132,14 +132,14 @@ function snapTo15(minutes: number): number {
 }
 
 function minutesToTimeStr(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  const h = ((Math.floor(minutes / 60) % 24) + 24) % 24
+  const m = ((minutes % 60) + 60) % 60
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
 function formatTime12(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  const h = ((Math.floor(minutes / 60) % 24) + 24) % 24
+  const m = ((minutes % 60) + 60) % 60
   const ampm = h >= 12 ? "PM" : "AM"
   const h12 = h % 12 || 12
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`
@@ -938,7 +938,9 @@ function EventListPanel({
                   <span>All day</span>
                 ) : (
                   <span className="font-mono tabular-nums">
-                    {ev.startTime} - {ev.endTime}
+                    {formatTime12(parseInt(ev.startTime.split(":")[0]) * 60 + parseInt(ev.startTime.split(":")[1]))}
+                    {" - "}
+                    {formatTime12(parseInt(ev.endTime.split(":")[0]) * 60 + parseInt(ev.endTime.split(":")[1]))}
                   </span>
                 )}
                 {ev.location && (
