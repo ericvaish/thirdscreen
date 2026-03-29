@@ -1469,6 +1469,14 @@ export function TimelineZone() {
     fetchCalendarAccounts()
   }, [fetchEvents, fetchMedicines, fetchCalendarAccounts])
 
+  // Poll Google Calendar for new/changed events every 60s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchEvents()
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [fetchEvents])
+
   // Meeting reminders (day view only, today only)
   const { push: pushNotif } = useNotifications()
   const notifiedEventsRef = useRef<Set<string>>(new Set())

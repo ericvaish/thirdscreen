@@ -9,6 +9,9 @@ import {
   Music,
   Unplug,
   Volume2,
+  Minus,
+  Plus,
+  Type,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -104,6 +107,14 @@ export function MediaZone() {
   const progressSyncRef = useRef({ position: 0, time: 0 })
   const [seekingMs, setSeekingMs] = useState<number | null>(null)
   const progressBarRef = useRef<HTMLDivElement | null>(null)
+  const [lyricsSize, setLyricsSize] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("lyrics-font-size")
+      return stored ? parseInt(stored, 10) : 14
+    }
+    return 14
+  })
+  const [lyricsSizeOpen, setLyricsSizeOpen] = useState(false)
 
   // Fetch connection status
   const fetchState = useCallback(async () => {
@@ -132,7 +143,8 @@ export function MediaZone() {
           deviceId: prev.state === "connected" ? prev.deviceId : null,
         }))
       } catch {
-        setStatus({ state: "needs-client-id" })
+        // Transient error (network, idle tab) — keep previous state
+        setStatus((prev) => (prev.state === "loading" ? { state: "needs-client-id" } : prev))
       }
       return
     }
@@ -145,7 +157,8 @@ export function MediaZone() {
         return
       }
       if (!res.ok) {
-        setStatus({ state: "needs-client-id" })
+        // Transient server error — keep previous state
+        setStatus((prev) => (prev.state === "loading" ? { state: "needs-client-id" } : prev))
         return
       }
       const data = await res.json()
@@ -163,7 +176,8 @@ export function MediaZone() {
         }))
       }
     } catch {
-      setStatus({ state: "needs-client-id" })
+      // Transient error (network, idle tab) — keep previous state
+      setStatus((prev) => (prev.state === "loading" ? { state: "needs-client-id" } : prev))
     }
   }, [])
 
@@ -481,6 +495,49 @@ export function MediaZone() {
               <Volume2 className="size-3 text-green-500" />
             </span>
           )}
+          {/* Lyrics size control */}
+          <div className="relative flex items-center">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setLyricsSizeOpen((v) => !v)}
+              className="text-muted-foreground/40 hover:text-foreground/70"
+              title="Lyrics text size"
+            >
+              <Type className="size-3" />
+            </Button>
+            {lyricsSizeOpen && (
+              <div className="absolute right-0 top-full z-20 mt-1 flex items-center gap-0.5 rounded-lg border border-border/30 bg-card/95 p-1 shadow-lg backdrop-blur-sm">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => {
+                    const next = Math.max(11, lyricsSize - 2)
+                    setLyricsSize(next)
+                    localStorage.setItem("lyrics-font-size", String(next))
+                  }}
+                  className="text-muted-foreground/60 hover:text-foreground"
+                >
+                  <Minus className="size-3" />
+                </Button>
+                <span className="min-w-[2rem] text-center font-mono text-xs text-muted-foreground">
+                  {lyricsSize}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => {
+                    const next = Math.min(32, lyricsSize + 2)
+                    setLyricsSize(next)
+                    localStorage.setItem("lyrics-font-size", String(next))
+                  }}
+                  className="text-muted-foreground/60 hover:text-foreground"
+                >
+                  <Plus className="size-3" />
+                </Button>
+              </div>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="icon-xs"
@@ -629,6 +686,7 @@ export function MediaZone() {
             durationMs={playback.durationMs}
             progressMs={playback.progressMs}
             isPlaying={playback.isPlaying}
+            fontSize={lyricsSize}
           />
         </>
       )}
@@ -746,6 +804,7 @@ function SyncedLyrics({
   durationMs,
   progressMs,
   isPlaying,
+  fontSize = 14,
 }: {
   track: string
   artist: string
@@ -753,6 +812,7 @@ function SyncedLyrics({
   durationMs: number
   progressMs: number
   isPlaying: boolean
+  fontSize?: number
 }) {
   const [lyrics, setLyrics] = useState<LyricsData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -891,11 +951,12 @@ function SyncedLyrics({
               key={i}
               ref={isActive ? activeLineRef : undefined}
               className={cn(
-                "py-1 text-sm leading-relaxed",
+                "py-1 leading-relaxed transition-[font-size] duration-200",
                 isActive
                   ? "font-semibold text-foreground"
                   : "text-muted-foreground/60"
               )}
+              style={{ fontSize: `${fontSize}px` }}
             >
               {line.text || "\u00A0"}
             </p>
@@ -912,7 +973,10 @@ function SyncedLyrics({
   if (lyrics.plain) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2">
-        <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-muted-foreground/60">
+        <pre
+          className="whitespace-pre-wrap font-sans leading-relaxed text-muted-foreground/60"
+          style={{ fontSize: `${fontSize}px` }}
+        >
           {lyrics.plain}
         </pre>
       </div>
