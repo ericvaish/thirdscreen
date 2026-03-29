@@ -283,31 +283,63 @@ async function getValidToken(
 
 function parseGoogleDateTime(
   dt: { dateTime?: string; date?: string },
-  fallbackDate: string
+  fallbackDate: string,
+  tz: string
 ): { time: string; date: string; allDay: boolean } {
   if (dt.date) {
     // All-day event
     return { time: "00:00", date: dt.date, allDay: true }
   }
   if (dt.dateTime) {
+    // Format in the user's timezone so hours/date are correct regardless of server TZ
     const d = new Date(dt.dateTime)
-    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d)
+    const get = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((p) => p.type === type)?.value ?? "00"
+    const time = `${get("hour") === "24" ? "00" : get("hour")}:${get("minute")}`
+    const date = `${get("year")}-${get("month")}-${get("day")}`
     return { time, date, allDay: false }
   }
   return { time: "00:00", date: fallbackDate, allDay: true }
 }
 
+/** Build RFC 3339 start/end for a local date in the given timezone */
+function dayRangeForTz(date: string, tz: string): { start: string; end: string } {
+  // We need midnight and 23:59:59 in the user's timezone as RFC 3339 strings.
+  // Use a known UTC reference point and Intl to discover the UTC offset for `tz`,
+  // then construct the strings directly.
+  const ref = new Date(`${date}T12:00:00Z`) // noon UTC on the date — safe from DST edges
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "longOffset",
+  }).formatToParts(ref)
+  const offsetStr = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT"
+  const offset = offsetStr.replace("GMT", "") || "+00:00"
+
+  return {
+    start: `${date}T00:00:00${offset}`,
+    end: `${date}T23:59:59${offset}`,
+  }
+}
+
 export async function fetchEventsForAccount(
   account: GoogleCalendarAccount,
-  date: string
+  date: string,
+  tz: string = "UTC"
 ): Promise<GoogleCalendarEvent[]> {
   const token = await getValidToken(account)
   if (!token) return []
 
-  // Build time range for the day
-  const dayStart = `${date}T00:00:00Z`
-  const dayEnd = `${date}T23:59:59Z`
+  // Build time range for the day in the user's timezone
+  const range = dayRangeForTz(date, tz)
 
   // Determine which calendars to fetch
   const calendarIds =
@@ -318,11 +350,12 @@ export async function fetchEventsForAccount(
   for (const calId of calendarIds) {
     try {
       const params = new URLSearchParams({
-        timeMin: dayStart,
-        timeMax: dayEnd,
+        timeMin: range.start,
+        timeMax: range.end,
         singleEvents: "true",
         orderBy: "startTime",
         maxResults: "50",
+        timeZone: tz,
       })
 
       const res = await fetch(
@@ -338,8 +371,8 @@ export async function fetchEventsForAccount(
       for (const item of data.items ?? []) {
         if (item.status === "cancelled") continue
 
-        const start = parseGoogleDateTime(item.start, date)
-        const end = parseGoogleDateTime(item.end, date)
+        const start = parseGoogleDateTime(item.start, date, tz)
+        const end = parseGoogleDateTime(item.end, date, tz)
 
         // Extract meeting link from conferenceData or description
         let meetingLink: string | null = null
@@ -391,11 +424,12 @@ export async function fetchEventsForAccount(
 /** Fetch events from ALL connected Google accounts for a given date */
 export async function fetchAllGoogleEvents(
   date: string,
-  userId: string = ""
+  userId: string = "",
+  tz: string = "UTC"
 ): Promise<GoogleCalendarEvent[]> {
   const accounts = await listGoogleAccounts(userId)
   const results = await Promise.all(
-    accounts.map((a) => fetchEventsForAccount(a, date))
+    accounts.map((a) => fetchEventsForAccount(a, date, tz))
   )
   return results.flat()
 }

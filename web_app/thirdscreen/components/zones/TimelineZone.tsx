@@ -76,6 +76,7 @@ import { useDashboard } from "@/components/dashboard/DashboardContext"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { GOOGLE_AUTH_URL, GOOGLE_SCOPES } from "@/lib/google-calendar/constants"
+import { useTimezone } from "@/lib/timezone"
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -1118,6 +1119,7 @@ export function TimelineZone() {
   const { editMode } = useDashboard()
   const { isSignedIn } = useAuth()
   const { trigger: mascotTrigger } = useMascot()
+  const { timezone } = useTimezone()
 
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [dateEvents, setDateEvents] = useState<Map<string, TimelineEvent[]>>(
@@ -1330,7 +1332,7 @@ export function TimelineZone() {
       if (!isLocal || isSignedIn) {
         try {
           const googleRes = await fetch(
-            `/api/google-calendar?action=events&date=${dateStr}`,
+            `/api/google-calendar?action=events&date=${dateStr}&tz=${encodeURIComponent(timezone)}`,
           )
           if (googleRes.ok) {
             const google = await googleRes.json()
@@ -1358,7 +1360,7 @@ export function TimelineZone() {
 
       return merged
     },
-    [isSignedIn],
+    [isSignedIn, timezone],
   )
 
   // Fetch events for current view

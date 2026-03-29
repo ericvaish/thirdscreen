@@ -5,7 +5,7 @@ import { setSetting, getSettings } from "./data-layer"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export const ZONE_KEYS = ["timeline", "clock", "tasks", "notes", "vitals", "media", "status"] as const
+export const ZONE_KEYS = ["timeline", "clock", "tasks", "notes", "vitals", "media", "habits", "status"] as const
 export type ThemeZone = (typeof ZONE_KEYS)[number]
 
 export type GradientStyle = "glow" | "border" | "flat"
@@ -34,6 +34,7 @@ export const ZONE_META: Record<ThemeZone, { label: string; defaultHue: { light: 
   notes:    { label: "Notes",    defaultHue: { light: 300, dark: 300 }, defaultAccent: { light: "oklch(0.45 0.16 300)", dark: "oklch(0.74 0.18 300)" } },
   vitals:   { label: "Vitals",   defaultHue: { light: 160, dark: 160 }, defaultAccent: { light: "oklch(0.45 0.16 160)", dark: "oklch(0.74 0.17 160)" } },
   media:    { label: "Media",    defaultHue: { light: 30, dark: 20 },   defaultAccent: { light: "oklch(0.5 0.16 30)",  dark: "oklch(0.75 0.18 20)" } },
+  habits:   { label: "Habits",   defaultHue: { light: 140, dark: 140 }, defaultAccent: { light: "oklch(0.45 0.16 140)", dark: "oklch(0.7 0.15 140)" } },
   status:   { label: "Status",   defaultHue: { light: 260, dark: 270 }, defaultAccent: { light: "oklch(0.45 0.04 260)", dark: "oklch(0.6 0.03 270)" } },
 }
 
@@ -68,7 +69,7 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
       cardBackground: "oled",
       zoneGradients: {
         timeline: "flat", tasks: "flat", notes: "flat",
-        vitals: "flat", media: "flat", status: "flat",
+        vitals: "flat", media: "flat", habits: "flat", status: "flat",
       },
       preset: "oled",
     },
@@ -78,7 +79,7 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
     theme: {
       zoneAccents: {
         timeline: 195, tasks: 140, notes: 300,
-        vitals: 160, media: 15, status: 270,
+        vitals: 160, media: 15, habits: 80, status: 270,
       },
       cardBackground: "oled",
       zoneGradients: {},
@@ -90,7 +91,7 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
     theme: {
       zoneAccents: {
         timeline: 210, tasks: 55, notes: 300,
-        vitals: 160, media: 350, status: 240,
+        vitals: 160, media: 350, habits: 140, status: 240,
       },
       cardBackground: "lighter",
       zoneGradients: {},
@@ -102,12 +103,12 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
     theme: {
       zoneAccents: {
         timeline: 260, tasks: 260, notes: 260,
-        vitals: 260, media: 260, status: 260,
+        vitals: 260, media: 260, habits: 260, status: 260,
       },
       cardBackground: "default",
       zoneGradients: {
         timeline: "flat", tasks: "flat", notes: "flat",
-        vitals: "flat", media: "flat", status: "flat",
+        vitals: "flat", media: "flat", habits: "flat", status: "flat",
       },
       preset: "mono",
     },

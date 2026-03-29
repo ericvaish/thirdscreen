@@ -57,7 +57,8 @@ export async function GET(request: Request) {
     if (!date) {
       return NextResponse.json({ error: "date is required" }, { status: 400 })
     }
-    const events = await fetchAllGoogleEvents(date, userId)
+    const tz = searchParams.get("tz") || "UTC"
+    const events = await fetchAllGoogleEvents(date, userId, tz)
     return NextResponse.json(events)
   }
 

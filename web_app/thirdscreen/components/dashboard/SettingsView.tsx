@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
-import { Moon, Sun, Monitor, ZoomIn, Bot } from "lucide-react"
+import { Moon, Sun, Monitor, ZoomIn, Bot, Globe } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useScale } from "@/components/scale-provider"
 import {
@@ -17,6 +17,14 @@ import { useMascot, MASCOT_CHARACTERS } from "@/lib/mascot"
 import * as Icons from "lucide-react"
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings"
 import { GoogleServicesSettings } from "./GoogleServicesSettings"
+import { useTimezone, TIMEZONE_LIST } from "@/lib/timezone"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 function getIcon(name: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,6 +145,11 @@ export function SettingsView() {
 
       <Separator className="my-8 bg-border/30" />
 
+      {/* Timezone */}
+      <TimezoneSettings />
+
+      <Separator className="my-8 bg-border/30" />
+
       {/* Mascot Buddy */}
       <MascotSettings />
 
@@ -238,6 +251,80 @@ export function SettingsView() {
         </div>
       </section>
     </div>
+  )
+}
+
+// ── Timezone Settings ────────────────────────────────────────────────────────
+
+function TimezoneSettings() {
+  const { timezone, detected, override, setOverride } = useTimezone()
+  const isAuto = override === null
+
+  return (
+    <section>
+      <div className="flex items-center gap-2">
+        <Globe className="size-4 text-muted-foreground/60" />
+        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Timezone
+        </Label>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Used for calendar events and schedule display. Auto-detected from your
+        browser.
+      </p>
+
+      <div className="mt-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">{timezone.replace(/_/g, " ")}</p>
+          {isAuto && (
+            <p className="text-xs text-muted-foreground/50">Auto-detected</p>
+          )}
+          {!isAuto && (
+            <p className="text-xs text-muted-foreground/50">
+              Manual override (detected: {detected.replace(/_/g, " ")})
+            </p>
+          )}
+        </div>
+        {!isAuto && (
+          <button
+            onClick={() => setOverride(null)}
+            className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30"
+          >
+            Reset to auto
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3">
+        <Select
+          value={override ?? "__auto__"}
+          onValueChange={(val) => setOverride(val === "__auto__" ? null : val)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select timezone" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__auto__">
+              Auto-detect ({detected.replace(/_/g, " ")})
+            </SelectItem>
+            {TIMEZONE_LIST.map((tz) => {
+              const now = new Date()
+              const offset = new Intl.DateTimeFormat("en-US", {
+                timeZone: tz,
+                timeZoneName: "shortOffset",
+              })
+                .formatToParts(now)
+                .find((p) => p.type === "timeZoneName")?.value ?? ""
+              return (
+                <SelectItem key={tz} value={tz}>
+                  {tz.replace(/_/g, " ")} ({offset})
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
+      </div>
+    </section>
   )
 }
 

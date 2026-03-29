@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkThemeProvider } from "@/components/clerk-theme-provider"
 import { ScaleProvider } from "@/components/scale-provider"
 import { NotificationProvider } from "@/lib/notifications"
+import { TimezoneProvider } from "@/lib/timezone"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
@@ -51,9 +52,11 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="dark">
           <ClerkThemeProvider>
             <ScaleProvider>
-              <NotificationProvider>
-                  {children}
-              </NotificationProvider>
+              <TimezoneProvider>
+                <NotificationProvider>
+                    {children}
+                </NotificationProvider>
+              </TimezoneProvider>
             </ScaleProvider>
             <Toaster position="bottom-right" />
           </ClerkThemeProvider>

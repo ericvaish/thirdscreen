@@ -101,6 +101,8 @@
     --zone-media-accent: oklch(0.5 0.16 30);
     --zone-clock: oklch(0.97 0.012 195);
     --zone-clock-accent: oklch(0.45 0.16 195);
+    --zone-habits: oklch(0.97 0.012 140);
+    --zone-habits-accent: oklch(0.45 0.16 140);
     --zone-status: oklch(0.975 0.005 260);
     --zone-status-accent: oklch(0.45 0.04 260);
 }
@@ -159,6 +161,8 @@
     --zone-media-accent: oklch(0.75 0.18 20);
     --zone-clock: var(--zone-base);
     --zone-clock-accent: oklch(0.74 0.17 195);
+    --zone-habits: var(--zone-base);
+    --zone-habits-accent: oklch(0.7 0.15 140);
     --zone-status: oklch(0.11 0.01 260);
     --zone-status-accent: oklch(0.6 0.03 270);
 }
@@ -301,7 +305,7 @@
 }
 
 .zone-habits {
-  background: var(--zone-habits, var(--card));
+  background: var(--zone-habits);
 }
 .zone-habits::before {
   background: radial-gradient(circle 200px at 0% 0%, oklch(0.7 0.15 140 / 18%), transparent);
@@ -323,6 +327,7 @@
 :root[data-gradient-notes="flat"] .zone-notes::before,
 :root[data-gradient-vitals="flat"] .zone-vitals::before,
 :root[data-gradient-media="flat"] .zone-media::before,
+:root[data-gradient-habits="flat"] .zone-habits::before,
 :root[data-gradient-clock="flat"] .zone-clock::before {
   background: none !important;
 }
@@ -333,6 +338,7 @@
 :root[data-gradient-notes="border"] .zone-notes::before,
 :root[data-gradient-vitals="border"] .zone-vitals::before,
 :root[data-gradient-media="border"] .zone-media::before,
+:root[data-gradient-habits="border"] .zone-habits::before,
 :root[data-gradient-clock="border"] .zone-clock::before {
   background: none !important;
 }
@@ -353,6 +359,9 @@
 }
 :root[data-gradient-clock="border"] .zone-clock {
   border-top: 2px solid var(--zone-clock-accent);
+}
+:root[data-gradient-habits="border"] .zone-habits {
+  border-top: 2px solid var(--zone-habits-accent);
 }
 
 /* ── Pulse animation for now-line ──────────────────────────────────────── */
