@@ -181,6 +181,9 @@ export interface SpotifyPlaybackState {
   progressMs: number
   durationMs: number
   trackId: string | null
+  shuffleState: boolean
+  repeatState: "off" | "track" | "context"
+  volumePercent: number | null
 }
 
 export async function getCurrentPlayback(userId: string = ""): Promise<SpotifyPlaybackState | null> {
@@ -188,7 +191,8 @@ export async function getCurrentPlayback(userId: string = ""): Promise<SpotifyPl
   if (!res || res.status === 204) return null // 204 = no active device
   if (!res.ok) return null
 
-  const data = await res.json()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (await res.json()) as any
   if (!data.item) return null
 
   const track = data.item
@@ -201,6 +205,9 @@ export async function getCurrentPlayback(userId: string = ""): Promise<SpotifyPl
     progressMs: data.progress_ms ?? 0,
     durationMs: track.duration_ms ?? 0,
     trackId: track.id ?? null,
+    shuffleState: data.shuffle_state ?? false,
+    repeatState: data.repeat_state ?? "off",
+    volumePercent: data.device?.volume_percent ?? null,
   }
 }
 
@@ -263,4 +270,45 @@ export async function getDevices(userId: string = ""): Promise<SpotifyDevice[]> 
   if (!res || !res.ok) return []
   const data = (await res.json()) as { devices?: SpotifyDevice[] }
   return data.devices ?? []
+}
+
+export async function setShuffle(state: boolean, userId: string = ""): Promise<boolean> {
+  const res = await spotifyFetch(`/me/player/shuffle?state=${state}`, userId, { method: "PUT" })
+  return res !== null && (res.ok || res.status === 204)
+}
+
+export async function setRepeat(state: "off" | "track" | "context", userId: string = ""): Promise<boolean> {
+  const res = await spotifyFetch(`/me/player/repeat?state=${state}`, userId, { method: "PUT" })
+  return res !== null && (res.ok || res.status === 204)
+}
+
+export async function setVolume(volumePercent: number, userId: string = ""): Promise<boolean> {
+  const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)))
+  const res = await spotifyFetch(`/me/player/volume?volume_percent=${clamped}`, userId, { method: "PUT" })
+  return res !== null && (res.ok || res.status === 204)
+}
+
+export async function checkSavedTrack(trackId: string, userId: string = ""): Promise<boolean> {
+  const res = await spotifyFetch(`/me/tracks/contains?ids=${trackId}`, userId)
+  if (!res || !res.ok) return false
+  const data = (await res.json()) as boolean[]
+  return data[0] ?? false
+}
+
+export async function saveTrack(trackId: string, userId: string = ""): Promise<boolean> {
+  const res = await spotifyFetch("/me/tracks", userId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: [trackId] }),
+  })
+  return res !== null && (res.ok || res.status === 200)
+}
+
+export async function removeTrack(trackId: string, userId: string = ""): Promise<boolean> {
+  const res = await spotifyFetch("/me/tracks", userId, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: [trackId] }),
+  })
+  return res !== null && (res.ok || res.status === 200)
 }
