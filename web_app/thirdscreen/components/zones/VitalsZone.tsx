@@ -287,6 +287,122 @@ export function VitalsZone() {
             Vitals
           </span>
         </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
+              <Settings className="size-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="left" className="w-64">
+            <div className="space-y-4">
+              {/* Calorie settings */}
+              <div>
+                <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-calories)" }}>
+                  Calories
+                </p>
+                <Label className="text-xs text-muted-foreground">Daily goal (cal)</Label>
+                <div className="mt-1 flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      const val = Math.max(50, calorieGoal - 50)
+                      setCalorieGoal(val)
+                      localStorage.setItem("calorie-goal", String(val))
+                    }}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                  >
+                    <Minus className="size-3.5" />
+                  </button>
+                  <Input
+                    type="number"
+                    className="text-center"
+                    value={calorieGoal}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      if (isNaN(val) || val <= 0) return
+                      setCalorieGoal(val)
+                      localStorage.setItem("calorie-goal", String(val))
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const val = calorieGoal + 50
+                      setCalorieGoal(val)
+                      localStorage.setItem("calorie-goal", String(val))
+                    }}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t border-border/10" />
+
+              {/* Water settings */}
+              <div>
+                <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-water)" }}>
+                  Water
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Display unit</Label>
+                    <div className="mt-1 flex gap-1">
+                      <Button
+                        variant={waterUnit === "cups" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setWaterUnit("cups")
+                          localStorage.setItem("water-unit", "cups")
+                        }}
+                      >
+                        Cups
+                      </Button>
+                      <Button
+                        variant={waterUnit === "ml" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setWaterUnit("ml")
+                          localStorage.setItem("water-unit", "ml")
+                        }}
+                      >
+                        ML
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Daily goal ({waterUnit === "cups" ? "cups" : "ml"})
+                    </Label>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={waterUnit === "cups" ? waterGoalCups : waterGoalMl}
+                      onChange={(e) => {
+                        const val = Number(e.target.value)
+                        if (isNaN(val) || val <= 0) return
+                        const mlVal = waterUnit === "cups" ? val * 250 : val
+                        setWaterGoalMl(mlVal)
+                        localStorage.setItem("water-goal-ml", String(mlVal))
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border/10" />
+
+              {/* Medicines settings */}
+              <div>
+                <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-meds)" }}>
+                  Medications
+                </p>
+                <AddMedicineDialog onAdd={addMedicine} />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -359,54 +475,6 @@ export function VitalsZone() {
                   )}
                 </PopoverContent>
               </Popover>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
-                    <Settings className="size-3.5" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent side="left" className="w-56">
-                  <p className="mb-3 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-calories)" }}>
-                    Calorie Settings
-                  </p>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Daily goal (cal)</Label>
-                    <div className="mt-1 flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          const val = Math.max(50, calorieGoal - 50)
-                          setCalorieGoal(val)
-                          localStorage.setItem("calorie-goal", String(val))
-                        }}
-                        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
-                      >
-                        <Minus className="size-3.5" />
-                      </button>
-                      <Input
-                        type="number"
-                        className="text-center"
-                        value={calorieGoal}
-                        onChange={(e) => {
-                          const val = Number(e.target.value)
-                          if (isNaN(val) || val <= 0) return
-                          setCalorieGoal(val)
-                          localStorage.setItem("calorie-goal", String(val))
-                        }}
-                      />
-                      <button
-                        onClick={() => {
-                          const val = calorieGoal + 50
-                          setCalorieGoal(val)
-                          localStorage.setItem("calorie-goal", String(val))
-                        }}
-                        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
-                      >
-                        <Plus className="size-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
             </div>
           </div>
           {/* Progress bar */}
@@ -458,64 +526,6 @@ export function VitalsZone() {
               >
                 <Plus className="size-3.5" />
               </button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
-                    <Settings className="size-3.5" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent side="left" className="w-56">
-                  <p className="mb-3 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-water)" }}>
-                    Water Settings
-                  </p>
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Display unit</Label>
-                      <div className="mt-1 flex gap-1">
-                        <Button
-                          variant={waterUnit === "cups" ? "default" : "outline"}
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            setWaterUnit("cups")
-                            localStorage.setItem("water-unit", "cups")
-                          }}
-                        >
-                          Cups
-                        </Button>
-                        <Button
-                          variant={waterUnit === "ml" ? "default" : "outline"}
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            setWaterUnit("ml")
-                            localStorage.setItem("water-unit", "ml")
-                          }}
-                        >
-                          ML
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Daily goal ({waterUnit === "cups" ? "cups" : "ml"})
-                      </Label>
-                      <Input
-                        type="number"
-                        className="mt-1"
-                        value={waterUnit === "cups" ? waterGoalCups : waterGoalMl}
-                        onChange={(e) => {
-                          const val = Number(e.target.value)
-                          if (isNaN(val) || val <= 0) return
-                          const mlVal = waterUnit === "cups" ? val * 250 : val
-                          setWaterGoalMl(mlVal)
-                          localStorage.setItem("water-goal-ml", String(mlVal))
-                        }}
-                      />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
             </div>
           </div>
           {/* Progress bar */}
@@ -533,14 +543,11 @@ export function VitalsZone() {
 
         {/* Medicines - checkbox list */}
         <div className="px-3 py-2">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Pill className="size-3.5 text-[var(--vital-meds)]" />
-              <span className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-tight text-[var(--vital-meds)]">
-                Medications
-              </span>
-            </div>
-            <AddMedicineDialog onAdd={addMedicine} />
+          <div className="mb-2 flex items-center gap-1.5">
+            <Pill className="size-3.5 text-[var(--vital-meds)]" />
+            <span className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-tight text-[var(--vital-meds)]">
+              Medications
+            </span>
           </div>
 
           {todayMeds.length === 0 ? (
@@ -672,8 +679,9 @@ function AddMedicineDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon-xs" className="text-muted-foreground/50 hover:text-foreground">
+        <Button variant="outline" size="sm" className="w-full text-xs">
           <Plus className="size-3" />
+          Add Medicine
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
