@@ -507,11 +507,15 @@ export function MediaZone() {
               <Type className="size-3" />
             </Button>
             {lyricsSizeOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 flex items-center gap-0.5 rounded-lg border border-border/30 bg-card/95 p-1 shadow-lg backdrop-blur-sm">
+              <div
+                className="absolute right-0 top-full z-20 mt-1 flex items-center gap-0.5 rounded-lg border border-border/30 bg-card/95 p-1 shadow-lg backdrop-blur-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     const next = Math.max(11, lyricsSize - 2)
                     setLyricsSize(next)
                     localStorage.setItem("lyrics-font-size", String(next))
@@ -526,7 +530,8 @@ export function MediaZone() {
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     const next = Math.min(32, lyricsSize + 2)
                     setLyricsSize(next)
                     localStorage.setItem("lyrics-font-size", String(next))

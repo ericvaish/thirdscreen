@@ -98,7 +98,7 @@ export interface MedicineItem {
   name: string
   dosage: string | null
   times: { hour: number; minute: number; id: string }[]
-  repeatPattern: "daily" | "weekly" | "custom"
+  repeatPattern: "daily" | "every_other_day" | "weekly" | "custom"
   activeDays: number[]
   active: boolean
   createdAt: string

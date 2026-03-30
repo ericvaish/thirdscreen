@@ -79,7 +79,7 @@ interface MedicineFormState {
   name: string;
   dosage: string;
   times: { hour: number; minute: number; id: string }[];
-  repeatPattern: "daily" | "weekly" | "custom";
+  repeatPattern: "daily" | "every_other_day" | "weekly" | "custom";
   activeDays: number[];
 }
 
@@ -146,9 +146,17 @@ export default function MedicineCard({ cardId }: MedicineCardProps) {
       medicines.filter((med) => {
         if (!med.active) return false;
         if (med.repeatPattern === "daily") return true;
+        if (med.repeatPattern === "every_other_day") {
+          const start = new Date(med.createdAt);
+          start.setHours(0, 0, 0, 0);
+          const sel = new Date(selectedDate);
+          sel.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((sel.getTime() - start.getTime()) / 86400000);
+          return diffDays % 2 === 0;
+        }
         return med.activeDays.includes(dayOfWeek);
       }),
-    [medicines, dayOfWeek]
+    [medicines, dayOfWeek, selectedDate]
   );
 
   const fetchDoses = useCallback(async () => {
@@ -215,7 +223,7 @@ export default function MedicineCard({ cardId }: MedicineCardProps) {
       dosage: form.dosage.trim() || null,
       times: form.times,
       repeatPattern: form.repeatPattern,
-      activeDays: form.repeatPattern === "daily" ? [0, 1, 2, 3, 4, 5, 6] : form.activeDays,
+      activeDays: form.repeatPattern === "daily" || form.repeatPattern === "every_other_day" ? [0, 1, 2, 3, 4, 5, 6] : form.activeDays,
     };
 
     try {
@@ -427,7 +435,7 @@ export default function MedicineCard({ cardId }: MedicineCardProps) {
                 </span>
                 <Select
                   value={form.repeatPattern}
-                  onValueChange={(val: "daily" | "weekly" | "custom") =>
+                  onValueChange={(val: "daily" | "every_other_day" | "weekly" | "custom") =>
                     setForm((prev) => ({ ...prev, repeatPattern: val }))
                   }
                 >
@@ -436,12 +444,12 @@ export default function MedicineCard({ cardId }: MedicineCardProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="every_other_day">Every Other Day</SelectItem>
                     <SelectItem value="custom">Custom days</SelectItem>
                   </SelectContent>
                 </Select>
 
-                {form.repeatPattern !== "daily" && (
+                {form.repeatPattern === "custom" && (
                   <div className="flex gap-1">
                     {DAY_LABELS.map((label, i) => {
                       const active = form.activeDays.includes(i);
