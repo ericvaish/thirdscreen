@@ -5,7 +5,9 @@ import {
   listGoogleAccounts,
   removeGoogleAccount,
   fetchAllGoogleEvents,
+  rsvpToEvent,
 } from "@/lib/google-calendar/service"
+import type { RsvpStatus } from "@/lib/google-calendar/service"
 import { getDb } from "@/lib/get-db"
 import { settings, calendarAccounts } from "@/db/schema"
 import { eq, and } from "drizzle-orm"
@@ -72,6 +74,27 @@ export async function PUT(request: Request) {
     if (authError) return authError
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json()
+
+  // RSVP to a Google Calendar event
+  if (body.action === "rsvp") {
+    const { accountId, googleEventId, status } = body as {
+      action: string
+      accountId: string
+      googleEventId: string
+      status: RsvpStatus
+    }
+    if (!accountId || !googleEventId || !status) {
+      return NextResponse.json({ error: "accountId, googleEventId, and status are required" }, { status: 400 })
+    }
+    if (!["accepted", "declined", "tentative"].includes(status)) {
+      return NextResponse.json({ error: "status must be accepted, declined, or tentative" }, { status: 400 })
+    }
+    const result = await rsvpToEvent(accountId, googleEventId, status, userId)
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 500 })
+    }
+    return NextResponse.json({ success: true })
+  }
 
   // Update account color or calendarIds
   if (body.accountId) {

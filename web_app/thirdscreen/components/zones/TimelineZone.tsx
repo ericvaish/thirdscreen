@@ -645,19 +645,53 @@ function EventDetailDialog({
   onOpenChange,
   onDelete,
   onUpdate,
+  onRefresh,
 }: {
   event: TimelineEvent
   open: boolean
   onOpenChange: (open: boolean) => void
   onDelete: (id: string) => void
   onUpdate: (id: string, data: { title?: string; startTime?: string; endTime?: string }) => void
+  onRefresh?: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(event.title)
   const [editStart, setEditStart] = useState(event.startTime)
   const [editEnd, setEditEnd] = useState(event.endTime)
+  const [rsvpLoading, setRsvpLoading] = useState<string | null>(null)
 
   const isEditable = event.source === "local"
+
+  // Determine current user's RSVP status from attendees
+  const userAttendee = event.source === "google" && event.attendees && event.accountEmail
+    ? event.attendees.find((a) => a.email.toLowerCase() === event.accountEmail!.toLowerCase())
+    : null
+  const currentRsvp = userAttendee?.status ?? "needsAction"
+
+  const handleRsvp = async (status: "accepted" | "declined" | "tentative") => {
+    if (!event.accountEmail || event.source !== "google") return
+    // Extract accountId and googleEventId from composite id: "gcal-{accountId}-{googleEventId}"
+    const parts = event.id.split("-")
+    if (parts.length < 3 || parts[0] !== "gcal") return
+    const accountId = parts[1]
+    const googleEventId = parts.slice(2).join("-")
+
+    setRsvpLoading(status)
+    try {
+      const res = await fetch("/api/google-calendar", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rsvp", accountId, googleEventId, status }),
+      })
+      if (res.ok) {
+        onRefresh?.()
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setRsvpLoading(null)
+    }
+  }
 
   const startMin = parseInt(event.startTime.split(":")[0]) * 60 + parseInt(event.startTime.split(":")[1])
   const endMin = parseInt(event.endTime.split(":")[0]) * 60 + parseInt(event.endTime.split(":")[1])
@@ -870,7 +904,44 @@ function EventDetailDialog({
                 </Button>
               </>
             )}
-            {!isEditable && (
+            {!isEditable && event.source === "google" && event.attendees && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground/50">RSVP</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant={currentRsvp === "accepted" ? "default" : "outline"}
+                    className="flex-1 gap-1.5"
+                    size="sm"
+                    disabled={rsvpLoading !== null}
+                    onClick={() => handleRsvp("accepted")}
+                  >
+                    <Check className="size-3.5" />
+                    {rsvpLoading === "accepted" ? "..." : "Accept"}
+                  </Button>
+                  <Button
+                    variant={currentRsvp === "tentative" ? "default" : "outline"}
+                    className="flex-1 gap-1.5"
+                    size="sm"
+                    disabled={rsvpLoading !== null}
+                    onClick={() => handleRsvp("tentative")}
+                  >
+                    <Clock className="size-3.5" />
+                    {rsvpLoading === "tentative" ? "..." : "Maybe"}
+                  </Button>
+                  <Button
+                    variant={currentRsvp === "declined" ? "destructive" : "outline"}
+                    className="flex-1 gap-1.5"
+                    size="sm"
+                    disabled={rsvpLoading !== null}
+                    onClick={() => handleRsvp("declined")}
+                  >
+                    <X className="size-3.5" />
+                    {rsvpLoading === "declined" ? "..." : "Decline"}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!isEditable && !(event.source === "google" && event.attendees) && (
               <p className="text-xs text-muted-foreground/40">
                 This event is from Google Calendar and can only be edited there.
               </p>
@@ -1449,7 +1520,18 @@ export function TimelineZone() {
       const meds = allMeds.filter((m) => m.active)
 
       const dayOfWeek = selectedDate.getDay()
-      const todayMeds = meds.filter((m) => m.activeDays.includes(dayOfWeek))
+      const todayMeds = meds.filter((m) => {
+        if (m.repeatPattern === "daily") return true
+        if (m.repeatPattern === "every_other_day") {
+          const start = new Date(m.createdAt)
+          start.setHours(0, 0, 0, 0)
+          const sel = new Date(selectedDate)
+          sel.setHours(0, 0, 0, 0)
+          const diffDays = Math.round((sel.getTime() - start.getTime()) / 86400000)
+          return diffDays % 2 === 0
+        }
+        return m.activeDays.includes(dayOfWeek)
+      })
 
       const doseResults = await Promise.all(
         todayMeds.map(async (med) => {
@@ -2486,11 +2568,14 @@ export function TimelineZone() {
           {(() => {
             const timedEvents = events.filter((ev) => !ev.allDay)
 
-            // Convert medicine doses to pseudo-events for lane computation
+            // Convert medicine doses to pseudo-events for lane computation.
+            // Use 45-min collision duration so edge-adjacent items (medicine ends
+            // exactly when an event starts) are detected as overlapping — the 2%
+            // minimum render width makes them visually collide anyway.
             const medPseudoEvents = medDoses.map((dose, idx) => {
               const startH = String(dose.hour).padStart(2, "0")
               const startM = String(dose.minute).padStart(2, "0")
-              const endMinutes = dose.hour * 60 + dose.minute + 30
+              const endMinutes = dose.hour * 60 + dose.minute + 45
               const endH = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0")
               const endM = String(endMinutes % 60).padStart(2, "0")
               return {
@@ -2546,7 +2631,10 @@ export function TimelineZone() {
                 {medPseudoEvents.map((pseudo) => {
                   const dose = pseudo._med
                   const leftPct = timeToPercent(pseudo.startTime, windowStart)
-                  const rightPct = timeToPercent(pseudo.endTime, windowStart)
+                  // Render at 30-min visual width (endTime is inflated to 45min for collision only)
+                  const visualEndMin = dose.hour * 60 + dose.minute + 30
+                  const visualEndTime = `${String(Math.floor(visualEndMin / 60) % 24).padStart(2, "0")}:${String(visualEndMin % 60).padStart(2, "0")}`
+                  const rightPct = timeToPercent(visualEndTime, windowStart)
                   const widthPct = Math.max(rightPct - leftPct, 2)
                   const assignment = lanes.get(pseudo.id) ?? { lane: 0, totalLanes: 1 }
                   const laneHeightPct = 100 / assignment.totalLanes
@@ -2665,6 +2753,7 @@ export function TimelineZone() {
           onOpenChange={(open) => { if (!open) setSelectedEvent(null) }}
           onDelete={handleDeleteEvent}
           onUpdate={handleUpdateEvent}
+          onRefresh={() => { fetchEvents(); setSelectedEvent(null) }}
         />
       )}
     </div>

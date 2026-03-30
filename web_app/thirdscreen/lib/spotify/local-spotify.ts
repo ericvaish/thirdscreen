@@ -149,6 +149,10 @@ export interface LocalPlaybackState {
   albumArt: string | null
   progressMs: number
   durationMs: number
+  trackId: string | null
+  shuffleState: boolean
+  repeatState: "off" | "track" | "context"
+  volumePercent: number | null
 }
 
 export async function getLocalCurrentPlayback(clientId: string): Promise<LocalPlaybackState | null> {
@@ -156,7 +160,8 @@ export async function getLocalCurrentPlayback(clientId: string): Promise<LocalPl
   if (!res || res.status === 204) return null
   if (!res.ok) return null
 
-  const data = await res.json()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (await res.json()) as any
   if (!data.item) return null
 
   const track = data.item
@@ -168,6 +173,10 @@ export async function getLocalCurrentPlayback(clientId: string): Promise<LocalPl
     albumArt: track.album?.images?.[0]?.url ?? null,
     progressMs: data.progress_ms ?? 0,
     durationMs: track.duration_ms ?? 0,
+    trackId: track.id ?? null,
+    shuffleState: data.shuffle_state ?? false,
+    repeatState: data.repeat_state ?? "off",
+    volumePercent: data.device?.volume_percent ?? null,
   }
 }
 
@@ -237,4 +246,45 @@ export async function getLocalDevices(clientId: string): Promise<LocalSpotifyDev
   if (!res || !res.ok) return []
   const data = (await res.json()) as { devices?: LocalSpotifyDevice[] }
   return data.devices ?? []
+}
+
+export async function localSetShuffle(state: boolean, clientId: string): Promise<boolean> {
+  const res = await localSpotifyFetch(`/me/player/shuffle?state=${state}`, clientId, { method: "PUT" })
+  return res !== null && (res.ok || res.status === 204)
+}
+
+export async function localSetRepeat(state: "off" | "track" | "context", clientId: string): Promise<boolean> {
+  const res = await localSpotifyFetch(`/me/player/repeat?state=${state}`, clientId, { method: "PUT" })
+  return res !== null && (res.ok || res.status === 204)
+}
+
+export async function localSetVolume(volumePercent: number, clientId: string): Promise<boolean> {
+  const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)))
+  const res = await localSpotifyFetch(`/me/player/volume?volume_percent=${clamped}`, clientId, { method: "PUT" })
+  return res !== null && (res.ok || res.status === 204)
+}
+
+export async function localCheckSavedTrack(trackId: string, clientId: string): Promise<boolean> {
+  const res = await localSpotifyFetch(`/me/tracks/contains?ids=${trackId}`, clientId)
+  if (!res || !res.ok) return false
+  const data = (await res.json()) as boolean[]
+  return data[0] ?? false
+}
+
+export async function localSaveTrack(trackId: string, clientId: string): Promise<boolean> {
+  const res = await localSpotifyFetch("/me/tracks", clientId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: [trackId] }),
+  })
+  return res !== null && (res.ok || res.status === 200)
+}
+
+export async function localRemoveTrack(trackId: string, clientId: string): Promise<boolean> {
+  const res = await localSpotifyFetch("/me/tracks", clientId, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: [trackId] }),
+  })
+  return res !== null && (res.ok || res.status === 200)
 }

@@ -433,3 +433,72 @@ export async function fetchAllGoogleEvents(
   )
   return results.flat()
 }
+
+// ── RSVP ───────────────────────────────────────────────────────────────────
+
+export type RsvpStatus = "accepted" | "declined" | "tentative"
+
+/**
+ * Update the authenticated user's RSVP status on a Google Calendar event.
+ * Uses Events.patch with sendUpdates=all so the organizer gets notified.
+ */
+export async function rsvpToEvent(
+  accountId: string,
+  googleEventId: string,
+  status: RsvpStatus,
+  userId: string = ""
+): Promise<{ success: boolean; error?: string }> {
+  const accounts = await listGoogleAccounts(userId)
+  const account = accounts.find((a) => a.id === accountId)
+  if (!account) return { success: false, error: "Account not found" }
+
+  const token = await getValidToken(account)
+  if (!token) return { success: false, error: "Could not get valid token" }
+
+  // First, fetch the event to get current attendees
+  const getRes = await fetch(
+    `${GOOGLE_CALENDAR_API}/calendars/primary/events/${encodeURIComponent(googleEventId)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  if (!getRes.ok) {
+    return { success: false, error: `Failed to fetch event: ${getRes.status}` }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const event: any = await getRes.json()
+
+  // Update the authenticated user's status in the attendees list
+  const attendees = event.attendees ?? []
+  const userEmail = account.email.toLowerCase()
+  let found = false
+  for (const a of attendees) {
+    if (a.email.toLowerCase() === userEmail || a.self) {
+      a.responseStatus = status
+      found = true
+      break
+    }
+  }
+  if (!found) {
+    // User not in attendees list - add them
+    attendees.push({ email: account.email, responseStatus: status })
+  }
+
+  // Patch the event
+  const patchRes = await fetch(
+    `${GOOGLE_CALENDAR_API}/calendars/primary/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ attendees }),
+    }
+  )
+
+  if (!patchRes.ok) {
+    const err = await patchRes.text()
+    return { success: false, error: `RSVP failed: ${patchRes.status} ${err}` }
+  }
+
+  return { success: true }
+}

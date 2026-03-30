@@ -7,6 +7,12 @@ import {
   seekPlayback,
   transferPlayback,
   getDevices,
+  setShuffle,
+  setRepeat,
+  setVolume,
+  checkSavedTrack,
+  saveTrack,
+  removeTrack,
   getTokens,
   clearTokens,
 } from "@/lib/spotify/service"
@@ -68,6 +74,36 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "positionMs required" }, { status: 400 })
       }
       const ok = await seekPlayback(positionMs, userId)
+      return NextResponse.json({ success: ok })
+    }
+
+    if (action === "shuffle") {
+      const ok = await setShuffle(body.state ?? false, userId)
+      return NextResponse.json({ success: ok })
+    }
+
+    if (action === "repeat") {
+      const ok = await setRepeat(body.state ?? "off", userId)
+      return NextResponse.json({ success: ok })
+    }
+
+    if (action === "volume") {
+      const ok = await setVolume(body.volumePercent ?? 50, userId)
+      return NextResponse.json({ success: ok })
+    }
+
+    if (action === "check-saved") {
+      const saved = await checkSavedTrack(body.trackId ?? "", userId)
+      return NextResponse.json({ saved })
+    }
+
+    if (action === "save-track") {
+      const ok = await saveTrack(body.trackId ?? "", userId)
+      return NextResponse.json({ success: ok })
+    }
+
+    if (action === "remove-track") {
+      const ok = await removeTrack(body.trackId ?? "", userId)
       return NextResponse.json({ success: ok })
     }
 

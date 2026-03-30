@@ -10,7 +10,6 @@ import {
   Unplug,
   Minus,
   Plus,
-  Type,
   Monitor,
   Smartphone,
   Speaker,
@@ -19,6 +18,13 @@ import {
   Gamepad2,
   Car,
   MonitorSpeaker,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Volume2,
+  VolumeX,
+  Volume1,
+  Heart,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -39,6 +45,12 @@ import {
   localTransferPlayback,
   clearLocalSpotifyTokens,
   getLocalDevices,
+  localSetShuffle,
+  localSetRepeat,
+  localSetVolume,
+  localCheckSavedTrack,
+  localSaveTrack,
+  localRemoveTrack,
 } from "@/lib/spotify/local-spotify"
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -51,6 +63,10 @@ interface PlaybackState {
   albumArt: string | null
   progressMs: number
   durationMs: number
+  trackId: string | null
+  shuffleState: boolean
+  repeatState: "off" | "track" | "context"
+  volumePercent: number | null
 }
 
 type ConnectionStatus =
@@ -81,10 +97,11 @@ export function MediaZone() {
   const [seekingMs, setSeekingMs] = useState<number | null>(null)
   const progressBarRef = useRef<HTMLDivElement | null>(null)
   const [lyricsSize, setLyricsSize] = useState(14)
-  const [lyricsSizeOpen, setLyricsSizeOpen] = useState(false)
   const [devices, setDevices] = useState<SpotifyDevice[]>([])
   const [devicePickerOpen, setDevicePickerOpen] = useState(false)
   const [devicesLoading, setDevicesLoading] = useState(false)
+  const [isLiked, setIsLiked] = useState(false)
+  const lastCheckedTrackRef = useRef<string | null>(null)
 
   // Sync lyrics size from localStorage after hydration
   useEffect(() => {
@@ -224,6 +241,32 @@ export function MediaZone() {
     return () => cancelAnimationFrame(rafId)
   }, [isPlaying, duration])
 
+  // Check if current track is liked when track changes
+  const currentTrackId = connectedPlayback?.trackId ?? null
+  useEffect(() => {
+    if (!currentTrackId || currentTrackId === lastCheckedTrackRef.current) return
+    lastCheckedTrackRef.current = currentTrackId
+    ;(async () => {
+      try {
+        let saved: boolean
+        if (isLocal && clientIdRef.current) {
+          saved = await localCheckSavedTrack(currentTrackId, clientIdRef.current)
+        } else {
+          const res = await fetch("/api/spotify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "check-saved", trackId: currentTrackId }),
+          })
+          const data = (await res.json()) as { saved?: boolean }
+          saved = data.saved ?? false
+        }
+        setIsLiked(saved)
+      } catch {
+        setIsLiked(false)
+      }
+    })()
+  }, [currentTrackId])
+
   // ── Controls ──────────────────────────────────────────────────────────
 
   const sendControl = async (action: string) => {
@@ -261,7 +304,7 @@ export function MediaZone() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "devices" }),
         })
-        const data = await res.json()
+        const data = (await res.json()) as { devices?: SpotifyDevice[] }
         deviceList = data.devices ?? []
       }
       // Filter out "Third Screen" SDK device if it somehow still exists
@@ -291,6 +334,90 @@ export function MediaZone() {
       setDevicePickerOpen(false)
       setTimeout(fetchState, 500)
     } catch {}
+  }
+
+  const toggleShuffle = async () => {
+    if (status.state !== "connected" || !status.playback) return
+    const newState = !status.playback.shuffleState
+    // Optimistic
+    setStatus({ ...status, playback: { ...status.playback, shuffleState: newState } })
+    try {
+      if (isLocal && clientIdRef.current) {
+        await localSetShuffle(newState, clientIdRef.current)
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "shuffle", state: newState }),
+        })
+      }
+      setTimeout(fetchState, 300)
+    } catch {}
+  }
+
+  const cycleRepeat = async () => {
+    if (status.state !== "connected" || !status.playback) return
+    const order: ("off" | "context" | "track")[] = ["off", "context", "track"]
+    const idx = order.indexOf(status.playback.repeatState)
+    const newState = order[(idx + 1) % 3]
+    // Optimistic
+    setStatus({ ...status, playback: { ...status.playback, repeatState: newState } })
+    try {
+      if (isLocal && clientIdRef.current) {
+        await localSetRepeat(newState, clientIdRef.current)
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "repeat", state: newState }),
+        })
+      }
+      setTimeout(fetchState, 300)
+    } catch {}
+  }
+
+  const sendVolume = async (vol: number) => {
+    if (status.state !== "connected" || !status.playback) return
+    const clamped = Math.max(0, Math.min(100, Math.round(vol)))
+    // Optimistic
+    setStatus({ ...status, playback: { ...status.playback, volumePercent: clamped } })
+    try {
+      if (isLocal && clientIdRef.current) {
+        await localSetVolume(clamped, clientIdRef.current)
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "volume", volumePercent: clamped }),
+        })
+      }
+    } catch {}
+  }
+
+  const toggleLike = async () => {
+    if (!currentTrackId) return
+    const wasLiked = isLiked
+    setIsLiked(!wasLiked)
+    try {
+      if (isLocal && clientIdRef.current) {
+        if (wasLiked) {
+          await localRemoveTrack(currentTrackId, clientIdRef.current)
+        } else {
+          await localSaveTrack(currentTrackId, clientIdRef.current)
+        }
+      } else {
+        await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: wasLiked ? "remove-track" : "save-track",
+            trackId: currentTrackId,
+          }),
+        })
+      }
+    } catch {
+      setIsLiked(wasLiked) // revert on error
+    }
   }
 
   const sendSeek = async (positionMs: number) => {
@@ -389,7 +516,7 @@ export function MediaZone() {
       className="zone-surface zone-media flex h-full flex-col transition-[background] duration-1000"
       style={zoneBg}
     >
-      <div className={`relative flex shrink-0 items-center justify-between px-4 py-1.5 ${lyricsSizeOpen ? "z-30" : ""} ${editMode ? "zone-drag-handle" : ""}`}>
+      <div className={`relative flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
         <div className="flex items-center gap-2">
           <ZoneDragHandle />
           <div
@@ -403,78 +530,37 @@ export function MediaZone() {
             Now Playing
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          {/* Device picker */}
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => {
-                setDevicePickerOpen((v) => !v)
-                if (!devicePickerOpen) fetchDevices()
-              }}
-              className="text-muted-foreground/40 hover:text-foreground/70"
-              title="Choose playback device"
-            >
-              <MonitorSpeaker className="size-3" />
-            </Button>
-            {devicePickerOpen && (
-              <DevicePicker
-                devices={devices}
-                loading={devicesLoading}
-                onSelect={transferToDevice}
-                onClose={() => setDevicePickerOpen(false)}
-              />
-            )}
-          </div>
-          {/* Lyrics size control */}
-          <div className="relative flex items-center">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setLyricsSizeOpen((v) => !v)}
-              className="text-muted-foreground/40 hover:text-foreground/70"
-              title="Lyrics text size"
-            >
-              <Type className="size-3" />
-            </Button>
-            {lyricsSizeOpen && (
-              <div
-                className="absolute right-0 top-full z-20 mt-1 flex items-center gap-0.5 rounded-lg border border-border/30 bg-card/95 p-1 shadow-lg backdrop-blur-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const next = Math.max(11, lyricsSize - 2)
-                    setLyricsSize(next)
-                    localStorage.setItem("lyrics-font-size", String(next))
-                  }}
-                  className="text-muted-foreground/60 hover:text-foreground"
-                >
-                  <Minus className="size-3" />
-                </Button>
-                <span className="min-w-[2rem] text-center font-mono text-xs text-muted-foreground">
-                  {lyricsSize}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const next = Math.min(32, lyricsSize + 2)
-                    setLyricsSize(next)
-                    localStorage.setItem("lyrics-font-size", String(next))
-                  }}
-                  className="text-muted-foreground/60 hover:text-foreground"
-                >
-                  <Plus className="size-3" />
-                </Button>
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-0.5">
+          {/* Lyrics size: inline -/+ */}
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => {
+              const next = Math.max(11, lyricsSize - 2)
+              setLyricsSize(next)
+              localStorage.setItem("lyrics-font-size", String(next))
+            }}
+            className="text-muted-foreground/40 hover:text-foreground/70"
+            title="Decrease lyrics size"
+          >
+            <Minus className="size-3" />
+          </Button>
+          <span className="min-w-[1.5rem] text-center font-mono text-xs text-muted-foreground/50">
+            {lyricsSize}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => {
+              const next = Math.min(32, lyricsSize + 2)
+              setLyricsSize(next)
+              localStorage.setItem("lyrics-font-size", String(next))
+            }}
+            className="text-muted-foreground/40 hover:text-foreground/70"
+            title="Increase lyrics size"
+          >
+            <Plus className="size-3" />
+          </Button>
           <Button
             variant="ghost"
             size="icon-xs"
@@ -521,7 +607,7 @@ export function MediaZone() {
         </div>
       ) : (
         <>
-          {/* Track info: album art + title/artist */}
+          {/* Track info: album art + title/artist + like */}
           <div className="shrink-0 px-4 pt-1">
             <div className="flex items-center gap-3">
               {playback.albumArt && (
@@ -539,11 +625,39 @@ export function MediaZone() {
                   {playback.artist}
                 </p>
               </div>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={toggleLike}
+                className={cn(
+                  "shrink-0 transition-colors",
+                  isLiked
+                    ? "text-green-500 hover:text-green-400"
+                    : "text-muted-foreground/40 hover:text-foreground/70"
+                )}
+                title={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
+              >
+                <Heart className={cn("size-4", isLiked && "fill-current")} />
+              </Button>
             </div>
           </div>
 
-          {/* Playback controls: centered row */}
-          <div className="flex shrink-0 items-center justify-center gap-3 px-4 py-1.5">
+          {/* Playback controls: shuffle | prev | play/pause | next | repeat */}
+          <div className="flex shrink-0 items-center justify-center gap-2 px-4 py-1.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={toggleShuffle}
+              className={cn(
+                "transition-colors",
+                playback.shuffleState
+                  ? "text-green-500 hover:text-green-400"
+                  : "text-muted-foreground/40 hover:text-foreground/70"
+              )}
+              title={playback.shuffleState ? "Disable shuffle" : "Enable shuffle"}
+            >
+              <Shuffle className="size-3.5" />
+            </Button>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -571,6 +685,30 @@ export function MediaZone() {
               className="text-muted-foreground/60 hover:text-foreground"
             >
               <SkipForward className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={cycleRepeat}
+              className={cn(
+                "transition-colors",
+                playback.repeatState !== "off"
+                  ? "text-green-500 hover:text-green-400"
+                  : "text-muted-foreground/40 hover:text-foreground/70"
+              )}
+              title={
+                playback.repeatState === "off"
+                  ? "Enable repeat"
+                  : playback.repeatState === "context"
+                    ? "Enable repeat one"
+                    : "Disable repeat"
+              }
+            >
+              {playback.repeatState === "track" ? (
+                <Repeat1 className="size-3.5" />
+              ) : (
+                <Repeat className="size-3.5" />
+              )}
             </Button>
           </div>
 
@@ -603,16 +741,63 @@ export function MediaZone() {
                     />
                   </div>
                   <div className="-mt-1 flex items-center justify-between">
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground/50">
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground/80">
                       {formatMs(displayMs)}
                     </span>
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground/30">
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground/60">
                       {formatMs(playback.durationMs)}
                     </span>
                   </div>
                 </>
               )
             })()}
+          </div>
+
+          {/* Volume + device row */}
+          <div className="relative z-30 flex shrink-0 items-center gap-2 px-4 pb-1">
+            <div className="flex flex-1 items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => sendVolume(playback.volumePercent === 0 ? 50 : 0)}
+                className="shrink-0 text-muted-foreground/40 hover:text-foreground/70"
+                title={playback.volumePercent === 0 ? "Unmute" : "Mute"}
+              >
+                {playback.volumePercent === 0 || playback.volumePercent === null ? (
+                  <VolumeX className="size-3.5" />
+                ) : playback.volumePercent < 50 ? (
+                  <Volume1 className="size-3.5" />
+                ) : (
+                  <Volume2 className="size-3.5" />
+                )}
+              </Button>
+              <VolumeSlider
+                value={playback.volumePercent ?? 50}
+                onChange={sendVolume}
+              />
+            </div>
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => {
+                  setDevicePickerOpen((v) => !v)
+                  if (!devicePickerOpen) fetchDevices()
+                }}
+                className="text-muted-foreground/40 hover:text-foreground/70"
+                title="Choose playback device"
+              >
+                <MonitorSpeaker className="size-3.5" />
+              </Button>
+              {devicePickerOpen && (
+                <DevicePicker
+                  devices={devices}
+                  loading={devicesLoading}
+                  onSelect={transferToDevice}
+                  onClose={() => setDevicePickerOpen(false)}
+                />
+              )}
+            </div>
           </div>
 
           {/* Lyrics */}
@@ -631,6 +816,76 @@ export function MediaZone() {
   )
 }
 
+
+// ── Volume slider ──────────────────────────────────────────────────────────
+
+function VolumeSlider({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (vol: number) => void
+}) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState(false)
+  const [localVol, setLocalVol] = useState(value)
+
+  // Sync from parent when not dragging
+  useEffect(() => {
+    if (!dragging) setLocalVol(value)
+  }, [value, dragging])
+
+  const volFromPointer = (clientX: number) => {
+    const bar = barRef.current
+    if (!bar) return value
+    const rect = bar.getBoundingClientRect()
+    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
+  }
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging(true)
+    const v = volFromPointer(e.clientX)
+    setLocalVol(v)
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging) return
+    setLocalVol(volFromPointer(e.clientX))
+  }
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!dragging) return
+    setDragging(false)
+    const v = volFromPointer(e.clientX)
+    setLocalVol(v)
+    onChange(v)
+  }
+
+  const displayVol = dragging ? localVol : value
+
+  return (
+    <div
+      ref={barRef}
+      className="group/vol relative h-6 w-full max-w-24 cursor-pointer touch-none select-none"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => setDragging(false)}
+    >
+      <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 overflow-hidden rounded-full bg-border/30">
+        <div
+          className="h-full rounded-full bg-foreground/60 transition-[width]"
+          style={{ width: `${displayVol}%` }}
+        />
+      </div>
+      <div
+        className="pointer-events-none absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/80 opacity-0 shadow-sm transition-opacity group-active/vol:opacity-100 [@media(hover:hover)]:group-hover/vol:opacity-100"
+        style={{ left: `${displayVol}%` }}
+      />
+    </div>
+  )
+}
 
 // ── Device picker popover ──────────────────────────────────────────────────
 
@@ -681,7 +936,7 @@ function DevicePicker({
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-lg border border-border/30 bg-card/95 shadow-xl backdrop-blur-md"
+      className="absolute right-0 bottom-full z-50 mb-1.5 w-56 rounded-lg border border-border/30 bg-card/95 shadow-xl backdrop-blur-md"
     >
       <div className="flex items-center justify-between border-b border-border/20 px-3 py-2">
         <span className="text-xs font-semibold text-foreground/70">Connect to a device</span>
