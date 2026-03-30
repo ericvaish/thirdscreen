@@ -6,6 +6,7 @@ import {
   playbackControl,
   seekPlayback,
   transferPlayback,
+  getDevices,
   getTokens,
   clearTokens,
 } from "@/lib/spotify/service"
@@ -44,6 +45,12 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json()
     const { action } = body
+
+    // List available devices
+    if (action === "devices") {
+      const devices = await getDevices(userId)
+      return NextResponse.json({ devices })
+    }
 
     // Transfer playback to a device
     if (action === "transfer") {

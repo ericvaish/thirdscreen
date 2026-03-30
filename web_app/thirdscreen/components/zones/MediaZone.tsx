@@ -8,10 +8,17 @@ import {
   SkipForward,
   Music,
   Unplug,
-  Volume2,
   Minus,
   Plus,
   Type,
+  Monitor,
+  Smartphone,
+  Speaker,
+  Tablet,
+  Tv,
+  Gamepad2,
+  Car,
+  MonitorSpeaker,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -27,11 +34,11 @@ import {
   getLocalSpotifyTokens,
   saveLocalSpotifyTokens,
   getLocalCurrentPlayback,
-  getValidLocalToken,
   localPlaybackControl,
   localSeekPlayback,
   localTransferPlayback,
   clearLocalSpotifyTokens,
+  getLocalDevices,
 } from "@/lib/spotify/local-spotify"
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -50,46 +57,14 @@ type ConnectionStatus =
   | { state: "loading" }
   | { state: "needs-client-id" }
   | { state: "needs-auth"; clientId: string | null }
-  | { state: "connected"; playback: PlaybackState | null; sdkReady: boolean; deviceId: string | null }
+  | { state: "connected"; playback: PlaybackState | null }
 
-// Extend window for Spotify SDK
-declare global {
-  interface Window {
-    Spotify?: {
-      Player: new (options: {
-        name: string
-        getOAuthToken: (cb: (token: string) => void) => void
-        volume: number
-      }) => SpotifyPlayer
-    }
-    onSpotifyWebPlaybackSDKReady?: () => void
-  }
-}
-
-interface SpotifyPlayer {
-  connect: () => Promise<boolean>
-  disconnect: () => void
-  addListener: (event: string, callback: (data: unknown) => void) => void
-  removeListener: (event: string) => void
-  getCurrentState: () => Promise<SpotifyPlayerState | null>
-  togglePlay: () => Promise<void>
-  previousTrack: () => Promise<void>
-  nextTrack: () => Promise<void>
-  resume: () => Promise<void>
-  pause: () => Promise<void>
-}
-
-interface SpotifyPlayerState {
-  paused: boolean
-  position: number
-  duration: number
-  track_window: {
-    current_track: {
-      name: string
-      artists: { name: string }[]
-      album: { name: string; images: { url: string }[] }
-    }
-  }
+interface SpotifyDevice {
+  id: string
+  name: string
+  type: string
+  is_active: boolean
+  volume_percent: number | null
 }
 
 // ── MediaZone ───────────────────────────────────────────────────────────────
@@ -100,15 +75,16 @@ export function MediaZone() {
   const [albumColor, setAlbumColor] = useState<{ r: number; g: number; b: number } | null>(null)
   const [smoothProgress, setSmoothProgress] = useState(0)
   const lastAlbumArtRef = useRef("")
-  const playerRef = useRef<SpotifyPlayer | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const sdkLoadedRef = useRef(false)
   const clientIdRef = useRef<string | null>(null)
   const progressSyncRef = useRef({ position: 0, time: 0 })
   const [seekingMs, setSeekingMs] = useState<number | null>(null)
   const progressBarRef = useRef<HTMLDivElement | null>(null)
   const [lyricsSize, setLyricsSize] = useState(14)
   const [lyricsSizeOpen, setLyricsSizeOpen] = useState(false)
+  const [devices, setDevices] = useState<SpotifyDevice[]>([])
+  const [devicePickerOpen, setDevicePickerOpen] = useState(false)
+  const [devicesLoading, setDevicesLoading] = useState(false)
 
   // Sync lyrics size from localStorage after hydration
   useEffect(() => {
@@ -136,12 +112,7 @@ export function MediaZone() {
           return
         }
         const playback = await getLocalCurrentPlayback(clientIdRef.current)
-        setStatus((prev) => ({
-          state: "connected",
-          playback,
-          sdkReady: prev.state === "connected" ? prev.sdkReady : false,
-          deviceId: prev.state === "connected" ? prev.deviceId : null,
-        }))
+        setStatus({ state: "connected", playback })
       } catch {
         // Transient error (network, idle tab) — keep previous state
         setStatus((prev) => (prev.state === "loading" ? { state: "needs-client-id" } : prev))
@@ -168,12 +139,7 @@ export function MediaZone() {
       } else if (!data.connected) {
         setStatus({ state: "needs-auth", clientId: data.clientId ?? null })
       } else {
-        setStatus((prev) => ({
-          state: "connected",
-          playback: data.playback ?? null,
-          sdkReady: prev.state === "connected" ? prev.sdkReady : false,
-          deviceId: prev.state === "connected" ? prev.deviceId : null,
-        }))
+        setStatus({ state: "connected", playback: data.playback ?? null })
       }
     } catch {
       // Transient error (network, idle tab) — keep previous state
@@ -181,87 +147,14 @@ export function MediaZone() {
     }
   }, [])
 
-  // Load Spotify Web Playback SDK
-  const initSDK = useCallback(() => {
-    if (sdkLoadedRef.current) return
-    sdkLoadedRef.current = true
-
-    window.onSpotifyWebPlaybackSDKReady = () => {
-      if (!window.Spotify) return
-
-      const player = new window.Spotify.Player({
-        name: "Third Screen",
-        getOAuthToken: async (cb) => {
-          try {
-            if (isLocal && clientIdRef.current) {
-              const token = await getValidLocalToken(clientIdRef.current)
-              if (token) cb(token)
-            } else {
-              const res = await fetch("/api/spotify/token")
-              const { token } = await res.json()
-              if (token) cb(token)
-            }
-          } catch {}
-        },
-        volume: 0.5,
-      })
-
-      player.addListener("ready", (data: unknown) => {
-        const { device_id } = data as { device_id: string }
-        setStatus((prev) =>
-          prev.state === "connected"
-            ? { ...prev, sdkReady: true, deviceId: device_id }
-            : prev
-        )
-      })
-
-      player.addListener("player_state_changed", (state: unknown) => {
-        if (!state) return
-        const s = state as SpotifyPlayerState
-        const track = s.track_window.current_track
-        setStatus((prev) =>
-          prev.state === "connected"
-            ? {
-                ...prev,
-                playback: {
-                  isPlaying: !s.paused,
-                  title: track.name,
-                  artist: track.artists.map((a) => a.name).join(", "),
-                  album: track.album.name,
-                  albumArt: track.album.images[0]?.url ?? null,
-                  progressMs: s.position,
-                  durationMs: s.duration,
-                },
-              }
-            : prev
-        )
-      })
-
-      player.connect()
-      playerRef.current = player
-    }
-
-    // Load SDK script if not already present
-    if (!document.getElementById("spotify-sdk")) {
-      const script = document.createElement("script")
-      script.id = "spotify-sdk"
-      script.src = "https://sdk.scdn.co/spotify-player.js"
-      document.body.appendChild(script)
-    }
-  }, [])
-
   // Init on mount
   useEffect(() => {
     fetchState()
-    return () => {
-      playerRef.current?.disconnect()
-    }
   }, [fetchState])
 
-  // Start SDK + polling once connected
+  // Start polling once connected
   useEffect(() => {
     if (status.state === "connected") {
-      initSDK()
       if (!pollRef.current) {
         pollRef.current = setInterval(fetchState, 3000)
       }
@@ -272,7 +165,7 @@ export function MediaZone() {
         pollRef.current = null
       }
     }
-  }, [status.state, initSDK, fetchState])
+  }, [status.state, fetchState])
 
   // Extract dominant color from album art
   useEffect(() => {
@@ -356,22 +249,46 @@ export function MediaZone() {
     } catch {}
   }
 
-  const startPlayback = async () => {
-    if (status.state !== "connected" || !status.deviceId) return
+  const fetchDevices = async () => {
+    setDevicesLoading(true)
+    try {
+      let deviceList: SpotifyDevice[]
+      if (isLocal && clientIdRef.current) {
+        deviceList = await getLocalDevices(clientIdRef.current)
+      } else {
+        const res = await fetch("/api/spotify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "devices" }),
+        })
+        const data = await res.json()
+        deviceList = data.devices ?? []
+      }
+      // Filter out "Third Screen" SDK device if it somehow still exists
+      setDevices(deviceList.filter((d) => d.name !== "Third Screen"))
+    } catch {
+      setDevices([])
+    } finally {
+      setDevicesLoading(false)
+    }
+  }
+
+  const transferToDevice = async (deviceId: string) => {
     try {
       if (isLocal && clientIdRef.current) {
-        await localTransferPlayback(status.deviceId, true, clientIdRef.current)
+        await localTransferPlayback(deviceId, true, clientIdRef.current)
       } else {
         await fetch("/api/spotify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "transfer",
-            deviceId: status.deviceId,
+            deviceId,
             play: true,
           }),
         })
       }
+      setDevicePickerOpen(false)
       setTimeout(fetchState, 500)
     } catch {}
   }
@@ -423,9 +340,6 @@ export function MediaZone() {
   }
 
   const disconnect = async () => {
-    playerRef.current?.disconnect()
-    playerRef.current = null
-    sdkLoadedRef.current = false
     if (isLocal) {
       clearLocalSpotifyTokens()
     } else {
@@ -461,7 +375,7 @@ export function MediaZone() {
   }
 
   // Connected
-  const { playback, sdkReady, deviceId } = status
+  const { playback } = status
 
   // Build dynamic background gradient from album color
   const zoneBg = albumColor
@@ -490,11 +404,29 @@ export function MediaZone() {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {sdkReady && (
-            <span title="Spotify SDK connected">
-              <Volume2 className="size-3 text-green-500" />
-            </span>
-          )}
+          {/* Device picker */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => {
+                setDevicePickerOpen((v) => !v)
+                if (!devicePickerOpen) fetchDevices()
+              }}
+              className="text-muted-foreground/40 hover:text-foreground/70"
+              title="Choose playback device"
+            >
+              <MonitorSpeaker className="size-3" />
+            </Button>
+            {devicePickerOpen && (
+              <DevicePicker
+                devices={devices}
+                loading={devicesLoading}
+                onSelect={transferToDevice}
+                onClose={() => setDevicePickerOpen(false)}
+              />
+            )}
+          </div>
           {/* Lyrics size control */}
           <div className="relative flex items-center">
             <Button
@@ -558,34 +490,34 @@ export function MediaZone() {
       {!playback ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
           <Music className="size-5 text-muted-foreground/30" />
-          {sdkReady && deviceId ? (
-            <>
-              <p className="text-xs text-muted-foreground/50">
-                Ready to play
-              </p>
-              <Button
-                size="sm"
-                onClick={startPlayback}
-                className="gap-1.5"
-                style={{ background: "var(--zone-media-accent)" }}
-              >
-                <Play className="size-3" />
-                Start Playback
-              </Button>
-              <p className="max-w-48 text-center text-xs text-muted-foreground/30">
-                Starts your last played track on this device
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground/50">
-                Connecting to Spotify...
-              </p>
-              <p className="text-xs text-muted-foreground/30">
-                Play something on Spotify, or wait for the player to initialize
-              </p>
-            </>
-          )}
+          <p className="text-xs text-muted-foreground/50">
+            No active playback
+          </p>
+          <p className="max-w-52 text-center text-xs text-muted-foreground/30">
+            Play something on Spotify, or pick a device
+          </p>
+          <div className="relative">
+            <Button
+              size="sm"
+              onClick={() => {
+                setDevicePickerOpen((v) => !v)
+                if (!devicePickerOpen) fetchDevices()
+              }}
+              className="gap-1.5"
+              style={{ background: "var(--zone-media-accent)" }}
+            >
+              <MonitorSpeaker className="size-3" />
+              Choose Device
+            </Button>
+            {devicePickerOpen && (
+              <DevicePicker
+                devices={devices}
+                loading={devicesLoading}
+                onSelect={transferToDevice}
+                onClose={() => setDevicePickerOpen(false)}
+              />
+            )}
+          </div>
         </div>
       ) : (
         <>
@@ -699,6 +631,112 @@ export function MediaZone() {
   )
 }
 
+
+// ── Device picker popover ──────────────────────────────────────────────────
+
+function getDeviceIcon(type: string) {
+  switch (type.toLowerCase()) {
+    case "computer":
+      return Monitor
+    case "smartphone":
+      return Smartphone
+    case "speaker":
+      return Speaker
+    case "tablet":
+      return Tablet
+    case "tv":
+      return Tv
+    case "game_console":
+      return Gamepad2
+    case "automobile":
+      return Car
+    default:
+      return Speaker
+  }
+}
+
+function DevicePicker({
+  devices,
+  loading,
+  onSelect,
+  onClose,
+}: {
+  devices: SpotifyDevice[]
+  loading: boolean
+  onSelect: (deviceId: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener("pointerdown", handler)
+    return () => document.removeEventListener("pointerdown", handler)
+  }, [onClose])
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-lg border border-border/30 bg-card/95 shadow-xl backdrop-blur-md"
+    >
+      <div className="flex items-center justify-between border-b border-border/20 px-3 py-2">
+        <span className="text-xs font-semibold text-foreground/70">Connect to a device</span>
+      </div>
+      <div className="max-h-48 overflow-y-auto py-1">
+        {loading ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
+          </div>
+        ) : devices.length === 0 ? (
+          <p className="px-3 py-3 text-center text-xs text-muted-foreground/50">
+            No devices found. Open Spotify on a device first.
+          </p>
+        ) : (
+          devices.map((device) => {
+            const Icon = getDeviceIcon(device.type)
+            return (
+              <button
+                key={device.id}
+                onClick={() => onSelect(device.id)}
+                className={cn(
+                  "flex w-full min-h-11 items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-muted/30",
+                  device.is_active && "bg-muted/20"
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "size-4 shrink-0",
+                    device.is_active ? "text-green-500" : "text-muted-foreground/50"
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={cn(
+                      "truncate text-xs font-medium",
+                      device.is_active ? "text-green-500" : "text-foreground/80"
+                    )}
+                  >
+                    {device.name}
+                  </p>
+                  <p className="text-xs capitalize text-muted-foreground/40">
+                    {device.type.toLowerCase().replace("_", " ")}
+                  </p>
+                </div>
+                {device.is_active && (
+                  <div className="size-2 shrink-0 rounded-full bg-green-500" />
+                )}
+              </button>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
 
 // ── Spotify auth (open OAuth popup) ─────────────────────────────────────────
 

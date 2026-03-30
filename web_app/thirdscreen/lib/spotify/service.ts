@@ -249,3 +249,18 @@ export async function transferPlayback(deviceId: string, play = false, userId: s
   })
   return res !== null && (res.ok || res.status === 204)
 }
+
+export interface SpotifyDevice {
+  id: string
+  name: string
+  type: string
+  is_active: boolean
+  volume_percent: number | null
+}
+
+export async function getDevices(userId: string = ""): Promise<SpotifyDevice[]> {
+  const res = await spotifyFetch("/me/player/devices", userId)
+  if (!res || !res.ok) return []
+  const data = (await res.json()) as { devices?: SpotifyDevice[] }
+  return data.devices ?? []
+}

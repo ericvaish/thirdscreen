@@ -223,3 +223,18 @@ export async function localTransferPlayback(
   })
   return res !== null && (res.ok || res.status === 204)
 }
+
+export interface LocalSpotifyDevice {
+  id: string
+  name: string
+  type: string
+  is_active: boolean
+  volume_percent: number | null
+}
+
+export async function getLocalDevices(clientId: string): Promise<LocalSpotifyDevice[]> {
+  const res = await localSpotifyFetch("/me/player/devices", clientId)
+  if (!res || !res.ok) return []
+  const data = (await res.json()) as { devices?: LocalSpotifyDevice[] }
+  return data.devices ?? []
+}

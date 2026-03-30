@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -11,8 +11,6 @@ import { useScale } from "@/components/scale-provider"
 import {
   getIntegrationsByCategory,
 } from "@/lib/integrations/registry"
-import type { EnabledIntegration } from "@/lib/integrations/types"
-import { listIntegrations, toggleIntegration } from "@/lib/data-layer"
 import { useMascot, MASCOT_CHARACTERS } from "@/lib/mascot"
 import * as Icons from "lucide-react"
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings"
@@ -35,52 +33,7 @@ function getIcon(name: string) {
 export function SettingsView() {
   const { theme, setTheme } = useTheme()
   const { scale, setScale, presets } = useScale()
-  const [integrations, setIntegrations] = useState<EnabledIntegration[]>([])
   const categories = getIntegrationsByCategory()
-
-  const fetchIntegrations = useCallback(async () => {
-    try {
-      const data = await listIntegrations()
-      setIntegrations(data as EnabledIntegration[])
-    } catch {}
-  }, [])
-
-  useEffect(() => {
-    fetchIntegrations()
-  }, [fetchIntegrations])
-
-  const isEnabled = (integrationId: string): boolean => {
-    const record = integrations.find((i) => i.integrationId === integrationId)
-    return record?.enabled ?? false
-  }
-
-  const toggle = async (integrationId: string, enabled: boolean) => {
-    setIntegrations((prev) => {
-      const existing = prev.find((i) => i.integrationId === integrationId)
-      if (existing) {
-        return prev.map((i) =>
-          i.integrationId === integrationId ? { ...i, enabled } : i
-        )
-      }
-      return [
-        ...prev,
-        {
-          id: integrationId,
-          integrationId,
-          enabled,
-          config: null,
-          createdAt: new Date().toISOString(),
-        },
-      ]
-    })
-
-    try {
-      await toggleIntegration(integrationId, enabled)
-      fetchIntegrations()
-    } catch {
-      fetchIntegrations()
-    }
-  }
 
   return (
     <div className="mx-auto max-w-2xl overflow-auto px-6 py-8">
@@ -185,7 +138,6 @@ export function SettingsView() {
               <div className="space-y-1">
                 {items.map((def) => {
                   const Icon = getIcon(def.icon)
-                  const enabled = isEnabled(def.id)
 
                   return (
                     <div
@@ -221,12 +173,6 @@ export function SettingsView() {
                           {def.description}
                         </p>
                       </div>
-                      <Switch
-
-                        checked={enabled}
-                        onCheckedChange={(checked) => toggle(def.id, checked)}
-                        disabled={!def.builtIn && !def.implemented}
-                      />
                     </div>
                   )
                 })}
