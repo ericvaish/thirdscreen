@@ -1924,10 +1924,10 @@ export function TimelineZone() {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
                     title="Connect calendars"
                   >
-                    <CalendarCog className="size-4" />
+                    <CalendarCog className="size-3.5" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-64">
@@ -1962,10 +1962,10 @@ export function TimelineZone() {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
                     title="Connect calendars"
                   >
-                    <CalendarCog className="size-4" />
+                    <CalendarCog className="size-3.5" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-64">
@@ -2000,7 +2000,7 @@ export function TimelineZone() {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
                     title="More actions"
                   >
                     <MoreHorizontal className="size-4" />
@@ -2482,44 +2482,101 @@ export function TimelineZone() {
               </div>
             )}
 
-          {/* Calendar events */}
+          {/* Calendar events + medicine doses (unified lane layout) */}
           {(() => {
             const timedEvents = events.filter((ev) => !ev.allDay)
-            const lanes = computeEventLanes(timedEvents)
 
-            return timedEvents.map((ev, idx) => {
-              const leftPct = timeToPercent(ev.startTime, windowStart)
-              const rightPct = timeToPercent(ev.endTime, windowStart)
-              const widthPct = Math.max(rightPct - leftPct, 2)
-
-              const evColor = ev.color ?? eventColor(ev.id)
-              const assignment = lanes.get(ev.id) ?? { lane: 0, totalLanes: 1 }
-              const eventAreaTop = 28 // px below hour markers
-              const eventAreaBottom = 16 // px above bottom
-              const laneHeightPct = 100 / assignment.totalLanes
-              const topPct = assignment.lane * laneHeightPct
-
-              return (
-                <button
-                  key={ev.id}
-                  data-event
-                  onClick={() => setSelectedEvent(ev)}
-                  className="absolute flex cursor-pointer items-center gap-1 overflow-hidden rounded-md border border-border/20 bg-card/80 px-2 py-0.5 text-left text-xs font-medium leading-tight shadow-sm backdrop-blur-sm transition-all hover:bg-card"
-                  style={{
-                    left: `${leftPct}%`,
-                    width: `${widthPct}%`,
-                    top: `calc(${eventAreaTop}px + (100% - ${eventAreaTop + eventAreaBottom}px) * ${topPct / 100})`,
-                    height: `calc((100% - ${eventAreaTop + eventAreaBottom}px) * ${laneHeightPct / 100} - 2px)`,
-                    borderColor: evColor,
-                  }}
-                >
-                  <span className="truncate text-foreground/80">{ev.title}</span>
-                  {ev.location && (
-                    <MapPin className="size-2 shrink-0 text-muted-foreground/40" />
-                  )}
-                </button>
-              )
+            // Convert medicine doses to pseudo-events for lane computation
+            const medPseudoEvents = medDoses.map((dose, idx) => {
+              const startH = String(dose.hour).padStart(2, "0")
+              const startM = String(dose.minute).padStart(2, "0")
+              const endMinutes = dose.hour * 60 + dose.minute + 30
+              const endH = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0")
+              const endM = String(endMinutes % 60).padStart(2, "0")
+              return {
+                id: `med-${idx}`,
+                startTime: `${startH}:${startM}`,
+                endTime: `${endH}:${endM}`,
+                _med: dose,
+              }
             })
+
+            const allForLanes = [
+              ...timedEvents.map((ev) => ({ id: ev.id, startTime: ev.startTime, endTime: ev.endTime })),
+              ...medPseudoEvents,
+            ]
+            const lanes = computeEventLanes(allForLanes)
+            const eventAreaTop = 28
+            const eventAreaBottom = 16
+
+            return (
+              <>
+                {timedEvents.map((ev) => {
+                  const leftPct = timeToPercent(ev.startTime, windowStart)
+                  const rightPct = timeToPercent(ev.endTime, windowStart)
+                  const widthPct = Math.max(rightPct - leftPct, 2)
+
+                  const evColor = ev.color ?? eventColor(ev.id)
+                  const assignment = lanes.get(ev.id) ?? { lane: 0, totalLanes: 1 }
+                  const laneHeightPct = 100 / assignment.totalLanes
+                  const topPct = assignment.lane * laneHeightPct
+
+                  return (
+                    <button
+                      key={ev.id}
+                      data-event
+                      onClick={() => setSelectedEvent(ev)}
+                      className="absolute flex cursor-pointer items-center gap-1 overflow-hidden rounded-md border border-border/20 bg-card/80 px-2 py-0.5 text-left text-xs font-medium leading-tight shadow-sm backdrop-blur-sm transition-all hover:bg-card"
+                      style={{
+                        left: `${leftPct}%`,
+                        width: `${widthPct}%`,
+                        top: `calc(${eventAreaTop}px + (100% - ${eventAreaTop + eventAreaBottom}px) * ${topPct / 100})`,
+                        height: `calc((100% - ${eventAreaTop + eventAreaBottom}px) * ${laneHeightPct / 100} - 2px)`,
+                        borderColor: evColor,
+                      }}
+                    >
+                      <span className="truncate text-foreground/80">{ev.title}</span>
+                      {ev.location && (
+                        <MapPin className="size-2 shrink-0 text-muted-foreground/40" />
+                      )}
+                    </button>
+                  )
+                })}
+
+                {medPseudoEvents.map((pseudo) => {
+                  const dose = pseudo._med
+                  const leftPct = timeToPercent(pseudo.startTime, windowStart)
+                  const rightPct = timeToPercent(pseudo.endTime, windowStart)
+                  const widthPct = Math.max(rightPct - leftPct, 2)
+                  const assignment = lanes.get(pseudo.id) ?? { lane: 0, totalLanes: 1 }
+                  const laneHeightPct = 100 / assignment.totalLanes
+                  const topPct = assignment.lane * laneHeightPct
+
+                  return (
+                    <div
+                      key={pseudo.id}
+                      className={`absolute flex items-center gap-1 overflow-hidden rounded-md border px-2 py-0.5 text-xs font-medium leading-tight ${
+                        dose.taken
+                          ? "border-[var(--vital-meds)]/30 bg-[var(--vital-meds)]/10 text-[var(--vital-meds)] opacity-50"
+                          : "border-[var(--vital-meds)]/40 bg-[var(--vital-meds)]/15 text-[var(--vital-meds)]"
+                      }`}
+                      style={{
+                        left: `${leftPct}%`,
+                        width: `${widthPct}%`,
+                        top: `calc(${eventAreaTop}px + (100% - ${eventAreaTop + eventAreaBottom}px) * ${topPct / 100})`,
+                        height: `calc((100% - ${eventAreaTop + eventAreaBottom}px) * ${laneHeightPct / 100} - 2px)`,
+                      }}
+                      title={`${dose.medName}${dose.dosage ? ` (${dose.dosage})` : ""} at ${pseudo.startTime}`}
+                    >
+                      <Pill className="size-2.5 shrink-0" />
+                      <span className={`truncate ${dose.taken ? "line-through" : ""}`}>
+                        {dose.medName}
+                      </span>
+                    </div>
+                  )
+                })}
+              </>
+            )
           })()}
 
           {/* All-day events */}
@@ -2546,35 +2603,6 @@ export function TimelineZone() {
                 })}
             </div>
           )}
-
-          {/* Medicine dose markers */}
-          {medDoses.map((dose, idx) => {
-            const minutes = dose.hour * 60 + dose.minute
-            const pct = minutesToPercent(minutes, windowStart)
-            if (pct < 0 || pct > 100) return null
-
-            return (
-              <div
-                key={`med-${idx}`}
-                className="absolute -translate-x-1/2"
-                style={{ left: `${pct}%`, bottom: "2px" }}
-                title={`${dose.medName}${dose.dosage ? ` (${dose.dosage})` : ""} at ${String(dose.hour).padStart(2, "0")}:${String(dose.minute).padStart(2, "0")}`}
-              >
-                <div
-                  className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs font-medium transition-opacity ${
-                    dose.taken
-                      ? "border-[var(--vital-meds)]/30 bg-[var(--vital-meds)]/10 text-[var(--vital-meds)] opacity-50 line-through"
-                      : "border-[var(--vital-meds)]/40 bg-[var(--vital-meds)]/15 text-[var(--vital-meds)]"
-                  }`}
-                >
-                  <Pill className="size-2" />
-                  <span className="max-w-[50px] truncate">
-                    {dose.medName}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
 
           {/* Hover time indicator */}
           {hoverMinutes !== null && !isDragging.current && (

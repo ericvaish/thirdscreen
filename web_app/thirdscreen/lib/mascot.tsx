@@ -83,7 +83,7 @@ export function MascotProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<MascotState>("idle")
   const [enabled, setEnabledRaw] = useState(true)
   const [soundEnabled, setSoundEnabledRaw] = useState(true)
-  const [character, setCharacterRaw] = useState<MascotCharacter>("robot")
+  const [character, setCharacterRaw] = useState<MascotCharacter>("cat")
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const soundEnabledRef = useRef(true)
 

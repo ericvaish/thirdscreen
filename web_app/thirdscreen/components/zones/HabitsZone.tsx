@@ -326,13 +326,11 @@ export function HabitsZone() {
           {/* Settings popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-muted-foreground/30 hover:text-foreground"
+              <button
+                className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
               >
                 <Settings className="size-3.5" />
-              </Button>
+              </button>
             </PopoverTrigger>
             <PopoverContent side="bottom" align="end" className="w-48">
               <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: ACCENT }}>
