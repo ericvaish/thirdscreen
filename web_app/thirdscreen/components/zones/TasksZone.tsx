@@ -176,7 +176,7 @@ function TaskRow({
             <Check className="size-2.5 text-white" />
           </div>
         ) : (
-          <div className="size-4 rounded border border-muted-foreground/25 transition-colors group-hover:border-[var(--zone-tasks-accent)]/60" />
+          <div className="size-4 rounded border border-[var(--zone-tasks-accent)]/60" />
         )}
       </button>
       <span

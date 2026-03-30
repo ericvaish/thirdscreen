@@ -172,7 +172,18 @@ export function VitalsZone() {
   const waterGoalDisplay = waterUnit === "cups" ? waterGoalCups : waterGoalMl
   const waterUnitLabel = waterUnit === "cups" ? "cups" : "ml"
   const waterIncrement = waterUnit === "cups" ? 250 : 100 // 1 cup or 100ml
-  const todayMeds = medicines.filter((m) => m.activeDays.includes(dayOfWeek))
+  const todayMeds = medicines.filter((m) => {
+    if (m.repeatPattern === "daily") return true
+    if (m.repeatPattern === "every_other_day") {
+      const start = new Date(m.createdAt)
+      start.setHours(0, 0, 0, 0)
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      const diffDays = Math.round((now.getTime() - start.getTime()) / 86400000)
+      return diffDays % 2 === 0
+    }
+    return m.activeDays.includes(dayOfWeek)
+  })
 
   const addFood = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -238,6 +249,8 @@ export function VitalsZone() {
     name: string
     dosage: string
     times: { hour: number; minute: number; id: string }[]
+    repeatPattern: "daily" | "every_other_day" | "custom"
+    activeDays: number[]
   }) => {
     try {
       await createMedicine({
@@ -245,8 +258,8 @@ export function VitalsZone() {
         name: data.name,
         dosage: data.dosage || undefined,
         times: data.times,
-        repeatPattern: "daily",
-        activeDays: [0, 1, 2, 3, 4, 5, 6],
+        repeatPattern: data.repeatPattern,
+        activeDays: data.repeatPattern === "daily" ? [0, 1, 2, 3, 4, 5, 6] : data.activeDays,
       })
       fetchMedicines()
       toast.success("Medicine added")
@@ -602,6 +615,8 @@ export function VitalsZone() {
 
 // ── Add Medicine Dialog ─────────────────────────────────────────────────────
 
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
 function AddMedicineDialog({
   onAdd,
 }: {
@@ -609,6 +624,8 @@ function AddMedicineDialog({
     name: string
     dosage: string
     times: { hour: number; minute: number; id: string }[]
+    repeatPattern: "daily" | "every_other_day" | "custom"
+    activeDays: number[]
   }) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
@@ -617,6 +634,8 @@ function AddMedicineDialog({
   const [times, setTimes] = useState<{ hour: number; minute: number; id: string }[]>([
     { hour: 8, minute: 0, id: "default-time-0" },
   ])
+  const [repeatPattern, setRepeatPattern] = useState<"daily" | "every_other_day" | "custom">("daily")
+  const [activeDays, setActiveDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
 
   const addTime = () => {
     setTimes((prev) => [...prev, { hour: 12, minute: 0, id: crypto.randomUUID() }])
@@ -632,14 +651,22 @@ function AddMedicineDialog({
     )
   }
 
+  const toggleDay = (day: number) => {
+    setActiveDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || times.length === 0) return
-    await onAdd({ name: name.trim(), dosage: dosage.trim(), times })
+    await onAdd({ name: name.trim(), dosage: dosage.trim(), times, repeatPattern, activeDays })
     setOpen(false)
     setName("")
     setDosage("")
     setTimes([{ hour: 8, minute: 0, id: crypto.randomUUID() }])
+    setRepeatPattern("daily")
+    setActiveDays([0, 1, 2, 3, 4, 5, 6])
   }
 
   return (
@@ -689,6 +716,52 @@ function AddMedicineDialog({
                 Add another time
               </Button>
             </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>Frequency</Label>
+            <div className="flex gap-1.5">
+              {(
+                [
+                  { value: "daily", label: "Daily" },
+                  { value: "every_other_day", label: "Every Other Day" },
+                  { value: "custom", label: "Custom" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setRepeatPattern(opt.value)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                    repeatPattern === opt.value
+                      ? "bg-rose-500/15 text-rose-400"
+                      : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {repeatPattern === "custom" && (
+              <div className="flex gap-1">
+                {DAY_LABELS.map((label, i) => {
+                  const active = activeDays.includes(i)
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleDay(i)}
+                      className={`flex size-9 items-center justify-center rounded-lg text-xs font-medium transition-all ${
+                        active
+                          ? "bg-rose-500/15 text-rose-400"
+                          : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
           <Button type="submit">Save Medicine</Button>
         </form>

@@ -658,7 +658,7 @@ export function ClockZone() {
         <Dialog>
           <DialogTrigger asChild>
             <button
-              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground/20 transition-colors hover:bg-muted/20 hover:text-muted-foreground/60"
+              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground/50 transition-colors hover:bg-muted/20 hover:text-muted-foreground/80"
               title="Clock settings"
             >
               <Settings className="size-4" />

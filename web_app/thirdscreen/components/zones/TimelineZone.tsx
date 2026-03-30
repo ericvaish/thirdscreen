@@ -895,7 +895,17 @@ function EventListPanel({
   direction: "vertical" | "horizontal"
   onSelectEvent: (ev: TimelineEvent) => void
 }) {
-  const sorted = [...events].sort((a, b) => {
+  // Filter to only show ongoing or future events
+  const now = new Date()
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const filtered = events.filter((ev) => {
+    if (ev.allDay) return true // always show all-day events
+    const [eh, em] = ev.endTime.split(":").map(Number)
+    const endMin = eh * 60 + em
+    return endMin > nowMinutes // event hasn't ended yet
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
     if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
     return a.startTime.localeCompare(b.startTime)
   })
@@ -2402,7 +2412,7 @@ export function TimelineZone() {
         )}
         <div
           ref={timelineRef}
-          className="relative min-h-0 min-w-0 flex-1 cursor-crosshair select-none"
+          className="relative min-h-0 min-w-0 flex-1 cursor-crosshair select-none overflow-hidden"
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
