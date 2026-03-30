@@ -107,14 +107,14 @@ export function MediaZone() {
   const progressSyncRef = useRef({ position: 0, time: 0 })
   const [seekingMs, setSeekingMs] = useState<number | null>(null)
   const progressBarRef = useRef<HTMLDivElement | null>(null)
-  const [lyricsSize, setLyricsSize] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("lyrics-font-size")
-      return stored ? parseInt(stored, 10) : 14
-    }
-    return 14
-  })
+  const [lyricsSize, setLyricsSize] = useState(14)
   const [lyricsSizeOpen, setLyricsSizeOpen] = useState(false)
+
+  // Sync lyrics size from localStorage after hydration
+  useEffect(() => {
+    const stored = localStorage.getItem("lyrics-font-size")
+    if (stored) setLyricsSize(parseInt(stored, 10))
+  }, [])
 
   // Fetch connection status
   const fetchState = useCallback(async () => {
@@ -475,7 +475,7 @@ export function MediaZone() {
       className="zone-surface zone-media flex h-full flex-col transition-[background] duration-1000"
       style={zoneBg}
     >
-      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
+      <div className={`relative flex shrink-0 items-center justify-between px-4 py-1.5 ${lyricsSizeOpen ? "z-30" : ""} ${editMode ? "zone-drag-handle" : ""}`}>
         <div className="flex items-center gap-2">
           <ZoneDragHandle />
           <div

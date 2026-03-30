@@ -564,7 +564,7 @@ export function VitalsZone() {
                           "flex size-4 shrink-0 items-center justify-center rounded border transition-all",
                           taken
                             ? "border-[var(--vital-meds)] bg-[var(--vital-meds)]"
-                            : "border-border group-hover:border-muted-foreground/50"
+                            : "border-muted-foreground/50"
                         )}
                       >
                         {taken && <Check className="size-2.5 text-white" />}
