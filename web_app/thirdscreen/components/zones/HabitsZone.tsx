@@ -312,9 +312,9 @@ export function HabitsZone() {
       <div
         className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <ZoneDragHandle />
-          <div className="h-4 w-[3px] rounded-full" style={{ background: ACCENT }} />
+          <div className="h-5 w-[3px] rounded-full" style={{ background: ACCENT }} />
           <span
             className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight"
             style={{ color: ACCENT }}
