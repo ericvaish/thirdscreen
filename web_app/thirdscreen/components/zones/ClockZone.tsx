@@ -6,7 +6,6 @@ import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { Settings, CalendarDays, Thermometer } from "lucide-react"
 import { listScheduleEvents } from "@/lib/data-layer"
 import type { ScheduleEvent } from "@/lib/types"
-import { GRID_COLS, GRID_ROWS } from "@/lib/grid-layout"
 import { format } from "date-fns"
 import {
   Dialog,
@@ -342,18 +341,16 @@ function ClockSettingsDialog({
   time,
   nextEvent,
   weather,
-  zoneW,
-  zoneH,
-  onZoneResize,
+  zonePxW,
+  zonePxH,
 }: {
   settings: ClockSettings
   onChange: (s: ClockSettings) => void
   time: Date
   nextEvent: { title: string; minutesUntil: number } | null
   weather: { temp: number } | null
-  zoneW: number
-  zoneH: number
-  onZoneResize: (w: number, h: number) => void
+  zonePxW: number
+  zonePxH: number
 }) {
   const update = useCallback(
     (patch: Partial<ClockSettings>) => {
@@ -376,10 +373,10 @@ function ClockSettingsDialog({
     </button>
   )
 
-  // Compute preview dimensions that match the zone's actual aspect ratio
+  // Compute preview dimensions that match the zone's actual pixel aspect ratio
   const previewMaxW = 500
   const previewMaxH = 400
-  const zoneAspect = zoneW / Math.max(zoneH, 1)
+  const zoneAspect = zonePxW / Math.max(zonePxH, 1)
   let previewW: number
   let previewH: number
   if (zoneAspect > previewMaxW / previewMaxH) {
@@ -505,42 +502,6 @@ function ClockSettingsDialog({
               <ToggleRow label="Weather" checked={settings.showWeather} onChange={(v) => update({ showWeather: v })} />
             </section>
 
-            <Separator className="bg-border/15" />
-
-            {/* Zone size */}
-            <section>
-              <SectionLabel>Zone Size</SectionLabel>
-              <div className="mt-2 space-y-3">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-foreground/70">Width</span>
-                    <span className="font-mono text-xs text-muted-foreground/40">{zoneW} / {GRID_COLS}</span>
-                  </div>
-                  <Slider
-                    min={2}
-                    max={GRID_COLS}
-                    step={1}
-                    value={[zoneW]}
-                    onValueChange={([v]) => onZoneResize(v, zoneH)}
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-foreground/70">Height</span>
-                    <span className="font-mono text-xs text-muted-foreground/40">{zoneH} / {GRID_ROWS}</span>
-                  </div>
-                  <Slider
-                    min={2}
-                    max={GRID_ROWS}
-                    step={1}
-                    value={[zoneH]}
-                    onValueChange={([v]) => onZoneResize(zoneW, v)}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            </section>
           </div>
         </div>
       </div>
@@ -568,10 +529,10 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
 // ── ClockZone ──────────────────────────────────────────────────────────────
 
 export function ClockZone() {
-  const { editMode, layout, onLayoutChange } = useDashboard()
+  const { editMode } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [containerSize, setContainerSize] = useState({ w: 400, h: 300 })
+  const [containerSize, setContainerSize] = useState({ w: 200, h: 150 })
   const [time, setTime] = useState<Date | null>(null)
   const [weather, setWeather] = useState<{ temp: number } | null>(null)
   const [nextEvent, setNextEvent] = useState<{ title: string; minutesUntil: number } | null>(null)
@@ -596,13 +557,16 @@ export function ClockZone() {
 
   // Track content area size (excludes header)
   useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      setContainerSize({ w: width, h: height })
+    const outer = containerRef.current
+    const content = contentRef.current
+    if (!outer || !content) return
+    const ro = new ResizeObserver(() => {
+      const rect = content.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setContainerSize({ w: rect.width, h: rect.height })
+      }
     })
-    ro.observe(el)
+    ro.observe(outer)
     return () => ro.disconnect()
   }, [])
 
@@ -670,16 +634,8 @@ export function ClockZone() {
             time={time}
             nextEvent={nextEvent}
             weather={weather}
-            zoneW={layout?.clock?.w ?? 4}
-            zoneH={layout?.clock?.h ?? 5}
-            onZoneResize={(w, h) => {
-              if (layout && onLayoutChange) {
-                onLayoutChange({
-                  ...layout,
-                  clock: { ...layout.clock, w, h },
-                })
-              }
-            }}
+            zonePxW={containerSize.w}
+            zonePxH={containerSize.h}
           />
         </Dialog>
       </div>

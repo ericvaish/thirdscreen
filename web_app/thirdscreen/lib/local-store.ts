@@ -509,6 +509,71 @@ export function localToggleHabitLog(habitId: string, date: string) {
   }
 }
 
+// ── Dashboards (multi-dashboard) ────────────────────────────────────────────
+
+import type { DashboardConfig, ZoneId } from "./grid-layout"
+import { createDefaultDashboardConfig, getDefaultLayout } from "./grid-layout"
+
+export function localListDashboards(): DashboardConfig[] {
+  const dashboards = read<DashboardConfig[]>("dashboards", [])
+  if (dashboards.length === 0) {
+    // Auto-create "Main" dashboard, migrating existing layout if present
+    const id = uid()
+    const config = createDefaultDashboardConfig(id)
+    // Migrate existing layout settings if they exist
+    const settings = read<Record<string, unknown>>("settings", {})
+    if (settings.dashboardLayoutLandscape) {
+      config.layoutLandscape = settings.dashboardLayoutLandscape as DashboardConfig["layoutLandscape"]
+    }
+    if (settings.dashboardLayoutPortrait) {
+      config.layoutPortrait = settings.dashboardLayoutPortrait as DashboardConfig["layoutPortrait"]
+    }
+    write("dashboards", [config])
+    return [config]
+  }
+  return dashboards
+}
+
+export function localCreateDashboard(name: string): DashboardConfig {
+  const dashboards = localListDashboards()
+  const config: DashboardConfig = {
+    id: uid(),
+    name,
+    layoutLandscape: getDefaultLayout(),
+    layoutPortrait: getDefaultLayout(),
+    hiddenZones: [],
+    isDefault: false,
+    sortOrder: dashboards.length,
+  }
+  write("dashboards", [...dashboards, config])
+  return config
+}
+
+export function localUpdateDashboard(
+  id: string,
+  data: Partial<Pick<DashboardConfig, "name" | "layoutLandscape" | "layoutPortrait" | "hiddenZones" | "sortOrder">>
+): DashboardConfig | null {
+  const dashboards = localListDashboards()
+  const idx = dashboards.findIndex((d) => d.id === id)
+  if (idx === -1) return null
+  dashboards[idx] = { ...dashboards[idx], ...data }
+  write("dashboards", dashboards)
+  return dashboards[idx]
+}
+
+export function localDeleteDashboard(id: string): void {
+  const dashboards = localListDashboards().filter((d) => d.id !== id)
+  write("dashboards", dashboards)
+}
+
+export function localGetActiveDashboardId(): string | null {
+  return read<string | null>("active_dashboard_id", null)
+}
+
+export function localSetActiveDashboardId(id: string): void {
+  write("active_dashboard_id", id)
+}
+
 // ── Export all local data (for future migration to server) ──────────────────
 
 export function exportAllLocalData(): Record<string, unknown> {

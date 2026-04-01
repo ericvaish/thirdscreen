@@ -15,6 +15,7 @@ import { useMascot, MASCOT_CHARACTERS } from "@/lib/mascot"
 import * as Icons from "lucide-react"
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings"
 import { GoogleServicesSettings } from "./GoogleServicesSettings"
+import { PixelBuddyEditor } from "./PixelBuddyEditor"
 import { useTimezone, TIMEZONE_LIST } from "@/lib/timezone"
 import {
   Select,
@@ -36,7 +37,7 @@ export function SettingsView() {
   const categories = getIntegrationsByCategory()
 
   return (
-    <div className="mx-auto max-w-2xl overflow-auto px-6 py-8">
+    <div className="mx-auto max-w-2xl overflow-auto px-6 py-4">
       {/* Appearance */}
       <section>
         <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -64,7 +65,7 @@ export function SettingsView() {
         </div>
       </section>
 
-      <Separator className="my-8 bg-border/30" />
+      <Separator className="my-4 bg-border/30" />
 
       {/* Display Scale */}
       <section>
@@ -96,17 +97,17 @@ export function SettingsView() {
         </div>
       </section>
 
-      <Separator className="my-8 bg-border/30" />
+      <Separator className="my-4 bg-border/30" />
 
       {/* Timezone */}
       <TimezoneSettings />
 
-      <Separator className="my-8 bg-border/30" />
+      <Separator className="my-4 bg-border/30" />
 
       {/* Mascot Buddy */}
       <MascotSettings />
 
-      <Separator className="my-8 bg-border/30" />
+      <Separator className="my-4 bg-border/30" />
 
       {/* Integrations */}
       <section>
@@ -114,88 +115,70 @@ export function SettingsView() {
           Integrations
         </Label>
         <p className="mt-2 text-xs text-muted-foreground">
-          Enable data sources to populate your dashboard. Built-in integrations
-          work out of the box. External ones will require connecting your
-          account.
+          Connect external services to populate your dashboard.
         </p>
 
         <div className="mt-6 space-y-8">
-          {Array.from(categories.entries()).map(([category, items]) => (
-            <div key={category}>
-              <h3 className="mb-3 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
-                {category}
-              </h3>
-              {category === "Calendar" && (
-                <div className="mb-4">
-                  <GoogleCalendarSettings />
-                </div>
-              )}
-              {category === "Communication" && (
-                <div className="mb-4">
-                  <GoogleServicesSettings />
-                </div>
-              )}
-              <div className="space-y-1">
-                {items.map((def) => {
-                  const Icon = getIcon(def.icon)
-
-                  return (
-                    <div
-                      key={def.id}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/30"
-                    >
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/40">
-                        <Icon className="size-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
-                            {def.name}
-                          </span>
-                          {def.builtIn && (
-                            <Badge
-                              variant="secondary"
-                              className="px-1 py-0 font-mono text-xs uppercase"
-                            >
-                              built-in
-                            </Badge>
-                          )}
-                          {!def.builtIn && !def.implemented && (
-                            <Badge
-                              variant="outline"
-                              className="border-border/30 px-1.5 py-0 font-mono text-xs uppercase text-muted-foreground/50"
-                            >
-                              coming soon
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {def.description}
-                        </p>
-                      </div>
+          {Array.from(categories.entries())
+            .map(([category, items]) => {
+              const externalItems = items.filter((def) => !def.builtIn)
+              if (externalItems.length === 0 && category !== "Calendar" && category !== "Communication") return null
+              return (
+                <div key={category}>
+                  <h3 className="mb-3 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
+                    {category}
+                  </h3>
+                  {category === "Calendar" && (
+                    <div className="mb-4">
+                      <GoogleCalendarSettings />
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+                  )}
+                  {category === "Communication" && (
+                    <div className="mb-4">
+                      <GoogleServicesSettings />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    {externalItems.map((def) => {
+                      const Icon = getIcon(def.icon)
+
+                      return (
+                        <div
+                          key={def.id}
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/30"
+                        >
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/40">
+                            <Icon className="size-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">
+                                {def.name}
+                              </span>
+                              {!def.implemented && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-border/30 px-1.5 py-0 font-mono text-xs uppercase text-muted-foreground/50"
+                                >
+                                  coming soon
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {def.description}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
         </div>
       </section>
 
-      <Separator className="my-8 bg-border/30" />
-
-      {/* About */}
-      <section className="pb-8">
-        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          About
-        </Label>
-        <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-          <p className="font-[family-name:var(--font-display)] font-medium text-foreground">
-            Third Screen
-          </p>
-          <p className="font-mono text-xs text-muted-foreground/50">v1.0.0</p>
-        </div>
-      </section>
+      <div className="pb-8" />
     </div>
   )
 }
@@ -215,31 +198,8 @@ function TimezoneSettings() {
         </Label>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Used for calendar events and schedule display. Auto-detected from your
-        browser.
+        Used for calendar events and schedule display.
       </p>
-
-      <div className="mt-3 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{timezone.replace(/_/g, " ")}</p>
-          {isAuto && (
-            <p className="text-xs text-muted-foreground/50">Auto-detected</p>
-          )}
-          {!isAuto && (
-            <p className="text-xs text-muted-foreground/50">
-              Manual override (detected: {detected.replace(/_/g, " ")})
-            </p>
-          )}
-        </div>
-        {!isAuto && (
-          <button
-            onClick={() => setOverride(null)}
-            className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30"
-          >
-            Reset to auto
-          </button>
-        )}
-      </div>
 
       <div className="mt-3">
         <Select
@@ -278,6 +238,7 @@ function TimezoneSettings() {
 
 function MascotSettings() {
   const { enabled, setEnabled, soundEnabled, setSoundEnabled, character, setCharacter } = useMascot()
+  const [showEditor, setShowEditor] = useState(false)
 
   return (
     <section>
@@ -314,12 +275,37 @@ function MascotSettings() {
           </div>
 
           <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Icons.Volume2 className="size-4 text-muted-foreground/60" />
-              <Label className="text-xs text-muted-foreground">Sound effects</Label>
+            <div>
+              <div className="flex items-center gap-2">
+                <Icons.Volume2 className="size-4 text-muted-foreground/60" />
+                <Label className="text-xs text-muted-foreground">Sound effects</Label>
+              </div>
+              <p className="mt-0.5 pl-6 text-xs text-muted-foreground/50">Plays short sounds when your buddy reacts to actions.</p>
             </div>
             <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
           </div>
+
+          <Separator className="my-5 bg-border/20" />
+
+          <button
+            onClick={() => setShowEditor((p) => !p)}
+            className="flex w-full items-center justify-between rounded-lg border border-border/50 px-3 py-2.5 text-left transition-all hover:border-border hover:bg-muted/20"
+          >
+            <div className="flex items-center gap-2">
+              <Icons.Paintbrush className="size-4 text-cyan-400/70" />
+              <span className="text-sm font-medium">Pixel Buddy Editor</span>
+            </div>
+            <Icons.ChevronDown className={`size-4 text-muted-foreground transition-transform ${showEditor ? "rotate-180" : ""}`} />
+          </button>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Design your own character with the 32x32 pixel art editor.
+          </p>
+
+          {showEditor && (
+            <div className="mt-4">
+              <PixelBuddyEditor />
+            </div>
+          )}
         </>
       )}
     </section>

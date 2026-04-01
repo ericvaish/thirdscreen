@@ -96,7 +96,7 @@ const NOTIF_COLORS: Record<NotificationType, string> = {
 
 export function StatusBar() {
   return (
-    <div className="zone-surface zone-status flex h-full items-center justify-between gap-3 px-4">
+    <div className="zone-surface zone-status flex h-full items-center justify-between gap-3 overflow-visible px-4">
       {/* Left cluster: clock + status widgets */}
       <div className="flex items-center gap-2">
         <ClockDisplay />
@@ -109,11 +109,142 @@ export function StatusBar() {
       {/* Center */}
       <NotificationTicker />
 
-      {/* Right cluster: pomodoro + timer */}
+      {/* Right cluster: dashboard tabs + pomodoro + timer */}
       <div className="flex items-center gap-3">
+        <DashboardTabs />
         <PomodoroWidget />
         <TimerWidget />
       </div>
+    </div>
+  )
+}
+
+// ── Dashboard Tabs ─────────────────────────────────────────────────────────
+
+import { createPortal } from "react-dom"
+import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { Plus, Pencil, Trash2 } from "lucide-react"
+
+function DashboardTabs() {
+  const {
+    dashboards,
+    activeDashboardId,
+    switchDashboard,
+    createDashboard,
+    renameDashboard,
+    deleteDashboard,
+    canCreateMore,
+  } = useDashboard()
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [contextId, setContextId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const contextRef = useRef<HTMLDivElement>(null)
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextId) return
+    const handler = (e: PointerEvent) => {
+      if (contextRef.current && !contextRef.current.contains(e.target as Node)) {
+        setContextId(null)
+      }
+    }
+    document.addEventListener("pointerdown", handler)
+    return () => document.removeEventListener("pointerdown", handler)
+  }, [contextId])
+
+  // Only show tabs if there's more than 1 dashboard
+  if (dashboards.length <= 1 && !canCreateMore) return null
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {dashboards.map((d) => (
+        <div key={d.id}>
+          {editingId === d.id ? (
+            <input
+              autoFocus
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={() => {
+                if (editName.trim()) renameDashboard(d.id, editName.trim())
+                setEditingId(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (editName.trim()) renameDashboard(d.id, editName.trim())
+                  setEditingId(null)
+                }
+                if (e.key === "Escape") setEditingId(null)
+              }}
+              className="h-6 w-20 rounded bg-muted/50 px-1.5 text-xs font-medium outline-none ring-1 ring-primary/30 font-[family-name:var(--font-mono)]"
+            />
+          ) : (
+            <button
+              onClick={() => switchDashboard(d.id)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                const rect = e.currentTarget.getBoundingClientRect()
+                setMenuPos({ x: rect.left, y: rect.top })
+                setContextId(contextId === d.id ? null : d.id)
+              }}
+              className={cn(
+                "h-6 rounded px-2 text-xs font-medium transition-colors font-[family-name:var(--font-mono)]",
+                d.id === activeDashboardId
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30"
+              )}
+            >
+              {d.name}
+            </button>
+          )}
+        </div>
+      ))}
+      {canCreateMore && (
+        <button
+          onClick={() => createDashboard(`Dashboard ${dashboards.length + 1}`)}
+          className="flex size-6 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-muted/30 hover:text-muted-foreground/60"
+          title="New dashboard"
+        >
+          <Plus className="size-3" />
+        </button>
+      )}
+      {/* Portal-rendered context menu */}
+      {contextId && typeof document !== "undefined" && createPortal(
+        <div
+          ref={contextRef}
+          className="fixed z-[9999] w-32 overflow-hidden rounded-lg border border-border/30 bg-card/95 py-1 shadow-xl backdrop-blur-md"
+          style={{ left: menuPos.x, top: menuPos.y - 4, transform: "translateY(-100%)" }}
+        >
+          <button
+            onClick={() => {
+              const d = dashboards.find((dd) => dd.id === contextId)
+              if (d) {
+                setEditName(d.name)
+                setEditingId(d.id)
+              }
+              setContextId(null)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground/70 hover:bg-muted/30"
+          >
+            <Pencil className="size-3" />
+            Rename
+          </button>
+          {dashboards.length > 1 && (
+            <button
+              onClick={() => {
+                deleteDashboard(contextId)
+                setContextId(null)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-muted/30"
+            >
+              <Trash2 className="size-3" />
+              Delete
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

@@ -385,6 +385,69 @@ export async function setSetting(key: string, value: unknown) {
   return { success: true }
 }
 
+// ── Dashboards (multi-dashboard) ──────────────────────────────────────────
+
+import type { DashboardConfig } from "./grid-layout"
+
+export async function listDashboards(): Promise<DashboardConfig[]> {
+  if (isLocal) return local.localListDashboards()
+  // Server mode: try API, fall back to local
+  try {
+    const res = await api<{ dashboards: DashboardConfig[] }>("/api/dashboards")
+    if (res.dashboards && res.dashboards.length > 0) return res.dashboards
+  } catch {}
+  return local.localListDashboards()
+}
+
+export async function createDashboard(name: string): Promise<DashboardConfig> {
+  if (isLocal) return local.localCreateDashboard(name)
+  try {
+    return await api<DashboardConfig>("/api/dashboards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+  } catch {
+    return local.localCreateDashboard(name)
+  }
+}
+
+export async function updateDashboard(
+  id: string,
+  data: Partial<Pick<DashboardConfig, "name" | "layoutLandscape" | "layoutPortrait" | "hiddenZones" | "sortOrder">>
+): Promise<DashboardConfig | null> {
+  // Always save locally
+  local.localUpdateDashboard(id, data)
+  // Also persist to server
+  if (!isLocal) {
+    try {
+      await api("/api/dashboards", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...data }),
+      })
+    } catch {}
+  }
+  return local.localListDashboards().find((d) => d.id === id) ?? null
+}
+
+export async function deleteDashboard(id: string): Promise<void> {
+  local.localDeleteDashboard(id)
+  if (!isLocal) {
+    try {
+      await api(`/api/dashboards?id=${id}`, { method: "DELETE" })
+    } catch {}
+  }
+}
+
+export function getActiveDashboardId(): string | null {
+  return local.localGetActiveDashboardId()
+}
+
+export function setActiveDashboardId(id: string): void {
+  local.localSetActiveDashboardId(id)
+}
+
 // ── Integrations ──────────────────────────────────────────────────────────
 
 export async function listIntegrations() {

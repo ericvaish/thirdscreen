@@ -247,3 +247,21 @@ export const enabledIntegrations = sqliteTable("enabled_integrations", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 })
+
+// Multi-dashboard configs
+export const dashboards = sqliteTable("dashboards", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  name: text("name").notNull().default("Main"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  layoutLandscape: text("layout_landscape", { mode: "json" }),
+  layoutPortrait: text("layout_portrait", { mode: "json" }),
+  hiddenZones: text("hidden_zones", { mode: "json" }),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
