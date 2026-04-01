@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { format } from "date-fns"
-import { Flame, Droplets, Pill, Plus, Minus, Trash2, X, Check, Settings } from "lucide-react"
+import { format, addDays, isToday, parseISO } from "date-fns"
+import { Flame, Droplets, Pill, Plus, Minus, Trash2, X, Check, Settings, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { Calendar } from "@/components/ui/calendar"
 import type { FoodItem, MedicineItem } from "@/lib/types"
 import { useDashboard } from "@/components/dashboard/DashboardContext"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
@@ -113,6 +114,7 @@ export function VitalsZone() {
   const [medicines, setMedicines] = useState<MedicineItem[]>([])
   const [doseLogs, setDoseLogs] = useState<Map<string, Set<string>>>(new Map())
   const [dayOfWeek, setDayOfWeek] = useState(-1)
+  const [medDate, setMedDate] = useState("")
 
   const fetchCalories = useCallback(async () => {
     try {
@@ -129,6 +131,7 @@ export function VitalsZone() {
   }, [today])
 
   const fetchMedicines = useCallback(async () => {
+    if (!medDate) return
     try {
       const meds = await listMedicines() as MedicineItem[]
       setMedicines(meds.filter((m) => m.active))
@@ -138,16 +141,18 @@ export function VitalsZone() {
         meds
           .filter((m) => m.active)
           .map(async (med) => {
-            const doses = await listDoses(med.id, today) as { timeId: string }[]
+            const doses = await listDoses(med.id, medDate) as { timeId: string }[]
             logs.set(med.id, new Set(doses.map((d) => d.timeId)))
           })
       )
       setDoseLogs(logs)
     } catch {}
-  }, [today])
+  }, [medDate])
 
   useEffect(() => {
-    setToday(format(new Date(), "yyyy-MM-dd"))
+    const todayStr = format(new Date(), "yyyy-MM-dd")
+    setToday(todayStr)
+    setMedDate(todayStr)
     setDayOfWeek(new Date().getDay())
     // Load water preferences
     const storedUnit = localStorage.getItem("water-unit")
@@ -162,8 +167,12 @@ export function VitalsZone() {
     if (!today) return
     fetchCalories()
     fetchWater()
+  }, [today, fetchCalories, fetchWater])
+
+  useEffect(() => {
+    if (!medDate) return
     fetchMedicines()
-  }, [today, fetchCalories, fetchWater, fetchMedicines])
+  }, [medDate, fetchMedicines])
 
   const totalCalories = foodItems.reduce((sum, f) => sum + f.calories, 0)
   const waterCups = Math.round(waterMl / 250)
@@ -172,17 +181,21 @@ export function VitalsZone() {
   const waterGoalDisplay = waterUnit === "cups" ? waterGoalCups : waterGoalMl
   const waterUnitLabel = waterUnit === "cups" ? "cups" : "ml"
   const waterIncrement = waterUnit === "cups" ? 250 : 100 // 1 cup or 100ml
+  const medDateObj = medDate ? parseISO(medDate) : new Date()
+  const medDayOfWeek = medDateObj.getDay()
+  const medIsToday = medDate ? isToday(medDateObj) : true
+
   const todayMeds = medicines.filter((m) => {
     if (m.repeatPattern === "daily") return true
     if (m.repeatPattern === "every_other_day") {
       const start = new Date(m.createdAt)
       start.setHours(0, 0, 0, 0)
-      const now = new Date()
-      now.setHours(0, 0, 0, 0)
-      const diffDays = Math.round((now.getTime() - start.getTime()) / 86400000)
+      const target = new Date(medDateObj)
+      target.setHours(0, 0, 0, 0)
+      const diffDays = Math.round((target.getTime() - start.getTime()) / 86400000)
       return diffDays % 2 === 0
     }
-    return m.activeDays.includes(dayOfWeek)
+    return m.activeDays.includes(medDayOfWeek)
   })
 
   const addFood = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -238,7 +251,7 @@ export function VitalsZone() {
       return next
     })
     try {
-      await toggleDoseApi({ medicineId, timeId, date: today })
+      await toggleDoseApi({ medicineId, timeId, date: medDate })
       mascotTrigger("medicine")
     } catch {
       fetchMedicines()
@@ -550,7 +563,47 @@ export function VitalsZone() {
                 Medications
               </span>
             </div>
-            <AddMedicineDialog onAdd={addMedicine} compact />
+            <div className="flex items-center gap-1">
+              {/* Date navigation */}
+              <button
+                onClick={() => setMedDate(format(addDays(medDateObj, -1), "yyyy-MM-dd"))}
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className={cn(
+                      "rounded-md px-2 py-1 font-mono text-xs transition-colors hover:bg-muted/40",
+                      medIsToday
+                        ? "text-[var(--vital-meds)]"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {medIsToday ? "Today" : format(medDateObj, "MMM d")}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="center">
+                  <Calendar
+                    mode="single"
+                    selected={medDateObj}
+                    onSelect={(date) => {
+                      if (date) setMedDate(format(date, "yyyy-MM-dd"))
+                    }}
+                    disabled={{ after: new Date() }}
+                  />
+                </PopoverContent>
+              </Popover>
+              <button
+                onClick={() => setMedDate(format(addDays(medDateObj, 1), "yyyy-MM-dd"))}
+                disabled={medIsToday}
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-30"
+              >
+                <ChevronRight className="size-3.5" />
+              </button>
+              <AddMedicineDialog onAdd={addMedicine} compact />
+            </div>
           </div>
 
           {todayMeds.length === 0 ? (

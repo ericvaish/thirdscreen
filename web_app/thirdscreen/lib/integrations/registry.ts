@@ -75,16 +75,6 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     builtIn: true,
     defaultEnabled: true,
   },
-  {
-    id: "apple-health",
-    name: "Apple Health",
-    description: "Sync health data from Apple Health",
-    icon: "HeartPulse",
-    zone: "vitals",
-    category: "Health",
-    builtIn: false,
-    defaultEnabled: false,
-  },
 
   // ── Tasks zone · Productivity sources ───────────────────────────────────
   {

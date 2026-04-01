@@ -1,5 +1,7 @@
 import Link from "next/link"
 import type { Metadata } from "next"
+import { ThemeScreenshot } from "@/components/theme-screenshot"
+import { LandingThemeToggle } from "@/components/landing-theme-toggle"
 
 export const metadata: Metadata = {
   title: "Third Screen - Your day, at a glance",
@@ -7,216 +9,212 @@ export const metadata: Metadata = {
     "A glanceable personal dashboard. Schedule, tasks, notes, health, music, lyrics. One screen, zero scrolling. Open source.",
 }
 
-const GITHUB_RELEASE =
-  "https://github.com/ericvaish/thirdscreen/releases/latest/download/ThirdScreen-0.1.0.dmg"
 const GITHUB_REPO = "https://github.com/ericvaish/thirdscreen"
 
-const FEATURES = [
-  { icon: "📅", title: "Schedule", desc: "Full-day timeline with sun arc, Google Calendar sync, medicine reminders" },
-  { icon: "✅", title: "Tasks", desc: "Quick-add tasks with scheduling, inline checkboxes, completion tracking" },
-  { icon: "📝", title: "Notes", desc: "Quick notes with pin support, link bookmarks, inline editing" },
-  { icon: "🔥", title: "Calories", desc: "Food logging with progress bar, daily goals, quick-add" },
-  { icon: "💧", title: "Water", desc: "Glass tracking with visual progress toward daily goal" },
-  { icon: "💊", title: "Medicines", desc: "Dose scheduling, checkbox tracking, timeline markers" },
-  { icon: "🎵", title: "Spotify", desc: "Now playing with album art, controls, synced lyrics, adaptive colors" },
-  { icon: "🌙", title: "Dark + Light", desc: "Beautiful in both. One-click toggle. System-aware." },
+const CONNECTIONS = [
+  { icon: "🎵", title: "Spotify", desc: "Now playing, playback controls, synced lyrics, device switching" },
+  { icon: "📅", title: "Google Calendar", desc: "Multi-account sync, event colors, all-day events on the timeline" },
+  { icon: "📧", title: "Gmail", desc: "Unread count and message previews right on your dashboard" },
+  { icon: "💬", title: "Google Chat", desc: "Recent messages from your spaces, always visible" },
+  { icon: "🎤", title: "LRCLib Lyrics", desc: "Synced lyrics that scroll with your music, auto-fetched" },
+  { icon: "🌤️", title: "Weather", desc: "Current temperature and conditions in your status bar" },
 ]
 
-const INTEGRATIONS = [
-  { name: "Spotify", color: "#1DB954" },
-  { name: "Google Calendar", color: "#4285F4" },
-  { name: "Apple Calendar", color: "#999" },
-  { name: "LRCLib Lyrics", color: "#FF6B9D" },
-  { name: "More coming", color: "#666" },
-]
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white" style={{ fontSize: "16px" }}>
+    <div className="min-h-screen bg-white text-neutral-900 dark:bg-[#09090b] dark:text-white" style={{ fontSize: "16px" }}>
       {/* Nav */}
-      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-[#0a0a0a]/80 border-b border-white/[0.04]">
-        <div className="flex items-center justify-between max-w-6xl mx-auto px-6 py-4">
+      <nav className="fixed inset-x-0 top-0 z-50 border-b border-neutral-200 bg-white/80 backdrop-blur-xl dark:border-white/[0.04] dark:bg-[#09090b]/80">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <img src="/thirdscreen_logo.svg" alt="Third Screen" className="w-7 h-7" />
-            <span className="font-semibold text-lg tracking-tight">Third Screen</span>
+            <img src="/thirdscreen_logo.svg" alt="Third Screen" className="h-7 w-7" />
+            <span className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">Third Screen</span>
           </div>
-          <div className="flex items-center gap-5">
-            <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="text-sm text-white/40 hover:text-white/70 transition-colors hidden sm:block">
+          <div className="flex items-center gap-3">
+            <Link href="/pricing" className="hidden text-sm text-neutral-400 transition-colors hover:text-neutral-600 sm:block dark:text-white/40 dark:hover:text-white/70">
+              Pricing
+            </Link>
+            <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="hidden text-sm text-neutral-400 transition-colors hover:text-neutral-600 sm:block dark:text-white/40 dark:hover:text-white/70">
               GitHub
             </a>
-            <Link href="/app" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
-              Open Dashboard
+            <LandingThemeToggle />
+            <Link href="/app" className="text-sm font-medium text-neutral-700 transition-colors hover:text-neutral-900 dark:text-white/80 dark:hover:text-white">
+              Open App
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="relative flex flex-col items-center justify-center min-h-screen px-6 pt-20 overflow-hidden">
-        {/* Ambient glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/3 w-[900px] h-[500px] rounded-full bg-[#3b82f6]/8 blur-[120px] pointer-events-none" />
+      <section className="relative flex flex-col items-center px-6 pt-28 pb-0 overflow-hidden">
+        <div className="pointer-events-none absolute left-1/2 top-1/3 h-[600px] w-[1000px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/[0.04] blur-[150px] dark:bg-[#3b82f6]/[0.06]" />
 
-        <div className="relative z-10 text-center max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-3 mb-5">
-            <span className="text-[#3b82f6] text-sm font-medium tracking-widest uppercase">Personal Dashboard</span>
-            <span className="text-white/15">|</span>
-            <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-white/35 hover:text-white/60 text-sm font-medium tracking-wide uppercase transition-colors">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-              Open Source
-            </a>
+        <div className="relative z-10 mx-auto max-w-3xl text-center">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-1.5 dark:border-white/[0.08] dark:bg-white/[0.03]">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span className="text-xs font-medium tracking-wide text-neutral-500 font-[family-name:var(--font-mono)] dark:text-white/50">Open source</span>
+            <span className="text-neutral-300 dark:text-white/10">|</span>
+            <span className="text-xs font-medium tracking-wide text-neutral-500 font-[family-name:var(--font-mono)] dark:text-white/50">Self-hostable</span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight leading-[1.08]">
-            Your day, at a glance.
+          <h1 className="font-[family-name:var(--font-display)] text-5xl font-bold tracking-tight leading-[1.08] sm:text-6xl md:text-7xl">
+            Your day,{" "}
+            <span className="bg-gradient-to-r from-[#3b82f6] to-[#06b6d4] bg-clip-text text-transparent">at a glance.</span>
           </h1>
 
-          <p className="mt-6 text-lg sm:text-xl text-white/45 max-w-xl mx-auto leading-relaxed">
-            One screen. Zero scrolling. Schedule, tasks, health, music, lyrics. All in a single glanceable dashboard.
+          <p className="mx-auto mt-6 max-w-lg text-lg text-neutral-500 leading-relaxed sm:text-xl dark:text-white/40">
+            Schedule, tasks, health, music, lyrics. One screen, zero scrolling.
+            No account required.
           </p>
 
-          {/* CTAs */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/app"
-              className="inline-flex items-center gap-2.5 bg-white text-black font-semibold px-8 py-3.5 rounded-full hover:bg-white/90 transition-all hover:-translate-y-0.5 text-base"
+              className="inline-flex items-center gap-2.5 rounded-full bg-neutral-900 px-8 py-3.5 text-base font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-white/90"
             >
               Open Dashboard
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             </Link>
             <a
-              href={GITHUB_RELEASE}
-              className="inline-flex items-center gap-2.5 text-white/50 hover:text-white/70 border border-white/10 hover:border-white/20 px-8 py-3.5 rounded-full transition-all hover:-translate-y-0.5 text-base"
+              href={GITHUB_REPO}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 rounded-full border border-neutral-200 px-8 py-3.5 text-base text-neutral-500 transition-all hover:-translate-y-0.5 hover:border-neutral-300 hover:text-neutral-700 dark:border-white/10 dark:text-white/50 dark:hover:border-white/20 dark:hover:text-white/70"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-              Download for Mac
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              View Source
             </a>
           </div>
-
-          {/* Platform badges */}
-          <div className="mt-6 flex items-center justify-center gap-4 text-xs text-white/25">
-            <span className="flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-green-500" />
-              Browser
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-green-500" />
-              macOS Native
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-amber-500" />
-              Electron (soon)
-            </span>
-          </div>
         </div>
 
-        {/* Screenshot */}
-        <div className="relative z-10 mt-16 mb-8 w-full max-w-5xl mx-auto">
-          <div className="relative rounded-xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
-            <img src="/third_screen_demo.png" alt="Third Screen dashboard" className="w-full h-auto" />
+        {/* Hero screenshot - horizontal */}
+        <div className="relative z-10 mx-auto mt-16 w-full max-w-6xl">
+          <div className="relative overflow-hidden rounded-xl shadow-2xl shadow-black/20 ring-1 ring-neutral-200 dark:shadow-black/60 dark:ring-white/10">
+            <ThemeScreenshot name="horizontal" alt="Third Screen dashboard - landscape" className="h-auto w-full" />
           </div>
-          <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-[#3b82f6]/6 blur-[60px] rounded-full pointer-events-none" />
+          <div className="pointer-events-none absolute -bottom-16 left-1/2 h-32 w-3/4 -translate-x-1/2 rounded-full bg-blue-500/[0.04] blur-[80px] dark:bg-[#3b82f6]/[0.06]" />
         </div>
       </section>
 
-      {/* Features */}
-      <section className="relative bg-[#0a0a0a] py-28 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-[#3b82f6] text-sm font-medium tracking-widest uppercase mb-3">What you see</p>
-            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">Everything in one view.</h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="bg-[#111] rounded-2xl p-6 ring-1 ring-white/[0.06] hover:ring-white/[0.12] transition-all hover:-translate-y-0.5"
-              >
-                <div className="text-2xl mb-3">{f.icon}</div>
-                <h3 className="text-white font-semibold mb-1.5">{f.title}</h3>
-                <p className="text-white/35 text-sm leading-relaxed">{f.desc}</p>
+      {/* "Any screen" section with vertical screenshot */}
+      <section className="relative py-32 px-6">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid items-center gap-16 lg:grid-cols-2">
+            <div>
+              <p className="mb-3 text-sm font-medium uppercase tracking-widest text-[#3b82f6] font-[family-name:var(--font-mono)]">Adaptive layout</p>
+              <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight sm:text-5xl">
+                Fits any screen shape.
+              </h2>
+              <p className="mt-5 text-lg text-neutral-500 leading-relaxed dark:text-white/35">
+                Landscape monitor, portrait tablet, ultrawide. The dashboard rearranges to fill every pixel. Mount it on a wall, prop it on a desk, or keep it in a browser tab.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                {["Landscape", "Portrait", "Ultrawide", "Tablet"].map((label) => (
+                  <span key={label} className="rounded-full border border-neutral-200 bg-neutral-50 px-4 py-1.5 text-xs font-medium text-neutral-500 font-[family-name:var(--font-mono)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/40">
+                    {label}
+                  </span>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Integrations */}
-      <section className="relative bg-[#0a0a0a] py-24 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <p className="text-[#3b82f6] text-sm font-medium tracking-widest uppercase mb-3">Integrations</p>
-          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight mb-5">Connects to what you use.</h2>
-          <p className="text-white/35 text-lg mb-12 max-w-md mx-auto">Sign in, connect your accounts, and your data flows in automatically.</p>
-
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {INTEGRATIONS.map((i) => (
-              <div
-                key={i.name}
-                className="flex items-center gap-2 bg-[#151515] rounded-full px-5 py-2.5 ring-1 ring-white/[0.06]"
-              >
-                <span className="size-2 rounded-full" style={{ backgroundColor: i.color }} />
-                <span className="text-white/60 text-sm font-medium">{i.name}</span>
+            </div>
+            <div className="flex justify-center">
+              <div className="relative w-72 overflow-hidden rounded-2xl shadow-2xl shadow-black/20 ring-1 ring-neutral-200 dark:shadow-black/50 dark:ring-white/10">
+                <ThemeScreenshot name="vertical" alt="Third Screen dashboard - portrait" className="h-auto w-full" />
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="relative bg-[#0a0a0a] py-28 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 mx-auto w-[500px] h-[300px] bg-[#3b82f6]/5 blur-[100px] rounded-full pointer-events-none" />
-
-          <div className="relative z-10">
-            <img src="/thirdscreen_logo.svg" alt="Third Screen" className="w-14 h-14 mx-auto mb-8" />
-            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">Ready to try Third Screen?</h2>
-            <p className="text-white/35 text-lg mb-10 max-w-md mx-auto">Free. Open source. No account required to start.</p>
-
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/app"
-                className="inline-flex items-center gap-2.5 bg-white text-black font-semibold px-8 py-3.5 rounded-full hover:bg-white/90 transition-all hover:-translate-y-0.5 text-base"
-              >
-                Open Dashboard
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              </Link>
-              <a
-                href={GITHUB_RELEASE}
-                className="inline-flex items-center gap-2.5 text-white/50 hover:text-white/70 border border-white/10 hover:border-white/20 px-8 py-3.5 rounded-full transition-all text-base"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-                Download for Mac
-              </a>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Developer */}
-      <section className="relative bg-[#0a0a0a] py-20 px-6 border-t border-white/[0.04]">
-        <div className="max-w-2xl mx-auto text-center">
-          <p className="text-[#3b82f6] text-sm font-medium tracking-widest uppercase mb-3">Developer</p>
-          <h2 className="text-3xl font-bold tracking-tight mb-3">Eric Vaish</h2>
-          <p className="text-white/35 text-base mb-6">Designing and building software that stays out of the way.</p>
-          <div className="flex items-center justify-center gap-4">
-            <a href="https://ericvaish.com" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60 text-sm transition-colors">ericvaish.com</a>
-            <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60 text-sm transition-colors">GitHub</a>
+      {/* Connections */}
+      <section className="relative py-28 px-6">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-16 text-center">
+            <p className="mb-3 text-sm font-medium uppercase tracking-widest text-[#3b82f6] font-[family-name:var(--font-mono)]">Connections</p>
+            <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight sm:text-5xl">Plugs into what you already use.</h2>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {CONNECTIONS.map((c) => (
+              <div
+                key={c.title}
+                className="rounded-2xl bg-neutral-50 p-6 ring-1 ring-neutral-200 transition-all hover:-translate-y-0.5 hover:ring-neutral-300 dark:bg-[#111] dark:ring-white/[0.06] dark:hover:ring-white/[0.12]"
+              >
+                <div className="mb-3 text-2xl">{c.icon}</div>
+                <h3 className="mb-1.5 font-semibold">{c.title}</h3>
+                <p className="text-sm leading-relaxed text-neutral-500 dark:text-white/35">{c.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Open source + self-host */}
+      <section className="relative py-24 px-6">
+        <div className="mx-auto max-w-4xl text-center">
+          <p className="mb-3 text-sm font-medium uppercase tracking-widest text-[#3b82f6] font-[family-name:var(--font-mono)]">Your data, your way</p>
+          <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight sm:text-5xl">Open source. Self-hostable.</h2>
+          <p className="mx-auto mt-5 max-w-lg text-lg text-neutral-500 leading-relaxed dark:text-white/35">
+            Use the hosted version at thirdscr.com for free. Or clone the repo and run it on your own server. Your dashboard, your rules.
+          </p>
+
+          <div className="mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
+            <Link
+              href="/app"
+              className="group rounded-2xl bg-neutral-50 p-8 ring-1 ring-neutral-200 text-left transition-all hover:-translate-y-0.5 hover:ring-neutral-300 dark:bg-[#111] dark:ring-white/[0.06] dark:hover:ring-white/[0.12]"
+            >
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-[#3b82f6]/10">
+                <svg className="h-5 w-5 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </div>
+              <h3 className="mb-1 text-lg font-semibold">Use hosted version</h3>
+              <p className="text-sm text-neutral-500 dark:text-white/35">Sign in and start using immediately. Free. We handle the infrastructure.</p>
+            </Link>
+            <a
+              href={GITHUB_REPO}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group rounded-2xl bg-neutral-50 p-8 ring-1 ring-neutral-200 text-left transition-all hover:-translate-y-0.5 hover:ring-neutral-300 dark:bg-[#111] dark:ring-white/[0.06] dark:hover:ring-white/[0.12]"
+            >
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-200 dark:bg-white/[0.06]">
+                <svg className="h-5 w-5 text-neutral-600 dark:text-white/60" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              </div>
+              <h3 className="mb-1 text-lg font-semibold">Self-host</h3>
+              <p className="text-sm text-neutral-500 dark:text-white/35">Clone the repo, run one command, own your data entirely. MIT licensed.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="relative py-28 px-6">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 mx-auto h-[300px] w-[500px] -translate-y-1/2 rounded-full bg-blue-500/[0.03] blur-[100px] dark:bg-[#3b82f6]/[0.05]" />
+          <div className="relative z-10">
+            <img src="/thirdscreen_logo.svg" alt="" className="mx-auto mb-8 h-14 w-14" />
+            <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight sm:text-5xl">Ready to try it?</h2>
+            <p className="mx-auto mb-10 mt-4 max-w-md text-lg text-neutral-500 dark:text-white/35">Free. Open source. No account required to start.</p>
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-2.5 rounded-full bg-neutral-900 px-8 py-3.5 text-base font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-white/90"
+            >
+              Open Dashboard
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#0a0a0a] border-t border-white/[0.04] py-6 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="border-t border-neutral-200 py-6 px-6 dark:border-white/[0.04]">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-2">
-            <img src="/thirdscreen_logo.svg" alt="Third Screen" className="w-4 h-4 opacity-30" />
-            <span className="text-white/25 text-sm">Third Screen</span>
+            <img src="/thirdscreen_logo.svg" alt="" className="h-4 w-4 opacity-30" />
+            <span className="text-sm text-neutral-400 dark:text-white/25">Third Screen by <a href="https://ericvaish.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-neutral-600 dark:hover:text-white/50">Eric Vaish</a></span>
           </div>
           <div className="flex items-center gap-5">
-            <Link href="/privacy" className="text-white/25 hover:text-white/50 text-sm transition-colors">Privacy</Link>
-            <Link href="/terms" className="text-white/25 hover:text-white/50 text-sm transition-colors">Terms</Link>
-            <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="text-white/25 hover:text-white/50 text-sm transition-colors">GitHub</a>
-            <span className="text-white/15 text-sm">&copy; 2026 Eric Vaish</span>
+            <Link href="/privacy" className="text-sm text-neutral-400 transition-colors hover:text-neutral-600 dark:text-white/25 dark:hover:text-white/50">Privacy</Link>
+            <Link href="/terms" className="text-sm text-neutral-400 transition-colors hover:text-neutral-600 dark:text-white/25 dark:hover:text-white/50">Terms</Link>
+            <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="text-sm text-neutral-400 transition-colors hover:text-neutral-600 dark:text-white/25 dark:hover:text-white/50">GitHub</a>
           </div>
         </div>
       </footer>

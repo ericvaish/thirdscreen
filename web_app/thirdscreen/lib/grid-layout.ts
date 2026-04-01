@@ -73,6 +73,32 @@ export function snapLayout(layout: DashboardLayout, snapW: number, snapH: number
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = getDefaultLayout()
 
+// ── Multi-dashboard types ──────────────────────────────────────────────────
+
+export interface DashboardConfig {
+  id: string
+  name: string
+  layoutLandscape: DashboardLayout
+  layoutPortrait: DashboardLayout
+  hiddenZones: ZoneId[]
+  isDefault: boolean
+  sortOrder: number
+}
+
+export function createDefaultDashboardConfig(id: string): DashboardConfig {
+  return {
+    id,
+    name: "Main",
+    layoutLandscape: getDefaultLayout(),
+    layoutPortrait: getDefaultLayout(),
+    hiddenZones: [],
+    isDefault: true,
+    sortOrder: 0,
+  }
+}
+
+export const DASHBOARD_LIMITS = { free: 1, pro: 10 } as const
+
 // ── RGL conversion ──────────────────────────────────────────────────────────
 
 export interface RGLLayoutItem {

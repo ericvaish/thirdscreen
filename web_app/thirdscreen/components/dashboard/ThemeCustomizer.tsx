@@ -64,8 +64,8 @@ export function ThemeCustomizer() {
           <Palette className="size-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-80 p-0" showCloseButton={false} overlayClassName="!bg-transparent !backdrop-blur-none">
-        <SheetHeader className="px-4 pt-4 pb-2">
+      <SheetContent side="right" className="!top-[3.75rem] !bottom-10 !h-auto !z-[101] !gap-0 w-80 overflow-hidden rounded-l-xl border-t p-0" showCloseButton={false} overlayClassName="!bg-transparent !backdrop-blur-none">
+        <SheetHeader className="px-3 py-1.5">
           <div className="flex items-center justify-between">
             <SheetTitle className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight">
               Theme
@@ -94,7 +94,7 @@ export function ThemeCustomizer() {
           </div>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100vh-4rem)]">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 px-4 pb-8">
             {/* ── Presets ─────────────────────────────────────────────── */}
             <section>
