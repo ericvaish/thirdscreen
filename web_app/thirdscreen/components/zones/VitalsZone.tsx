@@ -559,8 +559,10 @@ export function VitalsZone() {
             </p>
           ) : (
             <div className="space-y-1">
-              {todayMeds.map((med) =>
-                med.times.map((t) => {
+              {todayMeds
+                .flatMap((med) => med.times.map((t) => ({ med, t })))
+                .sort((a, b) => a.t.hour * 60 + a.t.minute - (b.t.hour * 60 + b.t.minute))
+                .map(({ med, t }) => {
                   const taken = doseLogs.get(med.id)?.has(t.id) ?? false
                   const timeStr = `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`
                   return (
@@ -613,8 +615,7 @@ export function VitalsZone() {
                       </button>
                     </button>
                   )
-                })
-              )}
+                })}
             </div>
           )}
         </div>

@@ -2768,7 +2768,7 @@ export function TimelineZone() {
                   return (
                     <div
                       key={pseudo.id}
-                      className={`absolute flex items-center gap-1 overflow-hidden rounded-md border px-2 py-0.5 text-xs font-medium leading-tight ${
+                      className={`absolute flex items-center justify-center overflow-hidden rounded-full border ${
                         dose.taken
                           ? "border-[var(--vital-meds)]/30 bg-[var(--vital-meds)]/10 text-[var(--vital-meds)] opacity-50"
                           : "border-[var(--vital-meds)]/40 bg-[var(--vital-meds)]/15 text-[var(--vital-meds)]"
@@ -2781,10 +2781,7 @@ export function TimelineZone() {
                       }}
                       title={`${dose.medName}${dose.dosage ? ` (${dose.dosage})` : ""} at ${pseudo.startTime}`}
                     >
-                      <Pill className="size-2.5 shrink-0" />
-                      <span className={`truncate ${dose.taken ? "line-through" : ""}`}>
-                        {dose.medName}
-                      </span>
+                      <Pill className="size-3.5" />
                     </div>
                   )
                 })}

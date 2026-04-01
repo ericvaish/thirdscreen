@@ -85,14 +85,12 @@ export function TasksZone() {
     <div className="zone-surface zone-tasks flex h-full flex-col">
       {/* Header */}
       <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-baseline gap-2">
-          <div className="flex items-center gap-2">
-            <ZoneDragHandle />
-            <div className="h-4 w-[3px] rounded-full" style={{ background: "var(--zone-tasks-accent)" }} />
-            <span className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight" style={{ color: "var(--zone-tasks-accent)" }}>
-              Tasks
-            </span>
-          </div>
+        <div className="flex items-center gap-1.5">
+          <ZoneDragHandle />
+          <div className="h-5 w-[3px] rounded-full" style={{ background: "var(--zone-tasks-accent)" }} />
+          <span className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight" style={{ color: "var(--zone-tasks-accent)" }}>
+            Tasks
+          </span>
           {active.length > 0 && (
             <span className="rounded-full bg-[var(--zone-tasks-accent)]/15 px-1.5 py-0.5 font-mono text-xs font-bold text-[var(--zone-tasks-accent)]">
               {active.length}
