@@ -543,11 +543,14 @@ export function VitalsZone() {
 
         {/* Medicines - checkbox list */}
         <div className="px-3 py-2">
-          <div className="mb-2 flex items-center gap-1.5">
-            <Pill className="size-3.5 text-[var(--vital-meds)]" />
-            <span className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-tight text-[var(--vital-meds)]">
-              Medications
-            </span>
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Pill className="size-3.5 text-[var(--vital-meds)]" />
+              <span className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-tight text-[var(--vital-meds)]">
+                Medications
+              </span>
+            </div>
+            <AddMedicineDialog onAdd={addMedicine} compact />
           </div>
 
           {todayMeds.length === 0 ? (
@@ -626,6 +629,7 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 function AddMedicineDialog({
   onAdd,
+  compact = false,
 }: {
   onAdd: (data: {
     name: string
@@ -634,6 +638,7 @@ function AddMedicineDialog({
     repeatPattern: "daily" | "every_other_day" | "custom"
     activeDays: number[]
   }) => Promise<void>
+  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
@@ -679,10 +684,16 @@ function AddMedicineDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full text-xs">
-          <Plus className="size-3" />
-          Add Medicine
-        </Button>
+        {compact ? (
+          <button className="flex size-11 items-center justify-center rounded-lg text-muted-foreground/40 transition-colors hover:bg-muted/20 hover:text-muted-foreground">
+            <Plus className="size-4" />
+          </button>
+        ) : (
+          <Button variant="outline" size="sm" className="w-full text-xs">
+            <Plus className="size-3" />
+            Add Medicine
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>

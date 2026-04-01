@@ -68,7 +68,7 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
       zoneAccents: {},
       cardBackground: "oled",
       zoneGradients: {
-        timeline: "flat", tasks: "flat", notes: "flat",
+        timeline: "flat", clock: "flat", tasks: "flat", notes: "flat",
         vitals: "flat", media: "flat", habits: "flat", status: "flat",
       },
       preset: "oled",
@@ -78,7 +78,7 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
     label: "Neon",
     theme: {
       zoneAccents: {
-        timeline: 195, tasks: 140, notes: 300,
+        timeline: 195, clock: 170, tasks: 140, notes: 300,
         vitals: 160, media: 15, habits: 80, status: 270,
       },
       cardBackground: "oled",
@@ -90,7 +90,7 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
     label: "Pastel",
     theme: {
       zoneAccents: {
-        timeline: 210, tasks: 55, notes: 300,
+        timeline: 210, clock: 190, tasks: 55, notes: 300,
         vitals: 160, media: 350, habits: 140, status: 240,
       },
       cardBackground: "lighter",
@@ -102,12 +102,12 @@ export const PRESETS: Record<string, { label: string; theme: ThemeCustomization 
     label: "Mono",
     theme: {
       zoneAccents: {
-        timeline: 260, tasks: 260, notes: 260,
+        timeline: 260, clock: 260, tasks: 260, notes: 260,
         vitals: 260, media: 260, habits: 260, status: 260,
       },
       cardBackground: "default",
       zoneGradients: {
-        timeline: "flat", tasks: "flat", notes: "flat",
+        timeline: "flat", clock: "flat", tasks: "flat", notes: "flat",
         vitals: "flat", media: "flat", habits: "flat", status: "flat",
       },
       preset: "mono",

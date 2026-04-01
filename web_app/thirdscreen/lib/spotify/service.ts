@@ -115,8 +115,10 @@ async function refreshAccessToken(userId: string = ""): Promise<string | null> {
   })
 
   if (!res.ok) {
-    // Refresh token revoked, clear everything
-    await clearTokens(userId)
+    // Only clear tokens on 401/400 (revoked/invalid) — not on transient errors (5xx, network)
+    if (res.status === 401 || res.status === 400) {
+      await clearTokens(userId)
+    }
     return null
   }
 
