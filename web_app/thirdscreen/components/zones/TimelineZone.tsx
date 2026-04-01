@@ -646,6 +646,7 @@ function EventDetailDialog({
   onDelete,
   onUpdate,
   onRefresh,
+  date,
 }: {
   event: TimelineEvent
   open: boolean
@@ -653,12 +654,14 @@ function EventDetailDialog({
   onDelete: (id: string) => void
   onUpdate: (id: string, data: { title?: string; startTime?: string; endTime?: string }) => void
   onRefresh?: () => void
+  date: Date
 }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(event.title)
   const [editStart, setEditStart] = useState(event.startTime)
   const [editEnd, setEditEnd] = useState(event.endTime)
   const [rsvpLoading, setRsvpLoading] = useState<string | null>(null)
+  const [descExpanded, setDescExpanded] = useState(false)
 
   const isEditable = event.source === "local"
 
@@ -709,7 +712,7 @@ function EventDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden">
+      <DialogContent className="max-w-md p-0 overflow-hidden lg:max-w-lg">
         {/* Color header bar */}
         <div
           className="h-2 w-full"
@@ -751,13 +754,16 @@ function EventDetailDialog({
                     ? "All day"
                     : `${formatTime12(startMin)} - ${formatTime12(endMin)}`}
                 </p>
-                {!event.allDay && durationMin > 0 && (
-                  <p className="text-xs text-muted-foreground/50">
-                    {durationMin >= 60
-                      ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ""}`
-                      : `${durationMin}m`}
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground/50">
+                  {format(date, "EEEE, MMMM d")}
+                  {!event.allDay && durationMin > 0 && (
+                    <span className="ml-1.5">
+                      · {durationMin >= 60
+                        ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ""}`
+                        : `${durationMin}m`}
+                    </span>
+                  )}
+                </p>
               </div>
             )}
           </div>
@@ -792,9 +798,23 @@ function EventDetailDialog({
               <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/30">
                 <FileText className="size-4 text-muted-foreground/60" />
               </div>
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground/80 leading-relaxed">
-                {event.description}
-              </p>
+              <div className="min-w-0 flex-1">
+                <div
+                  className={`whitespace-pre-wrap text-sm text-muted-foreground/80 leading-relaxed ${
+                    descExpanded ? "max-h-48 overflow-y-auto" : "line-clamp-3"
+                  }`}
+                >
+                  {event.description}
+                </div>
+                {event.description.length > 150 && (
+                  <button
+                    onClick={() => setDescExpanded(!descExpanded)}
+                    className="mt-1 text-xs text-muted-foreground/50 hover:text-muted-foreground"
+                  >
+                    {descExpanded ? "Show less" : "Read more"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -2754,6 +2774,7 @@ export function TimelineZone() {
           onDelete={handleDeleteEvent}
           onUpdate={handleUpdateEvent}
           onRefresh={() => { fetchEvents(); setSelectedEvent(null) }}
+          date={selectedDate}
         />
       )}
     </div>
