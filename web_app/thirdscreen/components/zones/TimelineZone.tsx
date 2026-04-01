@@ -630,6 +630,28 @@ function MonthView({
   )
 }
 
+// ── Meeting link extraction from description ────────────────────────────────
+
+const MEETING_LINK_PATTERNS = [
+  // Microsoft Teams
+  /https?:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s<>)]+/i,
+  /https?:\/\/teams\.microsoft\.com\/meet\/[^\s<>)]+/i,
+  // Zoom
+  /https?:\/\/[\w.-]*zoom\.us\/j\/[^\s<>)]+/i,
+  // Webex
+  /https?:\/\/[\w.-]*webex\.com\/[\w.-]*\/j\.php[^\s<>)]+/i,
+  /https?:\/\/[\w.-]*webex\.com\/meet\/[^\s<>)]+/i,
+]
+
+function extractMeetingLink(description: string | null): string | null {
+  if (!description) return null
+  for (const pattern of MEETING_LINK_PATTERNS) {
+    const match = description.match(pattern)
+    if (match) return match[0]
+  }
+  return null
+}
+
 // ── Event detail dialog ──────────────────────────────────────────────────────
 
 const RESPONSE_ICONS: Record<string, { icon: typeof Check; color: string }> = {
@@ -712,7 +734,7 @@ function EventDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden lg:max-w-lg">
+      <DialogContent className="max-w-lg p-0 overflow-hidden lg:max-w-xl">
         {/* Color header bar */}
         <div
           className="h-2 w-full"
@@ -769,18 +791,22 @@ function EventDetailDialog({
           </div>
 
           {/* Meeting link */}
-          {event.meetingLink && (
-            <a
-              href={event.meetingLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
-            >
-              <Video className="size-4 shrink-0" />
-              <span className="flex-1 truncate">Join meeting</span>
-              <ExternalLink className="size-3 shrink-0 opacity-50" />
-            </a>
-          )}
+          {(() => {
+            const meetLink = event.meetingLink ?? extractMeetingLink(event.description)
+            if (!meetLink) return null
+            return (
+              <a
+                href={meetLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20"
+              >
+                <Video className="size-4 shrink-0" />
+                <span className="flex-1 truncate">Join meeting</span>
+                <ExternalLink className="size-3 shrink-0 opacity-50" />
+              </a>
+            )
+          })()}
 
           {/* Location */}
           {event.location && (
@@ -800,7 +826,7 @@ function EventDetailDialog({
               </div>
               <div className="min-w-0 flex-1">
                 <div
-                  className={`whitespace-pre-wrap text-sm text-muted-foreground/80 leading-relaxed ${
+                  className={`whitespace-pre-wrap break-words text-sm text-muted-foreground/80 leading-relaxed ${
                     descExpanded ? "max-h-48 overflow-y-auto" : "line-clamp-3"
                   }`}
                 >
@@ -1746,15 +1772,18 @@ export function TimelineZone() {
         const normEnd = ((end % 1440) + 1440) % 1440
 
         if (end - start >= 15) {
+          // Drag: allow anywhere on the timeline
           setPrefillDate(format(eventDate, "yyyy-MM-dd"))
           setPrefillStart(minutesToTimeStr(normStart))
           setPrefillEnd(minutesToTimeStr(normEnd || normStart + (end - start)))
           setDialogOpen(true)
         } else {
-          // Single click: create a 1-hour event
-          const clickEnd = normStart + 60 > 1440 ? 1440 - 1 : normStart + 60
+          // Single click: only allow in the future (on today), start = now, end = clicked time
+          if (isToday(selectedDate) && normStart <= nowMinutes) return
+          const clickStart = isToday(selectedDate) ? nowMinutes : normStart
+          const clickEnd = normStart > clickStart ? normStart : (clickStart + 60 > 1440 ? 1439 : clickStart + 60)
           setPrefillDate(format(eventDate, "yyyy-MM-dd"))
-          setPrefillStart(minutesToTimeStr(normStart))
+          setPrefillStart(minutesToTimeStr(clickStart))
           setPrefillEnd(minutesToTimeStr(clickEnd))
           setDialogOpen(true)
         }
@@ -1763,7 +1792,7 @@ export function TimelineZone() {
       setDragStart(null)
       setDragEnd(null)
     },
-    [dragStart, dragEnd],
+    [dragStart, dragEnd, selectedDate, nowMinutes],
   )
 
   const handlePointerLeave = useCallback(() => {
@@ -1863,9 +1892,74 @@ export function TimelineZone() {
     localStorage.setItem("timeline-view-mode", mode)
   }
 
-  const goToToday = () => {
+  const goToToday = useCallback(() => {
     setSelectedDate(new Date())
-  }
+  }, [])
+
+  // ── Auto-return to today ──────────────────────────────────────────────────
+  const AUTO_RETURN_DELAY = 2 * 60 * 1000 // 2 minutes
+  const COUNTDOWN_SECONDS = 10
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const autoReturnTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const clearAutoReturn = useCallback(() => {
+    if (autoReturnTimer.current) { clearTimeout(autoReturnTimer.current); autoReturnTimer.current = null }
+    if (countdownInterval.current) { clearInterval(countdownInterval.current); countdownInterval.current = null }
+    setCountdown(null)
+  }, [])
+
+  const cancelAutoReturn = useCallback(() => {
+    clearAutoReturn()
+    // Reset the 2-minute timer
+    if (!isToday(selectedDate)) {
+      autoReturnTimer.current = setTimeout(() => {
+        setCountdown(COUNTDOWN_SECONDS)
+      }, AUTO_RETURN_DELAY)
+    }
+  }, [clearAutoReturn, selectedDate])
+
+  // Start/stop the auto-return timer when navigating away from today
+  useEffect(() => {
+    clearAutoReturn()
+    if (!isToday(selectedDate)) {
+      autoReturnTimer.current = setTimeout(() => {
+        setCountdown(COUNTDOWN_SECONDS)
+      }, AUTO_RETURN_DELAY)
+    }
+    return clearAutoReturn
+  }, [selectedDate, clearAutoReturn])
+
+  // Run the 10s countdown and go to today when it hits 0
+  useEffect(() => {
+    if (countdown === null) return
+    if (countdown <= 0) {
+      clearAutoReturn()
+      goToToday()
+      return
+    }
+    const tick = setTimeout(() => {
+      setCountdown((c) => (c !== null ? c - 1 : null))
+    }, 1000)
+    return () => clearTimeout(tick)
+  }, [countdown, clearAutoReturn, goToToday])
+
+  // Handle wake from sleep / date rollover: snap back to today if the date went stale
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // If selectedDate is no longer today (date rolled past midnight, or PC slept),
+        // immediately go to today
+        if (!isToday(selectedDate)) {
+          goToToday()
+        }
+        // Always refresh events on wake
+        fetchEvents()
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => document.removeEventListener("visibilitychange", handleVisibility)
+  }, [selectedDate, goToToday, fetchEvents])
 
   const goBack = () => {
     if (viewMode === "day") {
@@ -1980,12 +2074,23 @@ export function TimelineZone() {
             </button>
 
             {showTodayButton && (
-              <button
-                onClick={goToToday}
-                className="h-11 shrink-0 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 font-mono text-xs font-bold uppercase tracking-wider whitespace-nowrap text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95"
-              >
-                Today
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={goToToday}
+                  className="h-11 shrink-0 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 font-mono text-xs font-bold uppercase tracking-wider whitespace-nowrap text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95"
+                >
+                  {countdown !== null ? `Today (${countdown}s)` : "Today"}
+                </button>
+                {countdown !== null && (
+                  <button
+                    onClick={cancelAutoReturn}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-amber-400/25 bg-amber-400/10 text-amber-400/80 transition-colors hover:border-amber-400/40 hover:bg-amber-400/20 hover:text-amber-400 active:scale-95"
+                    title="Cancel auto-return"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

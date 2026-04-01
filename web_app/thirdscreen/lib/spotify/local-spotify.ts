@@ -63,17 +63,46 @@ export async function exchangeCodeLocally(
     }),
   })
 
-  if (!res.ok) return false
+  if (!res.ok) {
+    console.error("[Spotify] Code exchange failed", { status: res.status })
+    return false
+  }
   const data = await res.json()
+  console.log("[Spotify] Code exchange successful", {
+    hasRefreshToken: !!data.refresh_token,
+    expiresIn: data.expires_in + "s",
+  })
   saveLocalSpotifyTokens(data)
   return true
 }
 
 // ── Token refresh ──────────────────────────────────────────────────────────
 
+// Prevent concurrent refresh attempts (e.g. from 3s polling + 401 retry)
+let refreshPromise: Promise<string | null> | null = null
+
 async function refreshLocalToken(clientId: string): Promise<string | null> {
+  if (refreshPromise) {
+    console.log("[Spotify] Refresh already in progress, reusing promise")
+    return refreshPromise
+  }
+  refreshPromise = _doRefresh(clientId)
+  const result = await refreshPromise
+  refreshPromise = null
+  return result
+}
+
+async function _doRefresh(clientId: string): Promise<string | null> {
   const { refreshToken } = getLocalSpotifyTokens()
-  if (!refreshToken) return null
+  if (!refreshToken) {
+    console.warn("[Spotify] No refresh token found, cannot refresh")
+    return null
+  }
+
+  console.log("[Spotify] Refreshing access token...", {
+    refreshTokenPrefix: refreshToken.slice(0, 8) + "...",
+    clientIdPrefix: clientId.slice(0, 8) + "...",
+  })
 
   const res = await fetch(SPOTIFY_TOKEN_URL, {
     method: "POST",
@@ -86,11 +115,24 @@ async function refreshLocalToken(clientId: string): Promise<string | null> {
   })
 
   if (!res.ok) {
-    clearLocalSpotifyTokens()
+    const errorBody = await res.text().catch(() => "(unreadable)")
+    console.error("[Spotify] Token refresh failed", {
+      status: res.status,
+      body: errorBody,
+    })
+    // Only clear tokens on 401 (revoked) — not on transient errors (5xx, network)
+    if (res.status === 401 || res.status === 400) {
+      console.warn("[Spotify] Clearing tokens (revoked/invalid)")
+      clearLocalSpotifyTokens()
+    }
     return null
   }
 
   const data = await res.json()
+  console.log("[Spotify] Token refreshed successfully", {
+    newRefreshToken: data.refresh_token ? "yes (rotated)" : "no (same)",
+    expiresIn: data.expires_in + "s",
+  })
   saveLocalSpotifyTokens(data)
   return data.access_token
 }
@@ -98,10 +140,15 @@ async function refreshLocalToken(clientId: string): Promise<string | null> {
 /** Get a valid access token, refreshing if expired */
 export async function getValidLocalToken(clientId: string): Promise<string | null> {
   const { accessToken, expiry } = getLocalSpotifyTokens()
-  if (!accessToken) return null
+  if (!accessToken) {
+    console.log("[Spotify] No access token in localStorage")
+    return null
+  }
 
   // Refresh 60s before expiry
   if (expiry && Date.now() > expiry - 60_000) {
+    const remaining = Math.round((expiry - Date.now()) / 1000)
+    console.log(`[Spotify] Token expired or expiring soon (${remaining}s remaining), refreshing...`)
     return refreshLocalToken(clientId)
   }
 
@@ -127,6 +174,7 @@ async function localSpotifyFetch(
   })
 
   if (res.status === 401) {
+    console.warn(`[Spotify] 401 on ${endpoint}, attempting token refresh`)
     const newToken = await refreshLocalToken(clientId)
     if (!newToken) return null
     return fetch(`${SPOTIFY_API_BASE}${endpoint}`, {
