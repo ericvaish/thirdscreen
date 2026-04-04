@@ -9,18 +9,29 @@ export interface ExtractedColor {
   hex: string
 }
 
+async function loadImage(url: string): Promise<HTMLImageElement> {
+  const img = new Image()
+  img.crossOrigin = "anonymous"
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve()
+    img.onerror = () => reject()
+    img.src = url
+  })
+  return img
+}
+
 export async function extractDominantColor(
   imageUrl: string
 ): Promise<ExtractedColor | null> {
   try {
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve()
-      img.onerror = () => reject()
-      img.src = imageUrl
-    })
+    let img: HTMLImageElement
+    try {
+      img = await loadImage(imageUrl)
+    } catch {
+      // Retry once after a short delay (Spotify CDN sometimes drops connections)
+      await new Promise((r) => setTimeout(r, 1000))
+      img = await loadImage(imageUrl)
+    }
 
     const canvas = document.createElement("canvas")
     const size = 50

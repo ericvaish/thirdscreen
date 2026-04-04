@@ -13,6 +13,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ["@mlc-ai/web-llm"],
 }
 
 export default nextConfig

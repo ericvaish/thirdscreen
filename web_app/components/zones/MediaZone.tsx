@@ -610,6 +610,14 @@ export function MediaZone() {
                   src={playback.albumArt}
                   alt=""
                   className="size-12 shrink-0 rounded-md shadow-lg"
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    const img = e.currentTarget
+                    if (!img.dataset.retried) {
+                      img.dataset.retried = "1"
+                      setTimeout(() => { img.src = playback.albumArt! }, 1000)
+                    }
+                  }}
                 />
               )}
               <div className="min-w-0 flex-1">

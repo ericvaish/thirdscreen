@@ -185,7 +185,23 @@ export function SettingsView() {
         </div>
       </section>
 
-      <div className="pb-8" />
+      <Separator className="my-4 bg-border/30" />
+
+      {/* Footer */}
+      <div className="flex flex-col items-center gap-3 pb-8 text-center">
+        <p className="text-xs text-muted-foreground/50">
+          Built with love &middot; Free forever &middot; Support the project
+        </p>
+        <a
+          href="https://github.com/sponsors/ericvaish"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex items-center gap-1.5 rounded-lg border border-pink-500/30 bg-pink-500/10 px-4 py-2 text-sm font-medium text-pink-500 transition-all hover:border-pink-500/50 hover:bg-pink-500/15"
+        >
+          <Icons.Heart className="size-4 text-pink-500 transition-transform group-hover:scale-125 group-hover:animate-pulse" />
+          Support on GitHub
+        </a>
+      </div>
     </div>
   )
 }
@@ -193,8 +209,32 @@ export function SettingsView() {
 // ── Timezone Settings ────────────────────────────────────────────────────────
 
 function TimezoneSettings() {
-  const { timezone, detected, override, setOverride } = useTimezone()
-  const isAuto = override === null
+  const { detected, override, setOverride } = useTimezone()
+  const [search, setSearch] = useState("")
+  const [open, setOpen] = useState(false)
+
+  const currentLabel = override
+    ? override.replace(/_/g, " ")
+    : `Auto-detect (${detected.replace(/_/g, " ")})`
+
+  const getOffset = (tz: string) => {
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        timeZoneName: "shortOffset",
+      })
+        .formatToParts(new Date())
+        .find((p) => p.type === "timeZoneName")?.value ?? ""
+    } catch {
+      return ""
+    }
+  }
+
+  const filtered = search.trim()
+    ? TIMEZONE_LIST.filter((tz) =>
+        tz.toLowerCase().replace(/_/g, " ").includes(search.toLowerCase()),
+      )
+    : TIMEZONE_LIST
 
   return (
     <section>
@@ -209,33 +249,82 @@ function TimezoneSettings() {
       </p>
 
       <div className="mt-3">
-        <Select
-          value={override ?? "__auto__"}
-          onValueChange={(val) => setOverride(val === "__auto__" ? null : val)}
+        {/* Current selection */}
+        <button
+          onClick={() => setOpen((p) => !p)}
+          className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
+            open
+              ? "border-primary/30 bg-primary/5"
+              : "border-border/50 hover:border-border hover:bg-muted/20"
+          }`}
         >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select timezone" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__auto__">
-              Auto-detect ({detected.replace(/_/g, " ")})
-            </SelectItem>
-            {TIMEZONE_LIST.map((tz) => {
-              const now = new Date()
-              const offset = new Intl.DateTimeFormat("en-US", {
-                timeZone: tz,
-                timeZoneName: "shortOffset",
-              })
-                .formatToParts(now)
-                .find((p) => p.type === "timeZoneName")?.value ?? ""
-              return (
-                <SelectItem key={tz} value={tz}>
-                  {tz.replace(/_/g, " ")} ({offset})
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+          <div className="flex items-center gap-2">
+            <Globe className="size-4 text-muted-foreground/50" />
+            <span className="font-medium">{currentLabel}</span>
+          </div>
+          <Icons.ChevronDown
+            className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {open && (
+          <div className="mt-2 overflow-hidden rounded-xl border border-border/40">
+            {/* Search */}
+            <div className="border-b border-border/20 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Icons.Search className="size-3.5 text-muted-foreground/40" />
+                <input
+                  type="text"
+                  placeholder="Search timezones..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Auto-detect option */}
+            <button
+              onClick={() => { setOverride(null); setOpen(false); setSearch("") }}
+              className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/30 ${
+                override === null ? "bg-primary/8 text-primary" : "text-foreground"
+              }`}
+            >
+              <Icons.Locate className="size-3.5 text-muted-foreground/50" />
+              <span className="flex-1">Auto-detect ({detected.replace(/_/g, " ")})</span>
+              {override === null && <Icons.Check className="size-3.5 text-primary" />}
+            </button>
+
+            {/* Timezone list */}
+            <div className="max-h-48 overflow-y-auto">
+              {filtered.map((tz) => {
+                const offset = getOffset(tz)
+                const isSelected = override === tz
+                return (
+                  <button
+                    key={tz}
+                    onClick={() => { setOverride(tz); setOpen(false); setSearch("") }}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/30 ${
+                      isSelected ? "bg-primary/8 text-primary" : "text-foreground"
+                    }`}
+                  >
+                    <span className="flex-1">{tz.replace(/_/g, " ")}</span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground/50">
+                      {offset}
+                    </span>
+                    {isSelected && <Icons.Check className="size-3.5 shrink-0 text-primary" />}
+                  </button>
+                )
+              })}
+              {filtered.length === 0 && (
+                <p className="px-3 py-4 text-center text-xs text-muted-foreground/50">
+                  No timezones match "{search}"
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )
