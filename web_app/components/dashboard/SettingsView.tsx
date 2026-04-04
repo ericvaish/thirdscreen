@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -14,6 +14,7 @@ import {
 import { useMascot, MASCOT_CHARACTERS } from "@/lib/mascot"
 import * as Icons from "lucide-react"
 import { listCustomCharacters, deleteCustomCharacter } from "@/lib/data-layer"
+import { searchCities, setManualGeo, type GeoSearchResult } from "@/components/zones/StatusBar"
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings"
 import { GoogleServicesSettings } from "./GoogleServicesSettings"
 import { HomeAssistantSettings } from "./HomeAssistantSettings"
@@ -101,8 +102,8 @@ export function SettingsView() {
 
       <Separator className="my-4 bg-border/30" />
 
-      {/* Timezone */}
-      <TimezoneSettings />
+      {/* Location & Timezone */}
+      <LocationTimezoneSettings />
 
       <Separator className="my-4 bg-border/30" />
 
@@ -206,16 +207,58 @@ export function SettingsView() {
   )
 }
 
-// ── Timezone Settings ────────────────────────────────────────────────────────
+// ── Location & Timezone Settings ──────────────────────────────────────────────
 
-function TimezoneSettings() {
-  const { detected, override, setOverride } = useTimezone()
-  const [search, setSearch] = useState("")
-  const [open, setOpen] = useState(false)
+type LocTzMode = "city" | "timezone"
 
-  const currentLabel = override
-    ? override.replace(/_/g, " ")
-    : `Auto-detect (${detected.replace(/_/g, " ")})`
+function LocationTimezoneSettings() {
+  const { timezone, detected, override, setOverride } = useTimezone()
+  const [mode, setMode] = useState<LocTzMode>("city")
+  const [cityQuery, setCityQuery] = useState("")
+  const [cityResults, setCityResults] = useState<GeoSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [selectedCity, setSelectedCity] = useState<string | null>(null)
+  const [tzSearch, setTzSearch] = useState("")
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load saved city name from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("statusbar-manual-location")
+      if (raw) {
+        const geo = JSON.parse(raw) as { city?: string }
+        if (geo.city) setSelectedCity(geo.city)
+      }
+    } catch {}
+  }, [])
+
+  const handleCitySearch = useCallback((value: string) => {
+    setCityQuery(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (value.length < 2) {
+      setCityResults([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    debounceRef.current = setTimeout(async () => {
+      const r = await searchCities(value)
+      setCityResults(r)
+      setSearching(false)
+    }, 300)
+  }, [])
+
+  const handleCitySelect = (r: GeoSearchResult) => {
+    // Set location for weather/AQI
+    setManualGeo({ latitude: r.latitude, longitude: r.longitude, city: r.name })
+    setSelectedCity(r.name)
+    // Set timezone from the city
+    if (r.timezone) {
+      setOverride(r.timezone)
+    }
+    setCityQuery("")
+    setCityResults([])
+  }
 
   const getOffset = (tz: string) => {
     try {
@@ -230,63 +273,144 @@ function TimezoneSettings() {
     }
   }
 
-  const filtered = search.trim()
+  const filteredTz = tzSearch.trim()
     ? TIMEZONE_LIST.filter((tz) =>
-        tz.toLowerCase().replace(/_/g, " ").includes(search.toLowerCase()),
+        tz.toLowerCase().replace(/_/g, " ").includes(tzSearch.toLowerCase()),
       )
     : TIMEZONE_LIST
+
+  const effectiveTz = override ?? detected
 
   return (
     <section>
       <div className="flex items-center gap-2">
         <Globe className="size-4 text-muted-foreground/60" />
         <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Timezone
+          Location & Timezone
         </Label>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Used for calendar events and schedule display.
+        Set your city for weather and air quality, or just pick a timezone.
       </p>
 
-      <div className="mt-3">
-        {/* Current selection */}
-        <button
-          onClick={() => setOpen((p) => !p)}
-          className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
-            open
-              ? "border-primary/30 bg-primary/5"
-              : "border-border/50 hover:border-border hover:bg-muted/20"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <Globe className="size-4 text-muted-foreground/50" />
-            <span className="font-medium">{currentLabel}</span>
+      {/* Current state summary */}
+      <div className="mt-3 flex items-center gap-2 rounded-xl border border-border/40 px-3 py-2.5">
+        <Icons.MapPin className="size-4 shrink-0 text-muted-foreground/40" />
+        <div className="min-w-0 flex-1">
+          {selectedCity ? (
+            <p className="text-sm font-medium">{selectedCity}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground/60">No city set</p>
+          )}
+          <p className="font-mono text-xs text-muted-foreground/50">
+            {effectiveTz.replace(/_/g, " ")} ({getOffset(effectiveTz)})
+          </p>
+        </div>
+        {(selectedCity || override) && (
+          <button
+            onClick={() => {
+              localStorage.removeItem("statusbar-manual-location")
+              setSelectedCity(null)
+              setOverride(null)
+            }}
+            className="text-xs text-muted-foreground/40 hover:text-foreground"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* Mode tabs */}
+      <div className="mt-3 flex gap-1 rounded-lg border border-border/30 p-0.5">
+        {([
+          { id: "city" as LocTzMode, label: "Search City", icon: Icons.MapPin },
+          { id: "timezone" as LocTzMode, label: "Timezone Only", icon: Icons.Clock },
+        ]).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setMode(id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+              mode === id
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground/50 hover:text-muted-foreground"
+            }`}
+          >
+            <Icon className="size-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* City search mode */}
+      {mode === "city" && (
+        <div className="mt-3">
+          <div className="relative">
+            <Icons.Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/40" />
+            <input
+              type="text"
+              placeholder="Search for your city..."
+              value={cityQuery}
+              onChange={(e) => handleCitySearch(e.target.value)}
+              className="h-11 w-full rounded-xl border border-border/40 bg-transparent pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/30 focus:border-primary/30"
+            />
+            {searching && (
+              <Icons.Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground/40" />
+            )}
           </div>
-          <Icons.ChevronDown
-            className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-          />
-        </button>
 
-        {open && (
-          <div className="mt-2 overflow-hidden rounded-xl border border-border/40">
-            {/* Search */}
-            <div className="border-b border-border/20 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <Icons.Search className="size-3.5 text-muted-foreground/40" />
-                <input
-                  type="text"
-                  placeholder="Search timezones..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
-                  autoFocus
-                />
-              </div>
+          {cityResults.length > 0 && (
+            <div className="mt-1.5 overflow-hidden rounded-xl border border-border/30">
+              {cityResults.map((r, i) => (
+                <button
+                  key={`${r.latitude}-${r.longitude}-${i}`}
+                  onClick={() => handleCitySelect(r)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/30"
+                >
+                  <Icons.MapPin className="size-3.5 shrink-0 text-muted-foreground/40" />
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium">{r.name}</span>
+                    <span className="ml-1 text-muted-foreground/50">
+                      {r.admin1 ? `${r.admin1}, ` : ""}{r.country}
+                    </span>
+                  </div>
+                  {r.timezone && (
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground/40">
+                      {getOffset(r.timezone)}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
+          )}
 
-            {/* Auto-detect option */}
+          {cityQuery.length >= 2 && !searching && cityResults.length === 0 && (
+            <p className="mt-2 text-center text-xs text-muted-foreground/40">No cities found</p>
+          )}
+
+          <p className="mt-2 text-xs text-muted-foreground/40">
+            Sets location for weather, air quality, and timezone.
+          </p>
+        </div>
+      )}
+
+      {/* Timezone-only mode */}
+      {mode === "timezone" && (
+        <div className="mt-3">
+          <div className="relative">
+            <Icons.Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/40" />
+            <input
+              type="text"
+              placeholder="Search timezones..."
+              value={tzSearch}
+              onChange={(e) => setTzSearch(e.target.value)}
+              className="h-11 w-full rounded-xl border border-border/40 bg-transparent pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/30 focus:border-primary/30"
+            />
+          </div>
+
+          <div className="mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-border/30">
+            {/* Auto-detect */}
             <button
-              onClick={() => { setOverride(null); setOpen(false); setSearch("") }}
+              onClick={() => { setOverride(null); setTzSearch("") }}
               className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/30 ${
                 override === null ? "bg-primary/8 text-primary" : "text-foreground"
               }`}
@@ -296,36 +420,36 @@ function TimezoneSettings() {
               {override === null && <Icons.Check className="size-3.5 text-primary" />}
             </button>
 
-            {/* Timezone list */}
-            <div className="max-h-48 overflow-y-auto">
-              {filtered.map((tz) => {
-                const offset = getOffset(tz)
-                const isSelected = override === tz
-                return (
-                  <button
-                    key={tz}
-                    onClick={() => { setOverride(tz); setOpen(false); setSearch("") }}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/30 ${
-                      isSelected ? "bg-primary/8 text-primary" : "text-foreground"
-                    }`}
-                  >
-                    <span className="flex-1">{tz.replace(/_/g, " ")}</span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground/50">
-                      {offset}
-                    </span>
-                    {isSelected && <Icons.Check className="size-3.5 shrink-0 text-primary" />}
-                  </button>
-                )
-              })}
-              {filtered.length === 0 && (
-                <p className="px-3 py-4 text-center text-xs text-muted-foreground/50">
-                  No timezones match "{search}"
-                </p>
-              )}
-            </div>
+            {filteredTz.map((tz) => {
+              const isSelected = override === tz
+              return (
+                <button
+                  key={tz}
+                  onClick={() => { setOverride(tz); setTzSearch("") }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/30 ${
+                    isSelected ? "bg-primary/8 text-primary" : "text-foreground"
+                  }`}
+                >
+                  <span className="flex-1">{tz.replace(/_/g, " ")}</span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground/50">
+                    {getOffset(tz)}
+                  </span>
+                  {isSelected && <Icons.Check className="size-3.5 shrink-0 text-primary" />}
+                </button>
+              )
+            })}
+            {filteredTz.length === 0 && (
+              <p className="px-3 py-4 text-center text-xs text-muted-foreground/50">
+                No timezones match "{tzSearch}"
+              </p>
+            )}
           </div>
-        )}
-      </div>
+
+          <p className="mt-2 text-xs text-muted-foreground/40">
+            Only sets timezone. No location data shared.
+          </p>
+        </div>
+      )}
     </section>
   )
 }
