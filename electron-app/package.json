@@ -14,7 +14,8 @@
     "dist:linux": "npm run dist -- --linux"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "node-llama-cpp": "^3.18.1"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
@@ -45,5 +46,8 @@
     "directories": {
       "output": "release"
     }
-  }
+  },
+  "trustedDependencies": [
+    "node-llama-cpp"
+  ]
 }

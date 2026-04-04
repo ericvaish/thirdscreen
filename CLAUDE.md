@@ -43,16 +43,26 @@ web_app/thirdscreen/
       schedule/         # CRUD for calendar events
       calories/         # CRUD for food items + water sub-resource
       medicines/        # CRUD for medicines + doses sub-resource
+      home-assistant/   # Home Assistant integration (entities, service calls, config)
       settings/         # Key-value app settings
   components/
     dashboard/
       Dashboard.tsx     # Main view: header, zone grid, view switching
       SettingsView.tsx   # Inline settings: theme + integration catalog
     zones/
-      TimelineZone.tsx  # Full-width horizontal schedule (percentage-based, no scroll)
+      TimelineZone.tsx  # Main timeline orchestrator (state, effects, day-view rendering)
+      timeline/         # Extracted timeline sub-components and utilities
+        timeline-utils.ts         # Types, constants, lane algorithm, daylight arcs, time math
+        EventDetailDialog.tsx     # Event view/edit/RSVP dialog
+        EventListPanel.tsx        # Sidebar/bottom event list
+        WeekView.tsx              # Week grid view
+        MonthView.tsx             # Month grid view
+        ViewModeDropdown.tsx      # Day/Week/Month switcher popover
+        CalendarAccountsContent.tsx # Google Calendar account management UI
       VitalsZone.tsx    # SVG ring gauges for calories, water, medicines
       TasksZone.tsx     # Task list with inline add
       NotesZone.tsx     # Notes + links list
+      SmartHomeZone.tsx # Home Assistant device controls (lights, switches)
       StatusBar.tsx     # Clock + notification ticker + timer
     cards/              # Legacy card components (kept for reference)
     ui/                 # shadcn/ui components (button, dialog, input, etc.)
@@ -68,6 +78,9 @@ web_app/thirdscreen/
     integrations/
       types.ts          # IntegrationDef, EnabledIntegration, ZoneType
       registry.ts       # 30+ integration definitions by zone/category
+    home-assistant/
+      constants.ts      # HA settings keys, API paths, supported domains
+      service.ts        # HA REST API wrapper: states, services, light control
     google-calendar/
       constants.ts      # Google OAuth URLs, scopes, settings keys
       service.ts        # Multi-account OAuth, token refresh, event fetching
@@ -110,6 +123,31 @@ The `calendar_accounts` table stores OAuth tokens for external calendar provider
 - `PUT /api/google-calendar` -- set client ID or update account settings
 - `DELETE /api/google-calendar?id=...` -- remove an account
 
+### Home Assistant Integration
+
+Connects to any Home Assistant instance via its REST API. Users provide an HTTPS-accessible URL + long-lived access token. Supports lights, switches, fans, and climate devices.
+
+**Settings storage:** `ha_base_url`, `ha_access_token`, `ha_selected_entities` in the `settings` key-value store (works across all three storage backends).
+
+**Service layer** (`lib/home-assistant/service.ts`):
+- `testConnection()` -- validates URL + token, returns HA location name and version
+- `getStates()` -- fetches all entity states, filters to supported domains
+- `callService()` -- generic HA service call (turn_on, turn_off, toggle, etc.)
+- `setLightBrightness()`, `setLightColor()`, `setLightColorTemp()` -- convenience wrappers
+
+**API routes** (`app/api/home-assistant/route.ts`):
+- `GET ?action=status` -- entity states for user's selected entities
+- `GET ?action=config` -- connection status (tokens stripped)
+- `GET ?action=entities` -- all supported entities (for picker in settings)
+- `GET ?action=test&url=...&token=...` -- test connection
+- `POST` -- call a service (toggle, brightness, color, etc.)
+- `PUT` -- save config (URL, token, selected entities)
+- `DELETE` -- disconnect (clear all config)
+
+**Zone:** `SmartHomeZone` renders entity cards with toggle, brightness slider, and live glow effects. Polls every 5s for state updates. Optimistic UI for toggles and brightness changes.
+
+**Settings UI:** `HomeAssistantSettings` in SettingsView under "Smart Home" category. URL + token input, connection test, entity picker with switches.
+
 ### Card Types
 
 `clock` | `timer` | `todo` | `notes` | `schedule` | `calories` | `medicines`
@@ -136,6 +174,33 @@ The app has three storage backends, selected automatically:
 - Optimistic updates for todos, notes, links
 - Debounced saves for layout changes (300ms) and note content (400ms)
 - localStorage for UI preferences (clock style, sun arc toggle)
+
+### Data Fetching in Zone Components
+
+**Always use `useDataFetch`** (`lib/use-data-fetch.ts`) for loading data in zone components. Do not write raw `useCallback` + `useEffect` + `try/catch` fetch patterns — the hook handles all of that.
+
+```tsx
+// Simple fetch — returns data + refetch
+const { data: todos = [], refetch: refetchTodos } = useDataFetch(
+  () => listTodos() as Promise<TodoItem[]>,
+  []
+)
+
+// With dependency + skip (wait for a value before fetching)
+const { data: foodItems = [], refetch: refetchCalories } = useDataFetch(
+  () => listFoodItems(today) as Promise<FoodItem[]>,
+  [today],
+  { skip: !today }
+)
+
+// With optimistic updates — use setData
+const { data: todos = [], setData: setTodos, refetch } = useDataFetch(...)
+setTodos(prev => prev?.filter(t => t.id !== id))  // optimistic delete
+```
+
+**When to use the hook:** Any zone component that loads data on mount or when a dependency changes.
+
+**When NOT to use the hook:** Complex multi-step fetches that update multiple independent state variables (e.g., VitalsZone medicine + dose logs). In those cases, use `useCallback` + `useEffect` directly.
 
 ## Electron App (Option B: Static Export + IPC)
 
@@ -375,3 +440,9 @@ This app runs on iPads and touchscreen displays where readability at a glance is
 
 - Do not use em dashes in public-facing website copy (signals AI-generated content).
 - Always use the `frontend-design` skill when designing any web application UI.
+
+## Legal & Contact
+
+- **Operator**: Eric Vaish, based in **India**.
+- **Contact email**: hi@ericvaish.com (use this everywhere, not eric@thirdscr.com).
+- **Governing law**: India. All legal pages (terms, privacy) should reference Indian jurisdiction, not United States.
