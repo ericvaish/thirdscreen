@@ -7,9 +7,9 @@
 </p>
 
 <p align="center">
-  <a href="#cards"><img src="https://img.shields.io/badge/Cards-12-0F766E?style=for-the-badge" alt="Cards badge"></a>
-  <a href="#what-it-does"><img src="https://img.shields.io/badge/Focus-One%20Glance-1F2937?style=for-the-badge" alt="Focus badge"></a>
-  <a href="#requirements"><img src="https://img.shields.io/badge/Platform-macOS-111827?style=for-the-badge" alt="Platform badge"></a>
+  <a href="#zones"><img src="https://img.shields.io/badge/Zones-6-0F766E?style=for-the-badge" alt="Zones badge"></a>
+  <a href="#features"><img src="https://img.shields.io/badge/Focus-One%20Glance-1F2937?style=for-the-badge" alt="Focus badge"></a>
+  <a href="#features"><img src="https://img.shields.io/badge/Platform-Web-111827?style=for-the-badge" alt="Platform badge"></a>
 </p>
 
 <p align="center">
@@ -24,32 +24,26 @@
   <img src="assets/third_screen_demo.png" alt="Third Screen demo" width="92%">
 </p>
 
+## Integrations
+
+| | Integration | What it shows |
+|:---:|---|---|
+| 📅 | **Timeline** | Day/week/month views, Google Calendar events, meeting links, RSVP |
+| ✅ | **Tasks** | Task list with inline add, check-off, and reorder |
+| 📝 | **Notes** | Quick notes with link bookmarks |
+| 💊 | **Vitals** | Calorie tracking, water intake rings, medicine dose logging |
+| 🏠 | **Smart Home** | Home Assistant lights, switches, fans with live state |
+| 🕐 | **Status Bar** | Clock, notification ticker, countdown timer, Spotify now playing |
+
+
 ## Features
 
-- Resizable cards for a customizable dashboard layout
-- Add multiple cards (including multiple instances of the same card type)
-
-
-## Cards
-
-| | Card | Description |
-|:---:|---|---|
-| 🕐 | **Time** | Clock, timer, alarm, and world time displays |
-| 🎵 | **Media** | Now playing with Spotify & Apple Music, playback controls, synced lyrics (via Lrclib) |
-| 📅 | **Schedule** | Events and day timeline from Google Calendar & Apple Calendar, meeting links |
-| ✅ | **To-Dos** | Tasks and reminders synced with Apple Reminders |
-| ⌨️ | **Shortcuts** | Run Apple Shortcuts directly from the dashboard |
-| 🔋 | **Battery** | Internal battery + Bluetooth accessories (AirPods, etc.) |
-| 📝 | **Notes** | Quick notes and checklists (iCloud-synced or local storage) |
-| 💊 | **Medicines** | Track medicines, schedules, and reminders with iCloud sync |
-| ✨ | **AI Chat** | Chat with local AI models on-device with image attachments |
-| 🔥 | **Food Tracking** | Track food intake, calories, and daily water consumption |
-
----
-## Native macOS
-
-Third Screen is built as a **native macOS app** (SwiftUI + Apple frameworks), so it behaves like a real desktop utility:
-
-- Native permissions for Calendar and Reminders
-- Native windowing, menus, and keyboard behavior
-- Tight OS integration for Bluetooth battery and Apple Shortcuts
+- Zero-scroll dashboard that fills a single viewport on any screen shape
+- Zone-based layout with timeline, tasks, notes, vitals, smart home, and status bar
+- Local-first storage with no account required
+- Google Calendar integration with multi-account support
+- Spotify playback controls with synced lyrics
+- Home Assistant integration for smart home devices
+- Pixel art mascot companion that reacts to your actions
+- Dark-first glass UI with per-zone accent colors
+- Touch-friendly for tablets and wall-mounted displays

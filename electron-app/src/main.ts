@@ -11,6 +11,7 @@ import {
 } from "electron"
 import path from "path"
 import { exec } from "child_process"
+import { registerAIHandlers } from "./ai-engine"
 
 const IS_DEV = !app.isPackaged
 const HOSTED_URL = "https://thirdscr.com/app"
@@ -245,6 +246,11 @@ function registerIpcHandlers() {
   ipcMain.handle("native:notify", (_event, data: { title: string; body: string }) => {
     const { Notification } = require("electron")
     new Notification({ title: data.title, body: data.body }).show()
+  })
+
+  // AI engine handlers (node-llama-cpp with Metal GPU)
+  registerAIHandlers(ipcMain, (channel: string, data: unknown) => {
+    mainWindow?.webContents.send(channel, data)
   })
 }
 
