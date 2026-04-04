@@ -12,7 +12,6 @@ import {
   Sun,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { useDashboard } from "@/components/dashboard/DashboardContext"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
@@ -263,7 +262,7 @@ export function SmartHomeZone() {
         )}
 
         {state.status === "connected" && state.entities.length > 0 && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-1.5">
+          <div className="flex flex-col divide-y divide-border/10">
             {state.entities.map((entity) => (
               <EntityCard
                 key={entity.entity_id}
@@ -280,7 +279,78 @@ export function SmartHomeZone() {
   )
 }
 
-// ── Entity Card ─────────────────────────────────────────────────────────────
+// ── Pill Slider (inline, minimal) ──────────────────────────────────────────
+
+function PillSlider({
+  icon,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  trackStyle,
+}: {
+  icon: React.ReactNode
+  value: number
+  min: number
+  max: number
+  step: number
+  onChange: (v: number) => void
+  trackStyle?: React.CSSProperties
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef(false)
+
+  const fraction = (value - min) / (max - min)
+
+  const updateFromPointer = useCallback((clientX: number) => {
+    const track = trackRef.current
+    if (!track) return
+    const rect = track.getBoundingClientRect()
+    const raw = (clientX - rect.left) / rect.width
+    const clamped = Math.max(0, Math.min(1, raw))
+    const stepped = Math.round((clamped * (max - min)) / step) * step + min
+    onChange(Math.max(min, Math.min(max, stepped)))
+  }, [min, max, step, onChange])
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    draggingRef.current = true
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    updateFromPointer(e.clientX)
+  }, [updateFromPointer])
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return
+    updateFromPointer(e.clientX)
+  }, [updateFromPointer])
+
+  const onPointerUp = useCallback(() => {
+    draggingRef.current = false
+  }, [])
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative flex h-7 cursor-pointer items-center overflow-hidden rounded-full bg-muted/30"
+      style={trackStyle}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      {/* Filled portion */}
+      <div
+        className="absolute inset-y-0 left-0 rounded-full bg-foreground/10"
+        style={{ width: `${fraction * 100}%` }}
+      />
+      {/* Icon */}
+      <div className="relative z-10 flex size-7 shrink-0 items-center justify-center">
+        {icon}
+      </div>
+    </div>
+  )
+}
+
+// ── Entity Row ─────────────────────────────────────────────────────────────
 
 function EntityCard({
   entity,
@@ -315,90 +385,64 @@ function EntityCard({
   const minKelvin = entity.attributes.min_color_temp_kelvin ?? 2200
   const maxKelvin = entity.attributes.max_color_temp_kelvin ?? 6500
 
-  // Dynamic glow for on-state lights
-  const glowColor = entity.attributes.rgb_color
-    ? `rgb(${entity.attributes.rgb_color.join(",")})`
-    : isOn
-      ? "var(--zone-smarthome-accent)"
-      : undefined
-
   return (
-    <div
-      className={cn(
-        "group relative flex flex-col gap-2 rounded-xl border px-3 py-2.5 transition-all",
-        isOn
-          ? "border-[var(--zone-smarthome-accent)]/30 bg-[var(--zone-smarthome-accent)]/8"
-          : "border-border/40 bg-muted/20 hover:bg-muted/30",
-      )}
-      style={isOn && glowColor ? { boxShadow: `0 0 20px -8px ${glowColor}` } : undefined}
-    >
-      {/* Top row: icon + name + toggle */}
+    <div className="flex flex-col gap-1.5 py-1.5">
+      {/* Device row: icon toggle + name + brightness */}
       <div className="flex items-center gap-2">
         <button
           onClick={() => onToggle(entity.entity_id)}
           className={cn(
-            "flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors",
+            "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
             isOn
-              ? "bg-[var(--zone-smarthome-accent)]/20 text-[var(--zone-smarthome-accent)]"
-              : "bg-muted/40 text-muted-foreground",
+              ? "text-[var(--zone-smarthome-accent)]"
+              : "text-muted-foreground/30",
           )}
         >
-          <Icon className="size-5" />
+          <Icon className="size-4" />
         </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-tight">{name}</p>
-          <p className="text-xs text-muted-foreground">
-            {isOn
-              ? hasBrightness
-                ? `${brightnessPercent}%`
-                : "On"
-              : "Off"}
-          </p>
-        </div>
-      </div>
+        <span className={cn(
+          "min-w-0 flex-1 truncate text-xs font-medium",
+          isOn ? "text-foreground" : "text-muted-foreground/40"
+        )}>
+          {name}
+        </span>
 
-      {/* Brightness slider -- always visible when on and supported */}
-      {isOn && hasBrightness && (
-        <div className="flex items-center gap-2">
-          <LightbulbOff className="size-3.5 shrink-0 text-muted-foreground/50" />
-          <Slider
-            value={[brightnessPercent]}
-            min={1}
-            max={100}
-            step={1}
-            onValueChange={([v]) => onBrightness(entity.entity_id, v)}
-            className="flex-1"
-          />
-          <Lightbulb className="size-3.5 shrink-0 text-[var(--zone-smarthome-accent)]" />
-        </div>
-      )}
-
-      {/* Color temperature slider -- always visible when on and supported */}
-      {isOn && hasColorTemp && (
-        <div className="flex items-center gap-2">
-          <Sun className="size-3.5 shrink-0 text-amber-400" />
-          <div className="relative flex-1">
-            <div
-              className="pointer-events-none absolute inset-0 rounded-full"
-              style={{
-                background: "linear-gradient(to right, #ff9329, #fff5e0, #a6c8ff)",
-                height: "6px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                opacity: 0.4,
-                borderRadius: "9999px",
-              }}
-            />
-            <Slider
-              value={[colorTempKelvin]}
-              min={minKelvin}
-              max={maxKelvin}
-              step={100}
-              onValueChange={([v]) => onColorTemp(entity.entity_id, v)}
-              className="relative flex-1"
+        {/* Inline brightness pill */}
+        {isOn && hasBrightness ? (
+          <div className="w-20 shrink-0">
+            <PillSlider
+              icon={<Lightbulb className="size-3 text-[var(--zone-smarthome-accent)]" />}
+              value={brightnessPercent}
+              min={1}
+              max={100}
+              step={1}
+              onChange={(v) => onBrightness(entity.entity_id, v)}
             />
           </div>
-          <Sun className="size-3.5 shrink-0 text-blue-300" />
+        ) : (
+          <span className={cn(
+            "shrink-0 font-mono text-xs",
+            isOn ? "text-[var(--zone-smarthome-accent)]" : "text-muted-foreground/20"
+          )}>
+            {isOn ? "On" : "Off"}
+          </span>
+        )}
+      </div>
+
+      {/* Color temp pill -- only when on and supported */}
+      {isOn && hasColorTemp && (
+        <div className="ml-10">
+          <PillSlider
+            icon={<Sun className="size-3 text-amber-400/70" />}
+            value={colorTempKelvin}
+            min={minKelvin}
+            max={maxKelvin}
+            step={100}
+            onChange={(v) => onColorTemp(entity.entity_id, v)}
+            trackStyle={{
+              background: "linear-gradient(to right, rgba(255,147,41,0.15), rgba(255,245,224,0.1), rgba(166,200,255,0.15))",
+            }}
+          />
         </div>
       )}
     </div>

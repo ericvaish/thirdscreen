@@ -95,7 +95,7 @@ function getManualGeo(): GeoData | null {
   }
 }
 
-function setManualGeo(geo: GeoData) {
+export function setManualGeo(geo: GeoData) {
   localStorage.setItem(MANUAL_GEO_KEY, JSON.stringify(geo))
   geoCache = geo
   geoPromise = null
@@ -213,27 +213,29 @@ function getGeo(): Promise<GeoData | null> {
 
 // ── City search via Open-Meteo Geocoding API ────────────────────────────────
 
-interface GeoSearchResult {
+export interface GeoSearchResult {
   name: string
   country: string
   admin1?: string
   latitude: number
   longitude: number
+  timezone?: string
 }
 
-async function searchCities(query: string): Promise<GeoSearchResult[]> {
+export async function searchCities(query: string): Promise<GeoSearchResult[]> {
   if (query.length < 2) return []
   const res = await fetch(
     `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`
   )
   if (!res.ok) return []
-  const data = await res.json() as { results?: Array<{ name: string; country: string; admin1?: string; latitude: number; longitude: number }> }
+  const data = await res.json() as { results?: Array<{ name: string; country: string; admin1?: string; latitude: number; longitude: number; timezone?: string }> }
   return (data.results ?? []).map((r) => ({
     name: r.name,
     country: r.country,
     admin1: r.admin1,
     latitude: r.latitude,
     longitude: r.longitude,
+    timezone: r.timezone,
   }))
 }
 
