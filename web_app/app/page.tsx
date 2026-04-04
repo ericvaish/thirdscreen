@@ -47,7 +47,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="relative flex flex-col items-center px-6 pt-28 pb-0 overflow-hidden">
+      <section className="relative flex flex-col items-center px-6 pt-28 pb-0">
         <div className="pointer-events-none absolute left-1/2 top-1/3 h-[600px] w-[1000px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/[0.04] blur-[150px] dark:bg-[#3b82f6]/[0.06]" />
 
         <div className="relative z-10 mx-auto max-w-3xl text-center">

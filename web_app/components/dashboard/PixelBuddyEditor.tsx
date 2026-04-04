@@ -838,53 +838,7 @@ export function PixelBuddyEditor() {
         </div>
       </div>
 
-      {/* Saved custom characters */}
-      {customCharacters.length > 0 && (
-        <>
-          <Separator className="bg-border/20" />
-          <div>
-            <Label className="mb-2 block font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-              Saved Characters
-            </Label>
-            <div className="flex flex-wrap gap-1.5">
-              {customCharacters.map((c) => (
-                <div
-                  key={c.id}
-                  className={`group flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-all ${
-                    editingCharacterId === c.id
-                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                      : "border-border/50 text-muted-foreground hover:border-border hover:bg-muted/20"
-                  }`}
-                >
-                  <button
-                    onClick={() => loadCustomCharacter(c)}
-                    className="flex items-center gap-1.5"
-                  >
-                    <span className="text-lg leading-none">{c.emoji}</span>
-                    <span className="font-medium">{c.name}</span>
-                  </button>
-                  <div className="flex gap-0.5">
-                    <button
-                      onClick={() => useAsActive(c.id)}
-                      title="Use as active mascot"
-                      className="flex size-7 items-center justify-center rounded-md text-muted-foreground/50 transition-all hover:bg-emerald-500/20 hover:text-emerald-400"
-                    >
-                      <Play className="size-3" />
-                    </button>
-                    <button
-                      onClick={() => deleteChar(c.id)}
-                      title="Delete character"
-                      className="flex size-7 items-center justify-center rounded-md text-muted-foreground/50 transition-all hover:bg-red-500/20 hover:text-red-400"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+      {/* Custom characters are managed in the character grid above the editor */}
     </div>
   )
 }
