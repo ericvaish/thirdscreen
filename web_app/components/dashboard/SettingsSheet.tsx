@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Settings, Moon, Sun, Monitor } from "lucide-react"
 import { useTheme } from "next-themes"
+import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
 
 export function SettingsSheet() {
   const { theme, setTheme } = useTheme()
@@ -43,7 +44,7 @@ export function SettingsSheet() {
               ].map(({ value, icon: Icon, label }) => (
                 <button
                   key={value}
-                  onClick={() => setTheme(value)}
+                  onClick={(e) => animatedSetTheme(setTheme, value, e.currentTarget)}
                   className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs transition-all ${
                     theme === value
                       ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"

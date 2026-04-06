@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useTheme } from "next-themes"
+import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
 import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
 import {
   getSettings,
@@ -113,8 +114,8 @@ function ThemePicker({
           {THEME_OPTIONS.map(({ label, value, icon: Icon }) => (
             <button
               key={value}
-              onClick={() => {
-                setTheme(value)
+              onClick={(e) => {
+                animatedSetTheme(setTheme, value, e.currentTarget)
                 setOpen(false)
               }}
               className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs transition-colors ${

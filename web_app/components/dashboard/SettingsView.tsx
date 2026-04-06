@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { Moon, Sun, Monitor, ZoomIn, Bot, Globe } from "lucide-react"
 import { useTheme } from "next-themes"
+import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
 import { useScale } from "@/components/scale-provider"
 import {
   getIntegrationsByCategory,
@@ -54,7 +55,7 @@ export function SettingsView() {
           ].map(({ value, icon: Icon, label }) => (
             <button
               key={value}
-              onClick={() => setTheme(value)}
+              onClick={(e) => animatedSetTheme(setTheme, value, e.currentTarget)}
               className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs transition-all ${
                 theme === value
                   ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"

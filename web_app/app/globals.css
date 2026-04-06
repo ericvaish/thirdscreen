@@ -226,6 +226,14 @@
   align-items: center !important;
 }
 
+/* ── View transition (animated theme toggle) ───────────────────────────── */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
 /* ── Ambient background ─────────────────────────────────────────────────── */
 
 .dark body {

@@ -1,7 +1,7 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 import { ThemeScreenshot } from "@/components/theme-screenshot"
-import { LandingThemeToggle } from "@/components/landing-theme-toggle"
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
 
 export const metadata: Metadata = {
   title: "Third Screen - Your day, at a glance",
@@ -38,7 +38,7 @@ export default function LandingPage() {
             <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="hidden text-sm text-neutral-400 transition-colors hover:text-neutral-600 sm:block dark:text-white/40 dark:hover:text-white/70">
               GitHub
             </a>
-            <LandingThemeToggle />
+            <AnimatedThemeToggler />
             <Link href="/app" className="text-sm font-medium text-neutral-700 transition-colors hover:text-neutral-900 dark:text-white/80 dark:hover:text-white">
               Open App
             </Link>

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
+import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
 
 function ThemeProvider({
   children,
@@ -55,7 +56,9 @@ function ThemeHotkey() {
         return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      const x = window.innerWidth / 2
+      const y = window.innerHeight / 2
+      animatedSetTheme(setTheme, resolvedTheme === "dark" ? "light" : "dark", { x, y })
     }
 
     window.addEventListener("keydown", onKeyDown)
