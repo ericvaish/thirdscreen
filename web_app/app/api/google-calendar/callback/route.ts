@@ -1,4 +1,3 @@
-export const runtime = "edge"
 
 import { exchangeGoogleCode } from "@/lib/google-calendar/service"
 import { getAuthUserId } from "@/lib/auth"

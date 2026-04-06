@@ -1,6 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
-import { getRequestContext } from "@cloudflare/next-on-pages"
 import { getDb } from "@/lib/get-db"
 import { cards } from "@/db/schema"
 import { eq, and } from "drizzle-orm"
@@ -8,7 +7,7 @@ import { eq, and } from "drizzle-orm"
 /**
  * Get the current user ID from Clerk.
  * Returns "" for unauthenticated requests (single-user/self-hosted mode).
- * In multi-tenant hosted mode (STORAGE=d1), use requireAuth() instead.
+ * In multi-tenant hosted mode (STORAGE=turso), use requireAuth() instead.
  */
 export async function getUserId(): Promise<string> {
   try {
@@ -22,9 +21,6 @@ export async function getUserId(): Promise<string> {
 /**
  * Require authentication for an API route.
  * Returns the userId if authenticated, or a 401 NextResponse if not.
- * Usage:
- *   const [userId, errorResponse] = await requireAuth()
- *   if (errorResponse) return errorResponse
  */
 export async function requireAuth(): Promise<
   [string, null] | [null, NextResponse]
@@ -42,19 +38,14 @@ export async function requireAuth(): Promise<
 
 /**
  * Get user ID with enforcement based on storage mode.
- * - In D1/server mode: requires auth (returns 401 if not signed in)
- * - In SQLite mode: allows anonymous (returns "")
+ * - In turso/server mode: requires auth (returns 401 if not signed in)
+ * - In local mode: allows anonymous (returns "")
  */
 export async function getAuthUserId(): Promise<
   [string, null] | [null, NextResponse]
 > {
-  let storage = process.env.STORAGE
-  try {
-    const { env } = getRequestContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    storage = (env as any).STORAGE ?? storage
-  } catch {}
-  const isMultiTenant = storage === "d1"
+  const storage = process.env.STORAGE
+  const isMultiTenant = storage === "turso"
 
   if (isMultiTenant) {
     return requireAuth()
@@ -67,7 +58,6 @@ export async function getAuthUserId(): Promise<
 
 /**
  * Verify that a cardId belongs to the given userId.
- * Returns true if the card exists and belongs to the user, false otherwise.
  */
 export async function verifyCardOwnership(
   cardId: string,

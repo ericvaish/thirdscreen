@@ -1,4 +1,3 @@
-export const runtime = "edge"
 
 import { NextResponse } from "next/server"
 import { getAdminConfig, ADMIN_KEYS } from "@/lib/admin-config"

@@ -1,12 +1,17 @@
-import { drizzle } from "drizzle-orm/d1"
+import { drizzle } from "drizzle-orm/libsql"
+import { createClient } from "@libsql/client"
 import * as schema from "./schema"
 
-export function getD1Db(d1: D1Database) {
-  return drizzle(d1, { schema })
-}
+let db: ReturnType<typeof drizzle> | null = null
 
-export type D1Database = {
-  prepare: (query: string) => unknown
-  batch: (statements: unknown[]) => Promise<unknown>
-  exec: (query: string) => Promise<unknown>
+export function getTursoDb() {
+  if (db) return db
+
+  const client = createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  })
+
+  db = drizzle(client, { schema })
+  return db
 }

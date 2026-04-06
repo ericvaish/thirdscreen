@@ -103,13 +103,13 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">9. Infrastructure</h2>
-            <p>Third Screen is hosted on <a href="https://pages.cloudflare.com/" target="_blank" rel="noopener noreferrer" className="text-[#3b82f6] hover:underline">Cloudflare Pages</a> with a <a href="https://developers.cloudflare.com/d1/" target="_blank" rel="noopener noreferrer" className="text-[#3b82f6] hover:underline">Cloudflare D1</a> SQLite database for signed-in users. Here is a complete breakdown of what we use:</p>
+            <p>Third Screen is hosted on <a href="https://vercel.com/" target="_blank" rel="noopener noreferrer" className="text-[#3b82f6] hover:underline">Vercel</a> with a <a href="https://turso.tech/" target="_blank" rel="noopener noreferrer" className="text-[#3b82f6] hover:underline">Turso</a> SQLite database for signed-in users. Here is a complete breakdown of what we use:</p>
             <div className="mt-3 overflow-hidden rounded-lg border border-neutral-200 dark:border-white/[0.06]">
               <table className="w-full text-xs">
                 <tbody>
                   {[
-                    ["Hosting", "Cloudflare Pages", "Static site + edge functions"],
-                    ["Database", "Cloudflare D1 (SQLite)", "Only used when signed in"],
+                    ["Hosting", "Vercel", "Next.js serverless functions"],
+                    ["Database", "Turso (SQLite)", "Only used when signed in"],
                     ["Authentication", "Clerk", "Handles login, email, sessions"],
                     ["AI Models", "On-device (WebGPU)", "Runs in your browser, no cloud API"],
                     ["Analytics", "None", "Zero tracking, zero telemetry"],

@@ -1,4 +1,3 @@
-export const runtime = "edge"
 
 import { exchangeCode, type GoogleServiceType } from "@/lib/google-services/account"
 import { getAuthUserId } from "@/lib/auth"
