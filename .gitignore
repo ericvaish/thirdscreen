@@ -39,3 +39,4 @@ bun.lock
 *.db
 .wrangler/
 logs/
+.vercel
