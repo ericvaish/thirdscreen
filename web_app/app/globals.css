@@ -237,11 +237,18 @@
 /* ── Ambient background ─────────────────────────────────────────────────── */
 
 .dark body {
+  background: oklch(0.115 0.015 270);
+}
+
+.dark body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(ellipse 80% 60% at 10% 0%, oklch(0.2 0.08 270 / 40%), transparent 50%),
-    radial-gradient(ellipse 60% 50% at 90% 100%, oklch(0.18 0.06 200 / 30%), transparent 50%),
-    oklch(0.115 0.015 270);
-  background-attachment: fixed;
+    radial-gradient(ellipse 60% 50% at 90% 100%, oklch(0.18 0.06 200 / 30%), transparent 50%);
 }
 
 /* ── Glass card utility ─────────────────────────────────────────────────── */
