@@ -456,22 +456,6 @@
   filter: drop-shadow(0 0 4px oklch(0.75 0.12 270 / 50%));
 }
 
-/* ── Scrollbar styling ──────────────────────────────────────────────────── */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: oklch(0.5 0 0 / 20%);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.5 0 0 / 35%);
-}
 
 /* ── Lyrics ─────────────────────────────────────────────────────────────── */
 
