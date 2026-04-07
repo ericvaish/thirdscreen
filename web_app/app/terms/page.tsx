@@ -35,69 +35,62 @@ export default function TermsPage() {
       {/* Content */}
       <div className="mx-auto max-w-2xl px-6 pt-28 pb-16">
         <h1 className="text-3xl font-bold tracking-tight mb-2 font-[family-name:var(--font-display)]">Terms of Service</h1>
-        <p className="text-neutral-400 text-sm mb-10 dark:text-white/40">Last updated: April 2, 2026</p>
+        <p className="text-neutral-400 text-sm mb-10 dark:text-white/40">Last updated: April 7, 2026</p>
 
         <div className="space-y-8 text-neutral-600 text-sm leading-relaxed dark:text-white/70">
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">1. Acceptance of Terms</h2>
-            <p>By accessing or using Third Screen (&ldquo;the Service&rdquo;), operated by Eric Vaish (&ldquo;we&rdquo;, &ldquo;us&rdquo;), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.</p>
+            <p>By accessing or using Third Screen (&ldquo;the Service&rdquo;), operated by Eric Vaish (&ldquo;we&rdquo;, &ldquo;us&rdquo;), you agree to these Terms of Service. If you do not agree, do not use the Service.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">2. Description of Service</h2>
-            <p>Third Screen is a free, open-source personal dashboard web application that displays your schedule, tasks, notes, health data, and music in a single view. The Service is available as a hosted web application at thirdscr.com and as open-source software you may self-host.</p>
+            <p>Third Screen is an open-source personal dashboard application. It is available as a hosted service and as self-hostable software. Features, integrations, and availability may change at any time without notice.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">3. Accounts</h2>
-            <p>You may use all features without an account. Signing in via our authentication provider (Clerk) enables cloud sync across devices. You are responsible for maintaining the security of your account credentials and for all activity that occurs under your account.</p>
+            <p>Some features require an account. You are responsible for maintaining the security of your account credentials and for all activity under your account.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">4. Your Data</h2>
-            <p>You own your data. Third Screen stores data locally on your device by default. When you connect external services (Google Calendar, Spotify, Gmail), you authorize Third Screen to access your data on those services according to the permissions you grant. You can disconnect any service and delete your data at any time.</p>
+            <p>You retain ownership of your data. When you connect third-party services, you authorize us to access your data on those services according to the permissions you grant. You may disconnect any service at any time. See our <Link href="/privacy" className="text-[#3b82f6] hover:underline">Privacy Policy</Link> for details on how we handle your data.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">5. Acceptable Use</h2>
-            <p>You agree not to:</p>
-            <ul className="list-disc list-inside mt-3 space-y-2">
-              <li>Use the Service for any unlawful purpose</li>
-              <li>Attempt to gain unauthorized access to the Service or its systems</li>
-              <li>Interfere with or disrupt the integrity of the Service</li>
-              <li>Use the Service to transmit harmful code or malware</li>
-              <li>Abuse API rate limits or scrape content from the Service</li>
-            </ul>
+            <p>You agree not to use the Service for any unlawful purpose, attempt to gain unauthorized access to the Service or its systems, interfere with or disrupt the Service, or abuse API rate limits.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">6. Third-Party Services</h2>
-            <p>Third Screen integrates with third-party services including Google (Calendar, Gmail, Chat), Spotify, Clerk, and LRCLib. Your use of those services is governed by their respective terms and privacy policies. We are not responsible for the availability, accuracy, or conduct of third-party services.</p>
+            <p>The Service may integrate with third-party services. Your use of those services is governed by their respective terms and privacy policies. We are not responsible for the availability, accuracy, or conduct of any third-party service.</p>
           </section>
 
           <section>
-            <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">7. Account Termination</h2>
-            <p>You may delete your account at any time. We reserve the right to suspend or terminate accounts that violate these terms. Upon termination, your server-side data will be deleted. Locally stored data on your device is unaffected.</p>
+            <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">7. Termination</h2>
+            <p>You may stop using the Service at any time. We reserve the right to suspend or terminate accounts that violate these terms.</p>
           </section>
 
           <section>
-            <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">8. No Warranty</h2>
-            <p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranty of any kind, express or implied. We do not guarantee that the Service will be uninterrupted, error-free, or that defects will be corrected.</p>
+            <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">8. Disclaimer of Warranties</h2>
+            <p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">9. Limitation of Liability</h2>
-            <p>To the fullest extent permitted by law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service, including loss of data, profits, or business opportunities.</p>
+            <p>To the fullest extent permitted by applicable law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of or inability to use the Service.</p>
           </section>
 
           <section>
             <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">10. Governing Law</h2>
-            <p>These terms are governed by and construed in accordance with the laws of India. Any disputes shall be resolved in the courts of competent jurisdiction in India.</p>
+            <p>These terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the courts in India.</p>
           </section>
 
           <section>
-            <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">11. Changes to Terms</h2>
-            <p>We may update these terms from time to time. Material changes will be communicated via the Service or email. Continued use after changes constitutes acceptance of the updated terms.</p>
+            <h2 className="text-neutral-900 font-semibold text-lg mb-3 dark:text-white">11. Changes</h2>
+            <p>We may update these terms at any time. The updated version will be posted on this page with a revised date. Continued use of the Service after changes constitutes acceptance.</p>
           </section>
 
           <section>

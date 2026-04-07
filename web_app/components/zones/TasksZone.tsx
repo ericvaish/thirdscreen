@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Check, Circle, ListChecks, Plus, Trash2 } from "lucide-react"
+import { Check, Circle, ListChecks, Plus, Trash2, SquareKanban, ExternalLink, CircleDot, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -12,6 +12,7 @@ import { ZoneLabel } from "@/components/dashboard/ZoneLabel"
 import { listTodos, createTodo, updateTodo as updateTodoApi, deleteTodo as deleteTodoApi } from "@/lib/data-layer"
 import { useMascot } from "@/lib/mascot"
 import { useDataFetch } from "@/lib/use-data-fetch"
+import type { JiraIssue } from "@/lib/jira/service"
 
 const CARD_ID = "todo-1"
 
@@ -20,6 +21,16 @@ export function TasksZone() {
   const { trigger: mascotTrigger } = useMascot()
   const { data: todos = [], setData: setTodos, refetch: refetchTodos } = useDataFetch(
     () => listTodos() as Promise<TodoItem[]>,
+    []
+  )
+  const { data: jiraIssues = [] } = useDataFetch(
+    async () => {
+      try {
+        const res = await fetch("/api/jira?action=issues")
+        if (!res.ok) return []
+        return (await res.json()) as JiraIssue[]
+      } catch { return [] }
+    },
     []
   )
   const [newTitle, setNewTitle] = useState("")
@@ -123,6 +134,21 @@ export function TasksZone() {
                 onDelete={deleteTodo}
               />
             ))}
+            {jiraIssues.length > 0 && (
+              <>
+                <div className="flex items-center gap-1.5 px-4 py-1.5">
+                  <SquareKanban className="size-3 text-blue-500/60" />
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
+                    Jira ({jiraIssues.filter((i) => i.statusCategory !== "done").length})
+                  </span>
+                </div>
+                {jiraIssues
+                  .filter((i) => i.statusCategory !== "done")
+                  .map((issue) => (
+                    <JiraIssueRow key={issue.id} issue={issue} />
+                  ))}
+              </>
+            )}
             {completed.length > 0 && (
               <>
                 <div className="px-4 py-1.5">
@@ -189,6 +215,32 @@ function TaskRow({
       >
         <Trash2 className="size-3 text-muted-foreground/30 hover:text-destructive" />
       </button>
+    </div>
+  )
+}
+
+function JiraIssueRow({ issue }: { issue: JiraIssue }) {
+  return (
+    <div className="group flex min-h-11 items-center gap-2.5 px-4 py-0 transition-colors hover:bg-foreground/[0.03]">
+      <div className="flex size-11 shrink-0 items-center justify-center">
+        {issue.statusCategory === "in_progress" ? (
+          <CircleDot className="size-4 text-blue-500/70" />
+        ) : (
+          <Circle className="size-4 text-muted-foreground/30" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <span className="text-xs">{issue.summary}</span>
+        <span className="ml-1.5 font-mono text-xs text-muted-foreground/40">{issue.key}</span>
+      </div>
+      <a
+        href={issue.htmlLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex size-11 shrink-0 items-center justify-center hover-reveal"
+      >
+        <ExternalLink className="size-3 text-muted-foreground/30 hover:text-foreground" />
+      </a>
     </div>
   )
 }

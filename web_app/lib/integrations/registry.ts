@@ -98,6 +98,17 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     defaultEnabled: false,
   },
   {
+    id: "jira",
+    name: "Jira",
+    description: "Sync assigned issues from Jira Cloud",
+    icon: "SquareKanban",
+    zone: "tasks",
+    category: "Productivity",
+    builtIn: false,
+    defaultEnabled: false,
+    implemented: true,
+  },
+  {
     id: "github-issues",
     name: "GitHub Issues",
     description: "Sync assigned issues from GitHub",

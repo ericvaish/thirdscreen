@@ -599,13 +599,13 @@ export function Dashboard() {
 
         {/* Settings dialog */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent className="flex max-h-[calc(100vh-5rem)] flex-col overflow-hidden p-0 top-[calc(50%+1.75rem)] translate-y-[-50%]" style={{ maxWidth: "min(860px, 90vw)", width: "min(860px, 90vw)" }}>
+          <DialogContent className="flex flex-col overflow-hidden p-0 top-[calc(50%+1.75rem)] translate-y-[-50%]" style={{ maxWidth: "min(1060px, 92vw)", width: "min(1060px, 92vw)", height: "min(820px, calc(100vh - 3rem))" }}>
             <DialogHeader className="shrink-0 border-b border-border/20 px-6 py-4">
               <DialogTitle className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight">
                 Settings
               </DialogTitle>
             </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <SettingsView />
             </div>
           </DialogContent>

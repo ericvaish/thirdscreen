@@ -5,6 +5,8 @@ export const ADMIN_KEYS = {
   spotifyClientSecret: "SPOTIFY_CLIENT_SECRET",
   googleClientId: "GOOGLE_CLIENT_ID",
   googleClientSecret: "GOOGLE_CLIENT_SECRET",
+  jiraClientId: "JIRA_CLIENT_ID",
+  jiraClientSecret: "JIRA_CLIENT_SECRET",
 } as const
 
 export function getAdminConfig(envKey: string): string | null {

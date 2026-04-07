@@ -207,7 +207,7 @@ export function HomeAssistantSettings() {
 
   if (phase === "loading") {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-border/30 px-4 py-3">
+      <div className="flex items-center gap-2 px-1 py-3">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
         <span className="text-sm text-muted-foreground">Loading...</span>
       </div>
@@ -215,7 +215,7 @@ export function HomeAssistantSettings() {
   }
 
   return (
-    <div className="space-y-4 rounded-lg border border-border/30 px-4 py-3">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--zone-smarthome-accent)]/15">

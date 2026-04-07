@@ -39,8 +39,11 @@ export default function LandingPage() {
               GitHub
             </a>
             <AnimatedThemeToggler />
-            <Link href="/app" className="text-sm font-medium text-neutral-700 transition-colors hover:text-neutral-900 dark:text-white/80 dark:hover:text-white">
-              Open App
+            <Link href="/app?sign-in=1" className="text-sm text-neutral-400 transition-colors hover:text-neutral-600 dark:text-white/40 dark:hover:text-white/70">
+              Sign In
+            </Link>
+            <Link href="/app?sign-up=1" className="text-sm font-medium rounded-full bg-neutral-900 px-4 py-1.5 text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-white/90">
+              Sign Up
             </Link>
           </div>
         </div>

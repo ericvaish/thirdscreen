@@ -279,3 +279,19 @@ export const notifications = sqliteTable("notifications", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 })
+
+// Jira accounts (multi-account OAuth)
+export const jiraAccounts = sqliteTable("jira_accounts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  email: text("email").notNull(),
+  displayName: text("display_name"),
+  cloudId: text("cloud_id").notNull(),
+  siteUrl: text("site_url"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  tokenExpiry: integer("token_expiry").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
