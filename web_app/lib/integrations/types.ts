@@ -9,6 +9,7 @@ export const ZONE_TYPES = [
   "notes",
   "status",
   "smarthome",
+  "news",
 ] as const
 
 export type ZoneType = (typeof ZONE_TYPES)[number]

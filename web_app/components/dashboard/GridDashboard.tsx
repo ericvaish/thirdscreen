@@ -11,6 +11,7 @@ import { ClockZone } from "@/components/zones/ClockZone"
 import { HabitsZone } from "@/components/zones/HabitsZone"
 import { SmartHomeZone } from "@/components/zones/SmartHomeZone"
 import { WeatherZone } from "@/components/zones/WeatherZone"
+import { NewsZone } from "@/components/zones/NewsZone"
 
 import {
   ZONE_IDS,
@@ -22,6 +23,7 @@ import {
   type ZoneId,
   type ZonePosition,
 } from "@/lib/grid-layout"
+import { useDashboard } from "./DashboardContext"
 
 const ZONE_COMPONENTS: Record<ZoneId, React.FC> = {
   timeline: TimelineZone,
@@ -33,6 +35,7 @@ const ZONE_COMPONENTS: Record<ZoneId, React.FC> = {
   habits: HabitsZone,
   smarthome: SmartHomeZone,
   weather: WeatherZone,
+  news: NewsZone,
 }
 
 export type MinSizes = Record<string, { minW: number; minH: number }>
@@ -51,6 +54,7 @@ export function GridDashboard({
   onLayoutChange,
   minSizes,
 }: GridDashboardProps) {
+  const { hiddenZones } = useDashboard()
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1200)
   const [containerHeight, setContainerHeight] = useState(800)
@@ -219,6 +223,7 @@ export function GridDashboard({
       onPointerUp={handlePointerUp}
     >
       {ZONE_IDS.map((zoneId) => {
+        if (hiddenZones.includes(zoneId)) return null
         const pos = effectiveLayout[zoneId]
         if (!pos) return null
         const ZoneComponent = ZONE_COMPONENTS[zoneId]

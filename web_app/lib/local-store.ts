@@ -637,6 +637,58 @@ export function localMarkAllRead(): void {
   write("notifications", items)
 }
 
+// ── RSS News ───────────────────────────────────────────────────────────────
+
+interface LocalRssFeed {
+  id: string
+  url: string
+  title: string | null
+  siteUrl: string | null
+  lastFetchedAt: string | null
+  createdAt: string
+}
+
+interface LocalRssArticle {
+  id: string
+  feedId: string
+  guid: string
+  title: string
+  link: string | null
+  pubDate: string | null
+  summary: string | null
+  createdAt: string
+}
+
+export function localListRssFeeds(): LocalRssFeed[] {
+  return read<LocalRssFeed[]>("rss_feeds", [])
+}
+
+export function localAddRssFeed(data: { url: string }): LocalRssFeed {
+  const feeds = read<LocalRssFeed[]>("rss_feeds", [])
+  const feed: LocalRssFeed = {
+    id: uid(),
+    url: data.url,
+    title: null,
+    siteUrl: null,
+    lastFetchedAt: null,
+    createdAt: now(),
+  }
+  feeds.push(feed)
+  write("rss_feeds", feeds)
+  return feed
+}
+
+export function localDeleteRssFeed(id: string): void {
+  write("rss_feeds", read<LocalRssFeed[]>("rss_feeds", []).filter((f) => f.id !== id))
+  write("rss_articles", read<LocalRssArticle[]>("rss_articles", []).filter((a) => a.feedId !== id))
+}
+
+export function localListRssArticles(limit?: number): LocalRssArticle[] {
+  const all = read<LocalRssArticle[]>("rss_articles", [])
+  all.sort((a, b) => (b.pubDate ?? b.createdAt).localeCompare(a.pubDate ?? a.createdAt))
+  return limit ? all.slice(0, limit) : all
+}
+
 // ── Custom Mascot Characters ────────────────────────────────────────────────
 
 import type { MascotState } from "./mascot"
@@ -714,6 +766,8 @@ export function exportAllLocalData(): Record<string, unknown> {
     medicine_doses: read("medicine_doses", {}),
     settings: read("settings", {}),
     integrations: read("integrations", []),
+    rss_feeds: read("rss_feeds", []),
+    rss_articles: read("rss_articles", []),
     custom_characters: read("custom_characters", []),
   }
 }

@@ -11,6 +11,7 @@ interface DashboardContextValue {
   activeDashboardId: string
   dashboards: DashboardConfig[]
   hiddenZones: ZoneId[]
+  toggleZone: (zoneId: ZoneId) => void
   switchDashboard: (id: string) => void
   createDashboard: (name: string) => Promise<void>
   renameDashboard: (id: string, name: string) => Promise<void>
@@ -23,6 +24,7 @@ export const DashboardContext = createContext<DashboardContextValue>({
   activeDashboardId: "",
   dashboards: [],
   hiddenZones: [],
+  toggleZone: () => {},
   switchDashboard: () => {},
   createDashboard: async () => {},
   renameDashboard: async () => {},

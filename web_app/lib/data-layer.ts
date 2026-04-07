@@ -575,6 +575,72 @@ export async function markAllNotificationsRead() {
   })
 }
 
+// ── RSS News ──────────────────────────────────────────────────────────────
+
+export async function listRssFeeds() {
+  if (isLocal) return local.localListRssFeeds()
+  if (isElectron) return ipc("db:rss:feeds")
+  return api("/api/news?action=feeds")
+}
+
+export async function addRssFeed(data: { url: string }) {
+  // Always go through API for server-side RSS parsing
+  if (isLocal) {
+    // In local mode, still need server to parse RSS (CORS).
+    // Store feed locally after server parses it.
+    try {
+      const result = await api("/api/news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+      return result
+    } catch {
+      // Fallback: store just the URL locally without parsing
+      return local.localAddRssFeed(data)
+    }
+  }
+  if (isElectron) return ipc("db:rss:add", data)
+  return api("/api/news", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteRssFeed(id: string) {
+  if (isLocal) {
+    local.localDeleteRssFeed(id)
+    try {
+      await api(`/api/news?id=${id}`, { method: "DELETE" })
+    } catch {}
+    return { success: true }
+  }
+  if (isElectron) return ipc("db:rss:delete", { id })
+  return api(`/api/news?id=${id}`, { method: "DELETE" })
+}
+
+export async function listRssArticles(limit?: number) {
+  if (isLocal) return local.localListRssArticles(limit)
+  if (isElectron) return ipc("db:rss:articles", { limit })
+  const params = limit ? `?limit=${limit}` : ""
+  return api(`/api/news${params}`)
+}
+
+export async function refreshRssFeeds() {
+  // Always needs server for RSS parsing
+  try {
+    const result = await api("/api/news", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "refresh" }),
+    })
+    return result
+  } catch {
+    return { newCount: 0 }
+  }
+}
+
 // ── Custom Mascot Characters ──────────────────────────────────────────────
 
 export type { LocalCustomCharacter } from "./local-store"

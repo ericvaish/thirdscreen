@@ -126,15 +126,13 @@ async function requestBrowserLocation(): Promise<boolean> {
       longitude: pos.coords.longitude,
       city: "",
     }
-    // Try to get city name via reverse lookup
+    // Try to get city name via reverse geocoding (nominatim)
     try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=&latitude=${geo.latitude}&longitude=${geo.longitude}&count=1&language=en&format=json`)
-      if (!res.ok) throw new Error()
-      // Use ipapi as reverse geocoder since open-meteo doesn't support reverse
-      const ipRes = await fetch("https://ipapi.co/json/")
-      if (ipRes.ok) {
-        const ipData = await ipRes.json() as { city?: string }
-        if (ipData.city) geo.city = ipData.city
+      const revRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${geo.latitude}&lon=${geo.longitude}&format=json&zoom=10`)
+      if (revRes.ok) {
+        const revData = await revRes.json() as { address?: { city?: string; town?: string; village?: string } }
+        const addr = revData.address
+        geo.city = addr?.city ?? addr?.town ?? addr?.village ?? ""
       }
     } catch {}
     geoCache = geo
@@ -146,18 +144,7 @@ async function requestBrowserLocation(): Promise<boolean> {
     try {
       const perm = await navigator.permissions.query({ name: "geolocation" })
       if (perm.state === "denied") {
-        // Permanently denied, can't re-prompt. Try IP fallback.
-        try {
-          const res = await fetch("https://ipapi.co/json/")
-          if (res.ok) {
-            const data = await res.json() as { latitude: number; longitude: number; city?: string }
-            const geo: GeoData = { latitude: data.latitude, longitude: data.longitude, city: data.city ?? "" }
-            geoCache = geo
-            geoPromise = null
-            notifyGeoListeners()
-            return true
-          }
-        } catch {}
+        // Permanently denied — user must set city manually in settings
       }
     } catch {}
     return false
@@ -194,15 +181,8 @@ export function getGeo(): Promise<GeoData | null> {
       }
       return geoCache
     } catch {
-      try {
-        const res = await fetch("https://ipapi.co/json/")
-        if (!res.ok) return null
-        const data: { latitude: number; longitude: number; city?: string } = await res.json()
-        geoCache = { latitude: data.latitude, longitude: data.longitude, city: data.city ?? "" }
-        return geoCache
-      } catch {
-        return null
-      }
+      // Browser geolocation denied/failed — user must set city manually in settings
+      return null
     }
   })()
   geoPromise.then((result) => {

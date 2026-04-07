@@ -15,6 +15,7 @@ export const ZONE_IDS = [
   "habits",
   "smarthome",
   "weather",
+  "news",
 ] as const
 
 export type ZoneId = (typeof ZONE_IDS)[number]
@@ -41,6 +42,7 @@ export const ZONE_MIN_SIZES: Record<ZoneId, { minW: number; minH: number }> = {
   habits:    { minW: 15, minH: 10 },
   smarthome: { minW: 15, minH: 15 },
   weather:   { minW: 15, minH: 20 },
+  news:      { minW: 15, minH: 10 },
 }
 
 // Default layout as percentages (0-100)
@@ -56,6 +58,7 @@ export function getDefaultLayout(): DashboardLayout {
     habits:    { x: 76, y: 15, w: 24,  h: 50 },
     smarthome: { x: 54, y: 65, w: 24,  h: 35 },
     weather:   { x: 78, y: 65, w: 22,  h: 35 },
+    news:      { x: 36, y: 65, w: 18,  h: 35 },
   }
 }
 
@@ -274,6 +277,8 @@ export function migrateLayout(stored: unknown): DashboardLayout {
       },
       habits: { x: 76, y: 15, w: 24, h: 50 },
       smarthome: { x: 54, y: 65, w: 46, h: 35 },
+      weather: { x: 78, y: 65, w: 22, h: 35 },
+      news: { x: 36, y: 65, w: 18, h: 35 },
     }
   }
   return DEFAULT_DASHBOARD_LAYOUT

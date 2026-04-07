@@ -23,6 +23,8 @@ import { SpotifySettings } from "./SpotifySettings"
 import { JiraSettings } from "./JiraSettings"
 import { PixelBuddyEditor } from "./PixelBuddyEditor"
 import { useTimezone, TIMEZONE_LIST } from "@/lib/timezone"
+import { useDashboard } from "./DashboardContext"
+import { ZONE_IDS } from "@/lib/grid-layout"
 
 function getIcon(name: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,6 +113,19 @@ export function SettingsView() {
 }
 
 // ── General Tab ──────────────────────────────────────────────────────────────
+
+const ZONE_LABELS: Record<string, { label: string; icon: typeof Icons.LayoutGrid }> = {
+  timeline: { label: "Timeline", icon: Icons.CalendarDays },
+  clock: { label: "Clock", icon: Icons.Clock },
+  tasks: { label: "Tasks", icon: Icons.ListChecks },
+  notes: { label: "Notes", icon: Icons.StickyNote },
+  vitals: { label: "Vitals", icon: Icons.Activity },
+  media: { label: "Now Playing", icon: Icons.Music },
+  habits: { label: "Habits", icon: Icons.Target },
+  smarthome: { label: "Smart Home", icon: Icons.Home },
+  weather: { label: "Weather", icon: Icons.CloudSun },
+  news: { label: "News", icon: Icons.Rss },
+}
 
 function GeneralTab() {
   const { theme, setTheme } = useTheme()

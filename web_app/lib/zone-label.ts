@@ -21,4 +21,6 @@ export const ZONE_ICONS: Record<ZoneId, string> = {
   media:     "Music",
   habits:    "Target",
   smarthome: "Home",
+  weather:   "CloudSun",
+  news:      "Rss",
 }

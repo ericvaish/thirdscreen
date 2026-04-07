@@ -235,7 +235,7 @@ export function SmartHomeZone() {
 
         {state.status === "disconnected" && (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
-            <Home className="size-8 text-muted-foreground/30" />
+            <Home className="size-8" style={{ color: "var(--zone-smarthome-accent)", opacity: 0.2 }} />
             <p className="text-sm text-muted-foreground">
               Connect Home Assistant in Settings to control your devices.
             </p>

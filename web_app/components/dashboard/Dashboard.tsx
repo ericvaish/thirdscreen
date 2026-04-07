@@ -43,6 +43,7 @@ import {
 } from "@/lib/data-layer"
 import { toast } from "sonner"
 import { ThemeCustomizer } from "./ThemeCustomizer"
+import { ZonePicker } from "./ZonePicker"
 import { useScale } from "@/components/scale-provider"
 import { MascotProvider } from "@/lib/mascot"
 import { MascotOverlay } from "@/components/MascotOverlay"
@@ -376,6 +377,18 @@ export function Dashboard() {
     }
   }, [dashboardConfigs, activeDashboardId, switchDashboard])
 
+  const toggleZone = useCallback((zoneId: ZoneId) => {
+    const current = activeDashboard?.hiddenZones ?? []
+    const next = current.includes(zoneId)
+      ? current.filter((z) => z !== zoneId)
+      : [...current, zoneId]
+
+    setDashboardConfigs((prev) =>
+      prev.map((d) => d.id === activeDashboardId ? { ...d, hiddenZones: next } : d)
+    )
+    dlUpdateDashboard(activeDashboardId, { hiddenZones: next }).catch(() => {})
+  }, [activeDashboardId, activeDashboard?.hiddenZones])
+
   const canCreateMore = dashboardConfigs.length < DASHBOARD_LIMITS.pro
 
   const handleLayoutChange = useCallback(
@@ -533,6 +546,7 @@ export function Dashboard() {
                   </Button>
                 )}
                 <ThemeCustomizer />
+                <ZonePicker />
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -576,6 +590,7 @@ export function Dashboard() {
         activeDashboardId,
         dashboards: dashboardConfigs,
         hiddenZones,
+        toggleZone,
         switchDashboard,
         createDashboard: handleCreateDashboard,
         renameDashboard: handleRenameDashboard,

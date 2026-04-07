@@ -280,6 +280,36 @@ export const notifications = sqliteTable("notifications", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+// RSS feeds
+export const rssFeeds = sqliteTable("rss_feeds", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  url: text("url").notNull(),
+  title: text("title"),
+  siteUrl: text("site_url"),
+  lastFetchedAt: text("last_fetched_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
+// RSS articles (cached from feeds)
+export const rssArticles = sqliteTable("rss_articles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  feedId: text("feed_id")
+    .notNull()
+    .references(() => rssFeeds.id, { onDelete: "cascade" }),
+  guid: text("guid").notNull(),
+  title: text("title").notNull(),
+  link: text("link"),
+  pubDate: text("pub_date"),
+  summary: text("summary"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
 // Jira accounts (multi-account OAuth)
 export const jiraAccounts = sqliteTable("jira_accounts", {
   id: text("id").primaryKey(),

@@ -66,18 +66,11 @@ function saveSettings(s: ClockSettings) {
 
 async function fetchTemp(): Promise<{ temp: number } | null> {
   try {
-    const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
-    ).catch(async () => {
-      const res = await fetch("https://ipapi.co/json/")
-      if (!res.ok) return null
-      const d: { latitude: number; longitude: number } = await res.json()
-      return { coords: { latitude: d.latitude, longitude: d.longitude } } as GeolocationPosition
-    })
-    if (!pos) return null
-    const { latitude, longitude } = pos.coords
+    const { getGeo } = await import("@/components/zones/StatusBar")
+    const geo = await getGeo()
+    if (!geo) return null
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&temperature_unit=celsius`
+      `https://api.open-meteo.com/v1/forecast?latitude=${geo.latitude}&longitude=${geo.longitude}&current=temperature_2m&temperature_unit=celsius`
     )
     if (!res.ok) return null
     const data: { current: { temperature_2m: number } } = await res.json()

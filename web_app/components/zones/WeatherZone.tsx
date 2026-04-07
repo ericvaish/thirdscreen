@@ -172,7 +172,7 @@ export function WeatherZone() {
 
       {!forecast ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
-          <Sun className="size-5 animate-pulse" style={{ color: "var(--zone-weather-accent)", opacity: 0.3 }} />
+          <CloudSun className="size-8" style={{ color: "var(--zone-weather-accent)", opacity: 0.2 }} />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-3">

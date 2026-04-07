@@ -113,6 +113,26 @@ export interface FoodItem {
   createdAt: string
 }
 
+export interface RssFeed {
+  id: string
+  url: string
+  title: string | null
+  siteUrl: string | null
+  lastFetchedAt: string | null
+  createdAt: string
+}
+
+export interface RssArticle {
+  id: string
+  feedId: string
+  guid: string
+  title: string
+  link: string | null
+  pubDate: string | null
+  summary: string | null
+  createdAt: string
+}
+
 export interface ScheduleEvent {
   id: string
   cardId: string

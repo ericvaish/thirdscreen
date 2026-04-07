@@ -228,6 +228,19 @@ export const INTEGRATION_REGISTRY: IntegrationDef[] = [
     defaultEnabled: false,
   },
 
+  // ── News zone · RSS feeds ────────────────────────────────────────────────
+  {
+    id: "rss-feeds",
+    name: "RSS News",
+    description: "Headlines from your favorite RSS feeds",
+    icon: "Rss",
+    zone: "news",
+    category: "News",
+    builtIn: true,
+    defaultEnabled: true,
+    implemented: true,
+  },
+
   // ── Smart Home zone · Device control ──────���─────────────────────────────
   {
     id: "home-assistant",
