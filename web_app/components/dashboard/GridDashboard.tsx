@@ -10,6 +10,7 @@ import { MediaZone } from "@/components/zones/MediaZone"
 import { ClockZone } from "@/components/zones/ClockZone"
 import { HabitsZone } from "@/components/zones/HabitsZone"
 import { SmartHomeZone } from "@/components/zones/SmartHomeZone"
+import { WeatherZone } from "@/components/zones/WeatherZone"
 
 import {
   ZONE_IDS,
@@ -31,6 +32,7 @@ const ZONE_COMPONENTS: Record<ZoneId, React.FC> = {
   media: MediaZone,
   habits: HabitsZone,
   smarthome: SmartHomeZone,
+  weather: WeatherZone,
 }
 
 export type MinSizes = Record<string, { minW: number; minH: number }>

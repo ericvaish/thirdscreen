@@ -164,7 +164,7 @@ async function requestBrowserLocation(): Promise<boolean> {
   }
 }
 
-function useGeoChange(cb: () => void) {
+export function useGeoChange(cb: () => void) {
   const cbRef = useRef(cb)
   cbRef.current = cb
   useEffect(() => {
@@ -174,7 +174,7 @@ function useGeoChange(cb: () => void) {
   }, [])
 }
 
-function getGeo(): Promise<GeoData | null> {
+export function getGeo(): Promise<GeoData | null> {
   if (geoCache) return Promise.resolve(geoCache)
   const manual = getManualGeo()
   if (manual) {
