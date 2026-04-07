@@ -664,8 +664,64 @@ export async function deleteCustomCharacter(id: string) {
   return local.localDeleteCustomCharacter(id)
 }
 
-// ── Data export (for migration to server when user signs in) ──────────────
+// ── Data export & merge ──────────────────────────────────────────────────
 
 export function exportLocalData() {
   return local.exportAllLocalData()
+}
+
+export function hasLocalData(): boolean {
+  const data = local.exportAllLocalData()
+  return (
+    (data.todos as unknown[])?.length > 0 ||
+    (data.notes as unknown[])?.length > 0 ||
+    (data.links as unknown[])?.length > 0 ||
+    (data.schedule_events as unknown[])?.length > 0 ||
+    (data.medicines as unknown[])?.length > 0 ||
+    (data.food_items as unknown[])?.length > 0 ||
+    (data.rss_feeds as unknown[])?.length > 0
+  )
+}
+
+export async function mergeLocalToServer(): Promise<{
+  success: boolean
+  summary: Record<string, number>
+  conflicts: { type: string; message: string; localItem: unknown; serverItem: unknown }[]
+}> {
+  const localData = local.exportAllLocalData()
+  return api("/api/sync/merge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(localData),
+  })
+}
+
+const MERGE_DONE_KEY = "ts_merge_completed"
+
+export function isMergeDone(): boolean {
+  try {
+    return localStorage.getItem(MERGE_DONE_KEY) === "true"
+  } catch {
+    return false
+  }
+}
+
+export function markMergeDone(): void {
+  try {
+    localStorage.setItem(MERGE_DONE_KEY, "true")
+  } catch {}
+}
+
+export function clearLocalDataAfterMerge(): void {
+  const keysToKeep = [MERGE_DONE_KEY, "ts_settings", "ts_active_dashboard_id", "ts_dashboards"]
+  const keysToRemove: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith("ts_") && !keysToKeep.includes(key)) {
+      keysToRemove.push(key)
+    }
+  }
+  for (const key of keysToRemove) {
+    localStorage.removeItem(key)
+  }
 }

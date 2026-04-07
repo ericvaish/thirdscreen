@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
+import { useWeather } from "@/lib/weather"
 
 // ── Settings types ─────────────────────────────────────────────────────────
 
@@ -62,23 +63,7 @@ function saveSettings(s: ClockSettings) {
   localStorage.setItem("ts_clock_settings", JSON.stringify(s))
 }
 
-// ── Weather ────────────────────────────────────────────────────────────────
-
-async function fetchTemp(): Promise<{ temp: number } | null> {
-  try {
-    const { getGeo } = await import("@/components/zones/StatusBar")
-    const geo = await getGeo()
-    if (!geo) return null
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${geo.latitude}&longitude=${geo.longitude}&current=temperature_2m&temperature_unit=celsius`
-    )
-    if (!res.ok) return null
-    const data: { current: { temperature_2m: number } } = await res.json()
-    return { temp: Math.round(data.current.temperature_2m) }
-  } catch {
-    return null
-  }
-}
+// ── Weather (uses shared weather service — no independent API calls) ──────
 
 // ── Next event ─────────────────────────────────────────────────────────────
 
@@ -528,7 +513,8 @@ export function ClockZone() {
   const contentRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ w: 200, h: 150 })
   const [time, setTime] = useState<Date | null>(null)
-  const [weather, setWeather] = useState<{ temp: number } | null>(null)
+  const sharedWeather = useWeather()
+  const weather = sharedWeather ? { temp: sharedWeather.temp } : null
   const [nextEvent, setNextEvent] = useState<{ title: string; minutesUntil: number } | null>(null)
   const [settings, setSettings] = useState<ClockSettings>(DEFAULT_SETTINGS)
 
@@ -564,14 +550,7 @@ export function ClockZone() {
     return () => ro.disconnect()
   }, [])
 
-  // Fetch weather
-  useEffect(() => {
-    fetchTemp().then((w) => { if (w) setWeather(w) })
-    const id = setInterval(() => {
-      fetchTemp().then((w) => { if (w) setWeather(w) })
-    }, 10 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [])
+  // Weather comes from shared useWeather() hook — no separate fetch needed
 
   // Fetch next event every minute
   useEffect(() => {

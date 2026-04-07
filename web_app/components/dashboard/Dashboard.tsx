@@ -32,6 +32,7 @@ import {
 import { useTheme } from "next-themes"
 import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
 import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
+import { DataMergeDialog } from "./DataMergeDialog"
 import {
   getSettings,
   listDashboards,
@@ -389,7 +390,7 @@ export function Dashboard() {
     dlUpdateDashboard(activeDashboardId, { hiddenZones: next }).catch(() => {})
   }, [activeDashboardId, activeDashboard?.hiddenZones])
 
-  const canCreateMore = dashboardConfigs.length < DASHBOARD_LIMITS.pro
+  const canCreateMore = dashboardConfigs.length < DASHBOARD_LIMITS.max
 
   const handleLayoutChange = useCallback(
     (newLayout: DashboardLayout) => {
@@ -417,6 +418,9 @@ export function Dashboard() {
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
       {/* Local storage notice for anonymous users */}
       {mounted && authLoaded && !isSignedIn && <LocalStorageNotice />}
+
+      {/* Merge local data to cloud when user signs in */}
+      {mounted && <DataMergeDialog />}
 
       {/* Header */}
       <header className="relative z-[100] h-14 shrink-0 border-b border-border/20 bg-background/80 backdrop-blur-xl">
@@ -664,7 +668,6 @@ function PrivacyContent() {
             <li><strong className="text-foreground">Spotify</strong> - We request access to your playback state to display currently playing music and control playback. We use Spotify OAuth with PKCE.</li>
             <li><strong className="text-foreground">LRCLib</strong> - We fetch song lyrics from LRCLib (lrclib.net), an open-source lyrics database. Only the song title, artist, and album name are sent in the request.</li>
             <li><strong className="text-foreground">Clerk</strong> - We use Clerk for user authentication. Clerk handles your account data (email, profile) according to their privacy policy.</li>
-            <li><strong className="text-foreground">Paddle</strong> - We use Paddle as our payment processor (Merchant of Record) for paid subscriptions. Paddle collects and processes your billing information according to their privacy policy. We do not directly store your payment card details.</li>
           </ul>
         </section>
         <section>
@@ -735,24 +738,15 @@ function TermsContent() {
           <p>You may use basic features without an account. Certain features (cloud sync, integrations) require signing in via our authentication provider (Clerk). You are responsible for maintaining the security of your account credentials and for all activity that occurs under your account.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">4. Subscriptions and Billing</h2>
-          <p>Third Screen offers both free and paid subscription tiers. Paid subscriptions are billed through our payment processor, Paddle.com. By subscribing to a paid plan, you agree to pay the applicable fees.</p>
-          <ul className="list-disc list-inside mt-3 space-y-2">
-            <li>Subscriptions renew automatically at the end of each billing period unless cancelled before the renewal date.</li>
-            <li>You may cancel your subscription at any time through your account settings. Cancellation takes effect at the end of the current billing period.</li>
-            <li>Paddle acts as the Merchant of Record for all payments. Your billing relationship for payment processing is with Paddle, and their terms apply to payment transactions.</li>
-          </ul>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">4. Pricing</h2>
+          <p>Third Screen is completely free to use. All features are available to all users at no cost. There are no paid tiers, subscriptions, or in-app purchases.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">5. Refund Policy</h2>
-          <p>If you are unsatisfied with a paid subscription, you may request a refund within 14 days of your initial purchase or most recent renewal. Refund requests can be made by contacting us at the email below. Refunds are processed through Paddle.</p>
-        </section>
-        <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">6. Your Data</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">5. Your Data</h2>
           <p>You own your data. Third Screen stores data locally on your device by default. When you connect external services (Google Calendar, Spotify, Gmail), you authorize Third Screen to access your data on those services according to the permissions you grant. You can disconnect any service and delete your data at any time.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">7. Acceptable Use</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">6. Acceptable Use</h2>
           <p>You agree not to:</p>
           <ul className="list-disc list-inside mt-3 space-y-2">
             <li>Use the Service for any unlawful purpose</li>
@@ -763,27 +757,27 @@ function TermsContent() {
           </ul>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">8. Third-Party Services</h2>
-          <p>Third Screen integrates with third-party services including Google (Calendar, Gmail, Chat), Spotify, Clerk, LRCLib, and Paddle. Your use of those services is governed by their respective terms and privacy policies. We are not responsible for the availability, accuracy, or conduct of third-party services.</p>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">7. Third-Party Services</h2>
+          <p>Third Screen integrates with third-party services including Google (Calendar, Gmail, Chat), Spotify, Clerk, and LRCLib. Your use of those services is governed by their respective terms and privacy policies. We are not responsible for the availability, accuracy, or conduct of third-party services.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">9. Account Termination</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">8. Account Termination</h2>
           <p>You may delete your account at any time. We reserve the right to suspend or terminate accounts that violate these terms. Upon termination, your server-side data will be deleted. Locally stored data on your device is unaffected.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">10. No Warranty</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">9. No Warranty</h2>
           <p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranty of any kind, express or implied. We do not guarantee that the Service will be uninterrupted, error-free, or that defects will be corrected.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">11. Limitation of Liability</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">10. Limitation of Liability</h2>
           <p>To the fullest extent permitted by law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service, including loss of data, profits, or business opportunities.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">12. Governing Law</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">11. Governing Law</h2>
           <p>These terms are governed by and construed in accordance with the laws of the United States. Any disputes shall be resolved in the courts of competent jurisdiction.</p>
         </section>
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-foreground">13. Changes to Terms</h2>
+          <h2 className="font-semibold text-lg mb-3 text-foreground">12. Changes to Terms</h2>
           <p>We may update these terms from time to time. Material changes will be communicated via the Service or email. Continued use after changes constitutes acceptance of the updated terms.</p>
         </section>
         <section>

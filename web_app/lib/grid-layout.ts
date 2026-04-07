@@ -106,7 +106,7 @@ export function createDefaultDashboardConfig(id: string): DashboardConfig {
   }
 }
 
-export const DASHBOARD_LIMITS = { free: 1, pro: 10 } as const
+export const DASHBOARD_LIMITS = { max: 10 } as const
 
 // ── RGL conversion ──────────────────────────────────────────────────────────
 

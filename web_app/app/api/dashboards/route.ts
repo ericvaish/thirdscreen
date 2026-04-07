@@ -76,9 +76,8 @@ export async function POST(request: Request) {
       .from(dashboards)
       .where(eq(dashboards.userId, userId))
 
-    // TODO: check user plan for limit (default to free for now)
-    if (existing.length >= DASHBOARD_LIMITS.free) {
-      return NextResponse.json({ error: "Dashboard limit reached. Upgrade to Pro for more." }, { status: 403 })
+    if (existing.length >= DASHBOARD_LIMITS.max) {
+      return NextResponse.json({ error: `Dashboard limit reached (max ${DASHBOARD_LIMITS.max}).` }, { status: 403 })
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
