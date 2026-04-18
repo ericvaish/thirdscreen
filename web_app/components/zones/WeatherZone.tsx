@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import {
   CloudSun, Sun, Cloud, CloudRain, CloudLightning, CloudSnow, CloudFog,
   CloudDrizzle, Droplets, Wind,
@@ -15,13 +16,32 @@ const WMO_ICONS: Record<string, typeof Sun> = {
   "13": CloudSnow, "50": CloudFog,
 }
 
+const MIN_HOUR_SLOT_PX = 36
+
 export function WeatherZone() {
   const { editMode } = useDashboard()
   const weather = useWeather()
+  const hourlyRef = useRef<HTMLDivElement>(null)
+  const [hourCount, setHourCount] = useState(12)
+
+  useEffect(() => {
+    const el = hourlyRef.current
+    if (!el) return
+    const update = (width: number) => {
+      const count = Math.max(3, Math.min(24, Math.floor(width / MIN_HOUR_SLOT_PX)))
+      setHourCount(count)
+    }
+    update(el.clientWidth)
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) update(entry.contentRect.width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [weather])
 
   const CurrentIcon = weather ? (WMO_ICONS[wmoToIconCode(weather.weatherCode)] ?? CloudSun) : Sun
 
-  const hourly = weather?.hourly.slice(0, 12).map((h, i) => ({
+  const hourly = weather?.hourly.slice(0, hourCount).map((h, i) => ({
     time: i === 0 ? "Now" : new Date(h.time).toLocaleTimeString(undefined, { hour: "numeric", hour12: true }).replace(" ", ""),
     temp: h.temp,
     code: h.code,
@@ -82,7 +102,7 @@ export function WeatherZone() {
             </div>
           </div>
 
-          <div className="mt-1 flex gap-0 overflow-x-auto border-y border-border/10 py-2">
+          <div ref={hourlyRef} className="mt-1 flex gap-0 overflow-hidden border-y border-border/10 py-2">
             {hourly.map((h, i) => {
               const HIcon = WMO_ICONS[wmoToIconCode(h.code)] ?? Cloud
               return (
