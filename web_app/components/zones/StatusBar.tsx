@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react"
+import { toast } from "sonner"
 import {
   Play,
   Pause,
@@ -35,10 +36,6 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  Settings2,
-  GripVertical,
-  ChevronUp,
-  ChevronDown,
   BatteryFull,
   BatteryMedium,
   BatteryLow,
@@ -54,6 +51,8 @@ import {
   Droplets,
   Thermometer,
   Minus,
+  ChevronDown,
+  Check,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -117,6 +116,20 @@ function resetGeo() {
 async function requestBrowserLocation(): Promise<boolean> {
   resetGeo()
   clearManualGeo()
+  // Pre-check: if the browser has already permanently blocked location
+  // (e.g. Chrome's auto-block after several ignored prompts), don't even
+  // try — the prompt won't appear. Surface clear in-app guidance instead.
+  try {
+    const perm = await navigator.permissions.query({ name: "geolocation" })
+    if (perm.state === "denied") {
+      toast.error("Location is blocked by your browser", {
+        description:
+          "Click the icon next to the URL to reset the permission, or set your city manually in Settings.",
+        duration: 8000,
+      })
+      return false
+    }
+  } catch {}
   try {
     const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
@@ -139,14 +152,32 @@ async function requestBrowserLocation(): Promise<boolean> {
     geoPromise = null
     notifyGeoListeners()
     return true
-  } catch {
-    // Browser denied -- check if permanently blocked
+  } catch (err) {
+    // Browser denied or timed out. Distinguish so we can guide the user.
+    let blocked = false
     try {
       const perm = await navigator.permissions.query({ name: "geolocation" })
-      if (perm.state === "denied") {
-        // Permanently denied — user must set city manually in settings
-      }
+      blocked = perm.state === "denied"
     } catch {}
+    if (blocked) {
+      toast.error("Location is blocked by your browser", {
+        description:
+          "Click the icon next to the URL to reset the permission, or set your city manually in Settings.",
+        duration: 8000,
+      })
+    } else {
+      const isPermissionDenied =
+        err instanceof GeolocationPositionError && err.code === err.PERMISSION_DENIED
+      toast.error(
+        isPermissionDenied
+          ? "Location permission denied"
+          : "Couldn't get your location",
+        {
+          description: "You can set your city manually in Settings → Weather.",
+          duration: 6000,
+        },
+      )
+    }
     return false
   }
 }
@@ -392,15 +423,19 @@ function saveWidgets(ids: WidgetId[]) {
 function WidgetWrapper({ children, variant }: { children: React.ReactNode; variant?: "warning" }) {
   return (
     <div className={cn(
-      "flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 py-1",
-      variant === "warning"
-        ? "border-amber-400/20 bg-amber-400/5"
-        : "border-border/20 bg-muted/10",
+      "ts-inner-glass flex min-h-8 items-center gap-1.5 rounded-full px-3 py-1",
+      variant === "warning" && "ring-1 ring-amber-400/30 text-amber-200",
     )}>
       {children}
     </div>
   )
 }
+
+// Pill styles for interactive widgets that wrap their content in a button
+// (popover triggers, clickable widgets). The button IS the pill — the entire
+// pill is clickable, not just the inner text.
+const WIDGET_PILL_BUTTON_CLASS =
+  "ts-inner-glass flex min-h-8 items-center gap-1.5 rounded-full px-3 py-1 transition-colors hover:bg-foreground/5"
 
 
 
@@ -435,7 +470,7 @@ export function StatusBar() {
   const [managerOpen, setManagerOpen] = useState(false)
   const [draggingId, setDraggingId] = useState<WidgetId | null>(null)
   const [dropTargetId, setDropTargetId] = useState<WidgetId | null>(null)
-  const [dropPosition, setDropPosition] = useState<"above" | "below">("above")
+  const [dropSide, setDropSide] = useState<"left" | "right">("left")
 
   const toggleWidget = useCallback((id: WidgetId) => {
     setWidgets((prev) => {
@@ -445,43 +480,184 @@ export function StatusBar() {
     })
   }, [])
 
-  const moveWidget = useCallback((id: WidgetId, direction: "up" | "down") => {
-    setWidgets((prev) => {
-      const idx = prev.indexOf(id)
-      if (idx === -1) return prev
-      const targetIdx = direction === "up" ? idx - 1 : idx + 1
-      if (targetIdx < 0 || targetIdx >= prev.length) return prev
-      const next = [...prev]
-      next.splice(idx, 1)
-      next.splice(targetIdx, 0, id)
-      saveWidgets(next)
-      return next
-    })
-  }, [])
+  const reorderWidget = useCallback(
+    (fromId: WidgetId, toId: WidgetId, side: "left" | "right") => {
+      if (fromId === toId) return
+      setWidgets((prev) => {
+        const next = [...prev]
+        const fromIdx = next.indexOf(fromId)
+        if (fromIdx === -1) return prev
+        next.splice(fromIdx, 1)
+        let toIdx = next.indexOf(toId)
+        if (toIdx === -1) return prev
+        if (side === "right") toIdx += 1
+        next.splice(toIdx, 0, fromId)
+        saveWidgets(next)
+        return next
+      })
+    },
+    [],
+  )
 
-  // Build ordered list: enabled first (in order), then disabled
-  const enabledWidgets = widgets.map((id) => WIDGET_REGISTRY.find((w) => w.id === id)!).filter(Boolean)
-  const disabledWidgets = WIDGET_REGISTRY.filter((w) => !widgets.includes(w.id))
+  // FLIP animation: when the `widgets` order changes, snapshot each chip's
+  // pre-render position, then animate it from its old spot to its new spot.
+  // The dragged chip is excluded — the browser is already painting the drag
+  // ghost, so transforming the source element looks janky.
+  const chipRefs = useRef<Map<WidgetId, HTMLDivElement>>(new Map())
+  const prevPositions = useRef<Map<WidgetId, DOMRect>>(new Map())
+  const draggingIdRef = useRef<WidgetId | null>(null)
+  draggingIdRef.current = draggingId
+
+  useLayoutEffect(() => {
+    const newPositions = new Map<WidgetId, DOMRect>()
+    chipRefs.current.forEach((el, id) => {
+      if (el) newPositions.set(id, el.getBoundingClientRect())
+    })
+
+    prevPositions.current.forEach((prevRect, id) => {
+      if (id === draggingIdRef.current) return
+      const el = chipRefs.current.get(id)
+      const newRect = newPositions.get(id)
+      if (!el || !newRect) return
+      const dx = prevRect.left - newRect.left
+      const dy = prevRect.top - newRect.top
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return
+      el.style.transition = "none"
+      el.style.transform = `translate(${dx}px, ${dy}px)`
+      requestAnimationFrame(() => {
+        el.style.transition = "transform 220ms cubic-bezier(0.2, 0, 0, 1)"
+        el.style.transform = ""
+      })
+    })
+
+    prevPositions.current = newPositions
+  }, [widgets])
+
+  const handleDragStart = (id: WidgetId) => (e: React.DragEvent) => {
+    setDraggingId(id)
+    e.dataTransfer.effectAllowed = "move"
+  }
+  const handleDragOver = (id: WidgetId) => (e: React.DragEvent) => {
+    if (!draggingId || draggingId === id) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    const rect = e.currentTarget.getBoundingClientRect()
+    const midX = rect.left + rect.width / 2
+    setDropSide(e.clientX < midX ? "left" : "right")
+    setDropTargetId(id)
+  }
+  const handleDragLeave = (id: WidgetId) => () => {
+    setDropTargetId((prev) => (prev === id ? null : prev))
+  }
+  const handleDrop = (id: WidgetId) => (e: React.DragEvent) => {
+    e.preventDefault()
+    if (draggingId && draggingId !== id) reorderWidget(draggingId, id, dropSide)
+    setDraggingId(null)
+    setDropTargetId(null)
+  }
+  const handleDragEnd = () => {
+    setDraggingId(null)
+    setDropTargetId(null)
+  }
 
   return (
-    <div className="zone-surface zone-status flex h-full items-center justify-between gap-3 overflow-visible px-4">
-      {/* Left cluster: user-customizable widgets */}
+    <div className="zone-surface zone-status flex h-full items-center justify-between gap-3 overflow-visible px-1.5">
+      {/* Left cluster: user-customizable widgets, drag-to-reorder in place */}
       <div className="flex items-center gap-2">
         {widgets.map((id) => {
           const def = WIDGET_REGISTRY.find((w) => w.id === id)
           if (!def) return null
           const Comp = def.component
-          return <Comp key={id} />
+          const isDragging = draggingId === id
+          const showDropLine = dropTargetId === id && draggingId && draggingId !== id
+          return (
+            <div
+              key={id}
+              ref={(el) => {
+                if (el) chipRefs.current.set(id, el)
+                else chipRefs.current.delete(id)
+              }}
+              data-widget-chip
+              draggable
+              onDragStart={handleDragStart(id)}
+              onDragOver={handleDragOver(id)}
+              onDragLeave={handleDragLeave(id)}
+              onDrop={handleDrop(id)}
+              onDragEnd={handleDragEnd}
+              className={cn(
+                "relative shrink-0 cursor-grab whitespace-nowrap rounded-full transition-colors will-change-transform hover:bg-[color-mix(in_oklab,currentColor_12%,transparent)] active:cursor-grabbing [&_*]:whitespace-nowrap",
+                isDragging && "opacity-30",
+              )}
+              title="Drag to reorder"
+            >
+              {showDropLine && (
+                <div
+                  className={cn(
+                    "pointer-events-none absolute -top-1 -bottom-1 w-0.5 rounded-full bg-primary/70",
+                    dropSide === "left" ? "-left-1" : "-right-1",
+                  )}
+                />
+              )}
+              <Comp />
+            </div>
+          )
         })}
 
-        {/* Widget manager trigger */}
-        <button
-          onClick={() => setManagerOpen(true)}
-          className="flex min-h-9 items-center gap-1.5 rounded-lg border border-dashed border-border/20 px-2.5 py-1 text-muted-foreground/30 transition-colors hover:border-border/40 hover:bg-muted/10 hover:text-muted-foreground/60"
-          title="Manage widgets"
-        >
-          <Settings2 className="size-3.5" />
-        </button>
+        {/* Widget manager — compact popover with on/off toggles only */}
+        <Popover open={managerOpen} onOpenChange={setManagerOpen}>
+          <PopoverTrigger asChild>
+            <button
+              className="flex min-h-9 items-center gap-1.5 rounded-lg border border-dashed border-border/20 px-2.5 py-1 text-muted-foreground/30 transition-colors hover:border-border/40 hover:bg-muted/10 hover:text-muted-foreground/60"
+              title="Add or remove widgets"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="w-56 p-1"
+          >
+            <div className="px-2 pt-1 pb-1.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground/50">
+              Widgets
+            </div>
+            <div className="flex flex-col">
+              {WIDGET_REGISTRY.map((w) => {
+                const Icon = w.icon
+                const enabled = widgets.includes(w.id)
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => toggleWidget(w.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                      enabled
+                        ? "text-foreground hover:bg-muted/30"
+                        : "text-muted-foreground/50 hover:bg-muted/30 hover:text-muted-foreground",
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "size-3.5 shrink-0",
+                        enabled ? "text-foreground/70" : "text-muted-foreground/40",
+                      )}
+                    />
+                    <span className="flex-1 text-left">{w.label}</span>
+                    {enabled ? (
+                      <Eye className="size-3.5 shrink-0 text-primary/70" />
+                    ) : (
+                      <EyeOff className="size-3.5 shrink-0 text-muted-foreground/30" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-1 border-t border-border/15 px-2 pt-1.5 pb-1 font-mono text-[0.6875rem] text-muted-foreground/40">
+              Drag chips in the footer to reorder
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Center — notifications moved to header */}
@@ -491,160 +667,6 @@ export function StatusBar() {
       <div className="flex items-center gap-3">
         <DashboardTabs />
       </div>
-
-      {/* Widget Manager Panel (no blur overlay so footer stays readable) */}
-      {managerOpen && typeof document !== "undefined" && createPortal(
-        <>
-          {/* Overlay: dim only, no blur */}
-          <div
-            className="fixed inset-0 z-50 bg-black/10"
-            onClick={() => setManagerOpen(false)}
-          />
-          {/* Panel centered between header and footer */}
-          <div
-            className="fixed z-50 flex flex-col overflow-hidden rounded-xl bg-background text-sm ring-1 ring-foreground/10 shadow-lg"
-            style={{
-              top: "4.5rem",
-              left: "50%",
-              bottom: "3.5rem",
-              transform: "translateX(-50%)",
-              maxWidth: "min(480px, 90vw)",
-              width: "min(480px, 90vw)",
-            }}
-          >
-            <div className="flex shrink-0 items-center justify-between border-b border-border/20 px-4 py-3">
-              <h2 className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight">
-                Widgets
-              </h2>
-              <button
-                onClick={() => setManagerOpen(false)}
-                className="flex size-11 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-muted/30 hover:text-muted-foreground"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">
-              <div className="flex flex-col">
-                {[...enabledWidgets, ...disabledWidgets].map((w) => {
-                  const Icon = w.icon
-                  const enabled = widgets.includes(w.id)
-                  const enabledIdx = widgets.indexOf(w.id)
-                  const isFirst = enabledIdx === 0
-                  const isLast = enabledIdx === widgets.length - 1
-
-                  return (
-                    <div key={w.id} className="relative">
-                      {/* Drop indicator line */}
-                      {enabled && dropTargetId === w.id && draggingId !== w.id && (
-                        <div className={cn(
-                          "absolute left-3 right-3 h-0.5 rounded-full bg-primary/60",
-                          dropPosition === "above" ? "-top-px" : "-bottom-px"
-                        )} />
-                      )}
-                      <div
-                        className={cn(
-                          "flex items-center gap-1 rounded-md px-1 py-1 transition-all",
-                          enabled && draggingId === w.id && "scale-[0.97] opacity-30",
-                          enabled && draggingId && draggingId !== w.id && "transition-transform"
-                        )}
-                        draggable={enabled}
-                        onDragStart={(e) => {
-                          if (!enabled) return
-                          setDraggingId(w.id)
-                          e.dataTransfer.effectAllowed = "move"
-                          const el = e.currentTarget
-                          e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2)
-                        }}
-                        onDragOver={(e) => {
-                          if (!enabled) return
-                          e.preventDefault()
-                          e.dataTransfer.dropEffect = "move"
-                          const rect = e.currentTarget.getBoundingClientRect()
-                          const midY = rect.top + rect.height / 2
-                          setDropPosition(e.clientY < midY ? "above" : "below")
-                          setDropTargetId(w.id)
-                        }}
-                        onDragLeave={() => {
-                          setDropTargetId((prev) => prev === w.id ? null : prev)
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault()
-                          if (draggingId && draggingId !== w.id && enabled) {
-                            setWidgets((prev) => {
-                              const next = [...prev]
-                              const fromIdx = next.indexOf(draggingId)
-                              let toIdx = next.indexOf(w.id)
-                              if (fromIdx === -1 || toIdx === -1) return prev
-                              next.splice(fromIdx, 1)
-                              toIdx = next.indexOf(w.id)
-                              if (dropPosition === "below") toIdx += 1
-                              next.splice(toIdx, 0, draggingId)
-                              saveWidgets(next)
-                              return next
-                            })
-                          }
-                          setDraggingId(null)
-                          setDropTargetId(null)
-                        }}
-                        onDragEnd={() => {
-                          setDraggingId(null)
-                          setDropTargetId(null)
-                        }}
-                      >
-                        {enabled ? (
-                          <div className="flex shrink-0 cursor-grab items-center px-1 text-muted-foreground/20 active:cursor-grabbing">
-                            <GripVertical className="size-3" />
-                          </div>
-                        ) : (
-                          <div className="shrink-0 px-1"><div className="size-3" /></div>
-                        )}
-                        <Icon className={cn("size-3.5 shrink-0", enabled ? "text-muted-foreground/60" : "text-muted-foreground/15")} />
-                        <span className={cn("flex-1 px-1 text-xs", enabled ? "text-foreground/80" : "text-muted-foreground/30")}>{w.label}</span>
-                        {enabled && (
-                          <div className="flex shrink-0 items-center">
-                            <button
-                              onClick={() => moveWidget(w.id, "up")}
-                              disabled={isFirst}
-                              className={cn(
-                                "flex size-11 items-center justify-center rounded-md transition-colors",
-                                isFirst ? "text-muted-foreground/10" : "text-muted-foreground/30 hover:bg-muted/30 hover:text-muted-foreground/60"
-                              )}
-                            >
-                              <ChevronUp className="size-4" />
-                            </button>
-                            <button
-                              onClick={() => moveWidget(w.id, "down")}
-                              disabled={isLast}
-                              className={cn(
-                                "flex size-11 items-center justify-center rounded-md transition-colors",
-                                isLast ? "text-muted-foreground/10" : "text-muted-foreground/30 hover:bg-muted/30 hover:text-muted-foreground/60"
-                              )}
-                            >
-                              <ChevronDown className="size-4" />
-                            </button>
-                          </div>
-                        )}
-                        <button
-                          onClick={() => toggleWidget(w.id)}
-                          className={cn(
-                            "flex size-11 shrink-0 items-center justify-center rounded-md transition-colors",
-                            enabled
-                              ? "text-primary/60 hover:bg-primary/10 hover:text-primary"
-                              : "text-muted-foreground/20 hover:bg-muted/30 hover:text-muted-foreground/40"
-                          )}
-                        >
-                          {enabled ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </>,
-        document.body
-      )}
     </div>
   )
 }
@@ -806,23 +828,21 @@ function WeatherWidgetInner() {
 
   if (error && error !== "loading") {
     return (
-      <WidgetWrapper variant="warning">
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="flex items-center gap-1.5 transition-colors">
-              <TriangleAlert className="size-3.5 shrink-0 text-amber-400/60" />
-              <span className="font-mono text-xs text-muted-foreground/40">--°</span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent side="top" className="w-56">
-            <LocationErrorContent
-              error={error as "no-location" | "fetch-error"}
-              onRequestLocation={requestLocation}
-              onRetry={requestLocation}
-            />
-          </PopoverContent>
-        </Popover>
-      </WidgetWrapper>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className={cn(WIDGET_PILL_BUTTON_CLASS, "ring-1 ring-amber-400/30 text-amber-200")}>
+            <TriangleAlert className="size-3.5 shrink-0 text-amber-400/60" />
+            <span className="font-mono text-xs text-muted-foreground/40">--°</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="top" className="w-56">
+          <LocationErrorContent
+            error={error as "no-location" | "fetch-error"}
+            onRequestLocation={requestLocation}
+            onRetry={requestLocation}
+          />
+        </PopoverContent>
+      </Popover>
     )
   }
 
@@ -836,15 +856,14 @@ function WeatherWidgetInner() {
   const WeatherIcon = WEATHER_ICONS[weather.icon] ?? CloudSun
 
   return (
-    <WidgetWrapper>
-      <Popover onOpenChange={(open) => { if (!open) setChangingCity(false) }}>
-        <PopoverTrigger asChild>
-          <button className="flex items-center gap-1.5 transition-colors">
-            <WeatherIcon className="size-3.5 shrink-0 text-amber-400/80" />
-            <span className="font-mono text-xs font-bold tabular-nums text-foreground">{weather.temp}°</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent side="top" className="w-56">
+    <Popover onOpenChange={(open) => { if (!open) setChangingCity(false) }}>
+      <PopoverTrigger asChild>
+        <button className={WIDGET_PILL_BUTTON_CLASS}>
+          <WeatherIcon className="size-3.5 shrink-0 text-amber-400/80" />
+          <span className="font-mono text-xs font-bold tabular-nums text-foreground">{weather.temp}°</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" className="w-56">
           {changingCity ? (
             <CitySearchContent onBack={() => setChangingCity(false)} onSelect={handleCitySelect} onRequestLocation={() => { clearManualGeo(); requestLocation(); setChangingCity(false) }} />
           ) : (
@@ -883,7 +902,6 @@ function WeatherWidgetInner() {
           )}
         </PopoverContent>
       </Popover>
-    </WidgetWrapper>
   )
 }
 
@@ -1008,23 +1026,21 @@ function AirQualityWidgetInner() {
 
   if (error && error !== "loading") {
     return (
-      <WidgetWrapper variant="warning">
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="flex items-center gap-1.5 transition-colors">
-              <TriangleAlert className="size-3.5 shrink-0 text-amber-400/60" />
-              <span className="font-mono text-xs text-muted-foreground/40">AQI --</span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent side="top" className="w-56">
-            <LocationErrorContent
-              error={error as "no-location" | "fetch-error"}
-              onRequestLocation={requestLocation}
-              onRetry={requestLocation}
-            />
-          </PopoverContent>
-        </Popover>
-      </WidgetWrapper>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className={cn(WIDGET_PILL_BUTTON_CLASS, "ring-1 ring-amber-400/30 text-amber-200")}>
+            <TriangleAlert className="size-3.5 shrink-0 text-amber-400/60" />
+            <span className="font-mono text-xs text-muted-foreground/40">AQI --</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="top" className="w-56">
+          <LocationErrorContent
+            error={error as "no-location" | "fetch-error"}
+            onRequestLocation={requestLocation}
+            onRetry={requestLocation}
+          />
+        </PopoverContent>
+      </Popover>
     )
   }
 
@@ -1036,15 +1052,14 @@ function AirQualityWidgetInner() {
   )
 
   return (
-    <WidgetWrapper>
-      <Popover onOpenChange={(open) => { if (!open) setChangingCity(false) }}>
-        <PopoverTrigger asChild>
-          <button className="flex items-center gap-1.5 transition-colors">
-            <Wind className={cn("size-3.5 shrink-0", aqi.color)} />
-            <span className="font-mono text-xs text-muted-foreground/50">AQI</span>
-            <span className={cn("font-mono text-xs font-bold tabular-nums", aqi.color)}>{aqi.aqi}</span>
-          </button>
-        </PopoverTrigger>
+    <Popover onOpenChange={(open) => { if (!open) setChangingCity(false) }}>
+      <PopoverTrigger asChild>
+        <button className={WIDGET_PILL_BUTTON_CLASS}>
+          <Wind className={cn("size-3.5 shrink-0", aqi.color)} />
+          <span className="font-mono text-xs text-muted-foreground/50">AQI</span>
+          <span className={cn("font-mono text-xs font-bold tabular-nums", aqi.color)}>{aqi.aqi}</span>
+        </button>
+      </PopoverTrigger>
         <PopoverContent side="top" className="w-56">
           {changingCity ? (
             <CitySearchContent onBack={() => setChangingCity(false)} onSelect={handleCitySelect} onRequestLocation={() => { clearManualGeo(); requestLocation(); setChangingCity(false) }} />
@@ -1080,7 +1095,6 @@ function AirQualityWidgetInner() {
           )}
         </PopoverContent>
       </Popover>
-    </WidgetWrapper>
   )
 }
 
@@ -1669,6 +1683,8 @@ function DashboardTabs() {
   const [contextId, setContextId] = useState<string | null>(null)
   const [menuPos, setMenuPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const contextRef = useRef<HTMLDivElement>(null)
+  const [isNarrow, setIsNarrow] = useState(false)
+  const [selectOpen, setSelectOpen] = useState(false)
 
   // Close context menu on outside click
   useEffect(() => {
@@ -1682,8 +1698,79 @@ function DashboardTabs() {
     return () => document.removeEventListener("pointerdown", handler)
   }, [contextId])
 
+  // Track viewport width to switch tabs <-> dropdown
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1280px)")
+    const update = () => setIsNarrow(mql.matches)
+    update()
+    mql.addEventListener("change", update)
+    return () => mql.removeEventListener("change", update)
+  }, [])
+
   // Only show tabs if there's more than 1 dashboard
   if (dashboards.length <= 1 && !canCreateMore) return null
+
+  const active = dashboards.find((d) => d.id === activeDashboardId) ?? dashboards[0]
+
+  if (isNarrow) {
+    return (
+      <div className="flex items-center gap-1">
+        <Popover open={selectOpen} onOpenChange={setSelectOpen}>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                WIDGET_PILL_BUTTON_CLASS,
+                "font-[family-name:var(--font-mono)] text-xs font-medium text-primary",
+              )}
+              title="Switch dashboard"
+            >
+              <span className="max-w-[8rem] truncate">{active?.name ?? "Dashboard"}</span>
+              <ChevronDown className="size-3 opacity-70" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            side="top"
+            sideOffset={8}
+            className="ts-pill-glass w-56 rounded-2xl border-0 p-1"
+          >
+            <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
+              {dashboards.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => {
+                    switchDashboard(d.id)
+                    setSelectOpen(false)
+                  }}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium transition-colors font-[family-name:var(--font-mono)]",
+                    d.id === activeDashboardId
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground/80 hover:bg-foreground/10"
+                  )}
+                >
+                  <span className="truncate">{d.name}</span>
+                  {d.id === activeDashboardId && <Check className="size-3.5 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        {canCreateMore && (
+          <button
+            onClick={() => createDashboard(`Dashboard ${dashboards.length + 1}`)}
+            className={cn(
+              WIDGET_PILL_BUTTON_CLASS,
+              "px-2 text-muted-foreground hover:text-foreground",
+            )}
+            title="New dashboard"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center gap-0.5">
@@ -1717,7 +1804,7 @@ function DashboardTabs() {
                 setContextId(contextId === d.id ? null : d.id)
               }}
               className={cn(
-                "h-6 rounded px-2 text-xs font-medium transition-colors font-[family-name:var(--font-mono)]",
+                "h-6 whitespace-nowrap rounded px-2 text-xs font-medium transition-colors font-[family-name:var(--font-mono)]",
                 d.id === activeDashboardId
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30"
@@ -1741,7 +1828,7 @@ function DashboardTabs() {
       {contextId && typeof document !== "undefined" && createPortal(
         <div
           ref={contextRef}
-          className="fixed z-[9999] w-32 overflow-hidden rounded-lg border border-border/30 bg-card/95 py-1 shadow-xl backdrop-blur-md"
+          className="ts-pill-glass fixed z-[9999] flex w-40 flex-col gap-1 rounded-2xl p-1 shadow-xl"
           style={{ left: menuPos.x, top: menuPos.y - 4, transform: "translateY(-100%)" }}
         >
           <button
@@ -1753,9 +1840,9 @@ function DashboardTabs() {
               }
               setContextId(null)
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground/70 hover:bg-muted/30"
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-foreground/80 transition-colors hover:bg-foreground/10"
           >
-            <Pencil className="size-3" />
+            <Pencil className="size-3.5" />
             Rename
           </button>
           {dashboards.length > 1 && (
@@ -1764,9 +1851,9 @@ function DashboardTabs() {
                 deleteDashboard(contextId)
                 setContextId(null)
               }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-muted/30"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-red-400 transition-colors hover:bg-red-500/15"
             >
-              <Trash2 className="size-3" />
+              <Trash2 className="size-3.5" />
               Delete
             </button>
           )}

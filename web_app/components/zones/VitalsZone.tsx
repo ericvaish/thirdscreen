@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useState } from "react"
+import { useRegisterZoneActions, type ZoneAction } from "@/lib/zone-actions"
 import { useDataFetch } from "@/lib/use-data-fetch"
 import { format, addDays, isToday, parseISO } from "date-fns"
 import { Flame, Droplets, Heart, Pill, Plus, Minus, Trash2, X, Check, Settings, ChevronLeft, ChevronRight } from "lucide-react"
@@ -107,6 +108,20 @@ export function VitalsZone() {
   const { editMode } = useDashboard()
   const { trigger: mascotTrigger } = useMascot()
   const [today, setToday] = useState("")
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const zoneActions = useMemo<ZoneAction[]>(
+    () => [
+      {
+        id: "settings",
+        label: "Vitals settings…",
+        icon: <Settings className="size-3.5" />,
+        onSelect: () => setSettingsOpen(true),
+      },
+    ],
+    [],
+  )
+  useRegisterZoneActions("vitals", zoneActions)
 
   const [calorieGoal, setCalorieGoal] = useState(DEFAULT_CALORIE_GOAL)
   const [waterUnit, setWaterUnit] = useState<"cups" | "ml">("cups")
@@ -308,20 +323,14 @@ export function VitalsZone() {
 
   return (
     <div className="zone-surface zone-vitals flex h-full flex-col">
-      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-center gap-1.5">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-vitals-accent" icon={<Heart className="size-4" />}>
-            Vitals
-          </ZoneLabel>
-        </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95">
-              <Settings className="size-3.5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent side="left" className="w-64">
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Heart className="size-4" style={{ color: "var(--zone-vitals-accent)" }} />
+              Vitals settings
+            </DialogTitle>
+          </DialogHeader>
             <div className="space-y-4">
               {/* Calorie settings */}
               <div>
@@ -429,13 +438,46 @@ export function VitalsZone() {
                 <AddMedicineDialog onAdd={addMedicine} />
               </div>
             </div>
-          </PopoverContent>
-        </Popover>
+        </DialogContent>
+      </Dialog>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <VitalsRings
+          calories={Math.round(totalCalories)}
+          calorieGoal={calorieGoal}
+          waterMl={waterMl}
+          waterGoalMl={waterGoalMl}
+          medsTaken={todayMeds.reduce(
+            (sum, m) => sum + m.times.filter((t) => doseLogs.get(m.id)?.has(t.id)).length,
+            0,
+          )}
+          medsTotal={todayMeds.reduce((sum, m) => sum + m.times.length, 0)}
+          onAddFood={addFood}
+          onRemoveLastFood={removeLastFood}
+          foodItems={foodItems}
+          onDeleteFood={async (id) => { await deleteFoodItem(id); refetchCalories() }}
+          waterIncrement={waterIncrement}
+          waterUnitLabel={waterUnitLabel}
+          waterDisplay={waterDisplay}
+          waterGoalDisplay={waterGoalDisplay}
+          onAdjustWater={adjustWater}
+          medicines={todayMeds}
+          doseLogs={doseLogs}
+          onToggleDose={toggleDose}
+          onAddMedicine={addMedicine}
+          medDate={medDate}
+          medDateObj={medDateObj}
+          medIsToday={medIsToday}
+          onMedDateChange={setMedDate}
+          onDeleteMedicine={deleteMedicine}
+        />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* (legacy three-column layout removed — replaced by the ring view above) */}
+      <div className="hidden">
+       <div className="grid h-full grid-cols-1 gap-1 overflow-y-auto p-1 @[420px]:grid-cols-3 @[420px]:gap-2 @[420px]:overflow-hidden">
         {/* Calories - inline +/- buttons with settings popover */}
-        <div className="w-full rounded-lg px-3 py-2">
+        <div className="w-full min-w-0 rounded-lg px-3 py-2 @[420px]:flex @[420px]:flex-col @[420px]:justify-center">
           <div className="flex flex-wrap items-center justify-between gap-y-1.5">
             <div className="flex items-center gap-1.5">
               <span style={{ color: "var(--vital-calories)" }} className="opacity-80">
@@ -456,7 +498,7 @@ export function VitalsZone() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="ml-auto flex items-center gap-1">
               <button
                 onClick={removeLastFood}
                 disabled={foodItems.length === 0}
@@ -519,7 +561,7 @@ export function VitalsZone() {
         </div>
 
         {/* Water - inline +/- buttons with settings popover */}
-        <div className="w-full rounded-lg px-3 py-2">
+        <div className="w-full min-w-0 rounded-lg px-3 py-2 @[420px]:flex @[420px]:flex-col @[420px]:justify-center">
           <div className="flex flex-wrap items-center justify-between gap-y-1.5">
             <div className="flex items-center gap-1.5">
               <span style={{ color: "var(--vital-water)" }} className="opacity-80">
@@ -540,7 +582,7 @@ export function VitalsZone() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="ml-auto flex items-center gap-1">
               <button
                 onClick={() => adjustWater(-waterIncrement)}
                 disabled={waterMl <= 0}
@@ -570,7 +612,7 @@ export function VitalsZone() {
         </div>
 
         {/* Medicines - checkbox list */}
-        <div className="px-3 py-2">
+        <div className="min-w-0 px-3 py-2 @[420px]:flex @[420px]:min-h-0 @[420px]:flex-col @[420px]:overflow-hidden">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Pill className="size-3.5 text-[var(--vital-meds)]" />
@@ -578,7 +620,7 @@ export function VitalsZone() {
                 Medications
               </span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="ml-auto flex items-center gap-1">
               {/* Date navigation */}
               <button
                 onClick={() => setMedDate(format(addDays(medDateObj, -1), "yyyy-MM-dd"))}
@@ -626,7 +668,7 @@ export function VitalsZone() {
               No medications scheduled
             </p>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-1 @[420px]:min-h-0 @[420px]:flex-1 @[420px]:overflow-y-auto">
               {todayMeds
                 .flatMap((med) => med.times.map((t) => ({ med, t })))
                 .sort((a, b) => a.t.hour * 60 + a.t.minute - (b.t.hour * 60 + b.t.minute))
@@ -641,13 +683,11 @@ export function VitalsZone() {
                     >
                       <div
                         className={cn(
-                          "flex size-4 shrink-0 items-center justify-center rounded border transition-all",
-                          taken
-                            ? "border-[var(--vital-meds)] bg-[var(--vital-meds)]"
-                            : "border-muted-foreground/50"
+                          "flex size-4 shrink-0 items-center justify-center rounded border-2 transition-all",
+                          taken ? "ts-inner-glass border-transparent" : "border-current/50",
                         )}
                       >
-                        {taken && <Check className="size-2.5 text-white" />}
+                        {taken && <Check className="size-2.5" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <span
@@ -687,8 +727,383 @@ export function VitalsZone() {
             </div>
           )}
         </div>
+       </div>
       </div>
     </div>
+  )
+}
+
+// ── Vitals Rings (Apple-Watch-style triple concentric ring) ─────────────────
+
+interface VitalsRingsProps {
+  calories: number
+  calorieGoal: number
+  waterMl: number
+  waterGoalMl: number
+  medsTaken: number
+  medsTotal: number
+  onAddFood: (e: React.FormEvent<HTMLFormElement>) => void
+  onRemoveLastFood: () => void
+  foodItems: FoodItem[]
+  onDeleteFood: (id: string) => Promise<void>
+  waterIncrement: number
+  waterUnitLabel: string
+  waterDisplay: number
+  waterGoalDisplay: number
+  onAdjustWater: (delta: number) => void
+  medicines: MedicineItem[]
+  doseLogs: Map<string, Set<string>>
+  onToggleDose: (medId: string, timeId: string) => void
+  onAddMedicine: Parameters<typeof AddMedicineDialog>[0]["onAdd"]
+  medDate: string
+  medDateObj: Date
+  medIsToday: boolean
+  onMedDateChange: (date: string) => void
+  onDeleteMedicine: (id: string) => void
+}
+
+function VitalsRings({
+  calories,
+  calorieGoal,
+  waterMl,
+  waterGoalMl,
+  medsTaken,
+  medsTotal,
+  onAddFood,
+  onRemoveLastFood,
+  foodItems,
+  onDeleteFood,
+  waterIncrement,
+  waterUnitLabel,
+  waterDisplay,
+  waterGoalDisplay,
+  onAdjustWater,
+  medicines,
+  doseLogs,
+  onToggleDose,
+  onAddMedicine,
+  medDateObj,
+  medIsToday,
+  onMedDateChange,
+  onDeleteMedicine,
+}: VitalsRingsProps) {
+  const calPct = calories / Math.max(calorieGoal, 1)
+  const waterPct = waterMl / Math.max(waterGoalMl, 1)
+  const medsPct = medsTotal > 0 ? medsTaken / medsTotal : 0
+
+  return (
+    <div className="flex h-full w-full items-center justify-center gap-2 px-5 py-4">
+      {/* Concentric rings — outer: calories, middle: water, inner: meds */}
+      <ConcentricRings
+        size={200}
+        rings={[
+          { color: "var(--vital-calories)", colorEnd: "var(--vital-calories-2)", pct: calPct, track: 22 },
+          { color: "var(--vital-water)", colorEnd: "var(--vital-water-2)", pct: waterPct, track: 22 },
+          { color: "var(--vital-meds)", colorEnd: "var(--vital-meds-2)", pct: medsPct, track: 22 },
+        ]}
+        innerGap={6}
+      />
+
+      {/* Single readout column — all three vitals stacked, no nested cards. */}
+      <div className="flex flex-col gap-3">
+        {/* Calories */}
+        <div className="flex items-center gap-3">
+          <Flame className="size-4 shrink-0" style={{ color: "var(--vital-calories)" }} />
+          <div className="flex shrink-0 flex-col leading-tight">
+            <span className="font-mono text-[0.6875rem] uppercase tracking-wider text-muted-foreground/60">Calories</span>
+            <span
+              className="font-mono text-xs tabular-nums"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              <span className="font-bold" style={{ color: "var(--vital-calories)" }}>{calories}</span>
+              <span className="text-muted-foreground/50">{`/${calorieGoal}`}</span>
+            </span>
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            {/* Spacer to keep + button aligned with Water's + (which is the second of two) */}
+            <span className="block size-7" aria-hidden />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/30 hover:text-foreground">
+                  <Plus className="size-3" />
+                </button>
+              </PopoverTrigger>
+          <PopoverContent side="left" className="w-60">
+            <p className="mb-3 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-calories)" }}>
+              Log Food
+            </p>
+            <form onSubmit={onAddFood} className="grid gap-2">
+              <Input name="name" placeholder="Food name" className="h-9 text-xs" />
+              <div className="flex gap-2">
+                <Input name="calories" type="number" placeholder="kcal" className="h-9 text-xs" />
+                <Button type="submit" size="sm" className="h-9 shrink-0">
+                  <Plus className="size-3" />
+                </Button>
+              </div>
+            </form>
+            {foodItems.length > 0 && (
+              <div className="mt-3 max-h-32 space-y-1 overflow-auto border-t border-border/10 pt-2">
+                {foodItems.map((f) => (
+                  <div key={f.id} className="flex items-center justify-between text-xs">
+                    <span className="truncate text-muted-foreground">{f.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 font-mono text-foreground">{f.calories}</span>
+                      <button
+                        onClick={() => onDeleteFood(f.id)}
+                        className="text-muted-foreground/40 transition-colors hover:text-destructive"
+                        aria-label="Delete food entry"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+          </div>
+        </div>
+
+        {/* Water — direct +/- buttons (no popover needed) */}
+        <div className="flex items-center gap-3">
+          <Droplets className="size-4 shrink-0" style={{ color: "var(--vital-water)" }} />
+          <div className="flex shrink-0 flex-col leading-tight">
+            <span className="font-mono text-[0.6875rem] uppercase tracking-wider text-muted-foreground/60">Water</span>
+            <span
+              className="font-mono text-xs tabular-nums"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              <span className="font-bold" style={{ color: "var(--vital-water)" }}>{waterDisplay}</span>
+              <span className="text-muted-foreground/50">{`/${waterGoalDisplay} ${waterUnitLabel}`}</span>
+            </span>
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => onAdjustWater(-waterIncrement)}
+              disabled={waterMl <= 0}
+              className="flex size-7 items-center justify-center rounded-md bg-transparent text-muted-foreground/60 transition-colors hover:bg-muted/30 hover:text-foreground disabled:opacity-30"
+            >
+              <Minus className="size-3" />
+            </button>
+            <button
+              onClick={() => onAdjustWater(waterIncrement)}
+              className="flex size-7 items-center justify-center rounded-md bg-transparent text-muted-foreground/60 transition-colors hover:bg-muted/30 hover:text-foreground"
+            >
+              <Plus className="size-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Medications */}
+        <div className="flex items-center gap-3">
+          <Pill className="size-4 shrink-0" style={{ color: "var(--vital-meds)" }} />
+          <div className="flex shrink-0 flex-col leading-tight">
+            <span className="font-mono text-[0.6875rem] uppercase tracking-wider text-muted-foreground/60">Meds</span>
+            <span
+              className="font-mono text-xs tabular-nums"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              <span className="font-bold" style={{ color: "var(--vital-meds)" }}>{medsTaken}</span>
+              <span className="text-muted-foreground/50">{`/${medsTotal}`}</span>
+            </span>
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <span className="block size-7" aria-hidden />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/30 hover:text-foreground">
+                  <Plus className="size-3" />
+                </button>
+              </PopoverTrigger>
+          <PopoverContent side="left" className="w-72">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="font-mono text-xs font-medium uppercase tracking-wider" style={{ color: "var(--vital-meds)" }}>
+                Medications
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={() => onMedDateChange(format(addDays(medDateObj, -1), "yyyy-MM-dd"))}
+                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40"
+                >
+                  <ChevronLeft className="size-3.5" />
+                </button>
+                <span className="px-2 font-mono text-xs text-muted-foreground">
+                  {medIsToday ? "Today" : format(medDateObj, "MMM d")}
+                </span>
+                <button
+                  onClick={() => onMedDateChange(format(addDays(medDateObj, 1), "yyyy-MM-dd"))}
+                  disabled={medIsToday}
+                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-30"
+                >
+                  <ChevronRight className="size-3.5" />
+                </button>
+                <AddMedicineDialog onAdd={onAddMedicine} compact />
+              </div>
+            </div>
+            {medicines.length === 0 ? (
+              <p className="py-2 text-center text-xs text-muted-foreground/50">
+                No medications scheduled
+              </p>
+            ) : (
+              <div className="max-h-56 space-y-1 overflow-auto">
+                {medicines
+                  .flatMap((med) => med.times.map((t) => ({ med, t })))
+                  .sort((a, b) => a.t.hour * 60 + a.t.minute - (b.t.hour * 60 + b.t.minute))
+                  .map(({ med, t }) => {
+                    const taken = doseLogs.get(med.id)?.has(t.id) ?? false
+                    const timeStr = `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`
+                    return (
+                      <div key={`${med.id}-${t.id}`} className="group flex items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/30">
+                        <button
+                          onClick={() => onToggleDose(med.id, t.id)}
+                          className="flex flex-1 items-center gap-2 text-left"
+                        >
+                          <div
+                            className={cn(
+                              "flex size-4 shrink-0 items-center justify-center rounded border-2 transition-all",
+                              taken ? "ts-inner-glass border-transparent" : "border-current/50",
+                            )}
+                          >
+                            {taken && <Check className="size-2.5" />}
+                          </div>
+                          <span className={cn("flex-1 text-xs", taken && "text-muted-foreground line-through")}>
+                            {med.name}
+                            {med.dosage && <span className="ml-1 text-muted-foreground/50">{med.dosage}</span>}
+                          </span>
+                          <span className={cn("font-mono text-xs", taken ? "text-muted-foreground/40" : "text-muted-foreground")}>
+                            {timeStr}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => onDeleteMedicine(med.id)}
+                          className="hover-reveal text-muted-foreground/30 hover:text-destructive"
+                        >
+                          <Trash2 className="size-2.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface ConcentricRingsProps {
+  size: number
+  rings: { color: string; colorEnd?: string; pct: number; track: number }[]
+  /** Extra spacing applied between consecutive rings (in addition to track). */
+  innerGap?: number
+}
+
+function ConcentricRings({ size, rings, innerGap = 2 }: ConcentricRingsProps) {
+  const cx = size / 2
+  const cy = size / 2
+  const reactId = useId()
+  // useId values can include characters (":") that aren't valid in SVG id refs
+  // via url(#…); strip them. Stable across SSR/client so no hydration mismatch.
+  const gradId = `vr-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`
+  const outerCapInset = rings[0]?.track ? rings[0].track / 2 : 0
+  return (
+    <svg
+      width={size}
+      height={size}
+      className="-rotate-90 shrink-0"
+      style={{ overflow: "visible" }}
+    >
+      <defs>
+        {rings.map((ring, i) => (
+          <linearGradient key={i} id={`${gradId}-${i}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={ring.color} />
+            <stop offset="100%" stopColor={ring.colorEnd ?? ring.color} />
+          </linearGradient>
+        ))}
+      </defs>
+      {rings.map((ring, i) => {
+        const offset = i === 0
+          ? outerCapInset
+          : outerCapInset + rings.slice(0, i).reduce((s, r) => s + r.track + innerGap, 0)
+        const r = (size - ring.track) / 2 - offset
+        if (r <= 0) return null
+        const c = 2 * Math.PI * r
+        const stroke = `url(#${gradId}-${i})`
+        const totalPct = ring.pct
+        const overshoot = totalPct > 1
+        // Visible-arc fraction: the part drawn from the top.
+        // For overshoot, that's (pct − 1) % 1 which gives where on the next
+        // lap the leading edge sits. The base lap is drawn separately.
+        const visiblePct = overshoot ? ((totalPct - 1) % 1) : totalPct
+        const dash = c * visiblePct
+        const tipAngle = visiblePct * Math.PI * 2
+        const tipX = cx + r * Math.cos(tipAngle)
+        const tipY = cy + r * Math.sin(tipAngle)
+        const showTipIndicator = totalPct > 0.001 && (overshoot || totalPct < 0.999)
+        return (
+          <g key={i}>
+            {/* Track */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill="none"
+              stroke={ring.color}
+              strokeOpacity={0.15}
+              strokeWidth={ring.track}
+            />
+            {/* Full base lap (only when overshooting) */}
+            {overshoot && (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={r}
+                fill="none"
+                stroke={stroke}
+                strokeWidth={ring.track}
+              />
+            )}
+            {/* Leading-cap shadow — filled circle at the tip with a drop
+                shadow. The 2nd-lap arc drawn on top covers the trailing
+                half of the shadow, leaving only the "underneath" shadow
+                visible at the leading edge so the cap reads as layered on
+                top of the 1st lap. */}
+            {overshoot && dash > 0.01 && (
+              <circle
+                cx={tipX}
+                cy={tipY}
+                r={ring.track / 2}
+                fill={ring.color}
+                style={{
+                  filter: `drop-shadow(0 ${ring.track * 0.18}px ${ring.track * 0.35}px rgba(0,0,0,0.55))`,
+                  transition: "cx 0.6s ease, cy 0.6s ease",
+                }}
+              />
+            )}
+            {/* Progress arc — for non-overshoot this is the only arc; for
+                overshoot it sits on top of the full base lap, covering the
+                trailing part of the cap shadow. */}
+            {dash > 0.01 && (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={r}
+                fill="none"
+                stroke={stroke}
+                strokeWidth={ring.track}
+                strokeLinecap="round"
+                strokeDasharray={`${dash} ${c}`}
+                style={{ transition: "stroke-dasharray 0.6s ease" }}
+              />
+            )}
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 

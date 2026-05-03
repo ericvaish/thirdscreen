@@ -56,18 +56,16 @@ export function MonthView({
             <button
               key={key}
               onClick={() => onSelectDay(day)}
-              className={`group relative flex flex-col items-center overflow-hidden rounded-md border p-0.5 transition-colors ${
+              className={`group relative flex flex-col items-center overflow-hidden rounded-xl p-0.5 transition-colors ${
                 !inMonth
-                  ? "border-transparent opacity-30"
-                  : isSelected
-                    ? "border-[var(--zone-timeline-accent)]/40 bg-[var(--zone-timeline-accent)]/5"
-                    : "border-transparent hover:border-border/25 hover:bg-muted/20"
+                  ? "opacity-30"
+                  : `ts-inner-glass ${isSelected ? "ring-1 ring-current/40" : ""}`
               }`}
             >
               <span
-                className={`flex size-4 shrink-0 items-center justify-center rounded-full font-mono text-xs font-medium ${
+                className={`flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-xs font-medium ${
                   isDayToday
-                    ? "bg-amber-400 text-black"
+                    ? "ts-inner-glass ring-1 ring-current/40"
                     : "text-foreground/60"
                 }`}
               >

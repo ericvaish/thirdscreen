@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { Moon, Sun, Monitor, ZoomIn, Bot, Globe, Puzzle, Heart, Settings, Blocks, Bell } from "lucide-react"
-import { useTheme } from "next-themes"
-import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
+import { ZoomIn, Bot, Globe, Puzzle, Heart, Settings, Blocks, Bell } from "lucide-react"
 import { useScale } from "@/components/scale-provider"
+import { usePagePadding } from "@/lib/use-page-padding"
+import { Slider } from "@/components/ui/slider"
 import {
   getIntegrationsByCategory,
 } from "@/lib/integrations/registry"
@@ -22,6 +22,7 @@ import { HomeAssistantSettings } from "./HomeAssistantSettings"
 import { SpotifySettings } from "./SpotifySettings"
 import { JiraSettings } from "./JiraSettings"
 import { PixelBuddyEditor } from "./PixelBuddyEditor"
+import { WallpaperSection } from "./ThemeCustomizer"
 import { useTimezone, TIMEZONE_LIST } from "@/lib/timezone"
 import { useDashboard } from "./DashboardContext"
 import { ZONE_IDS } from "@/lib/grid-layout"
@@ -41,8 +42,22 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"]
 
-export function SettingsView() {
-  const [activeTab, setActiveTab] = useState<TabId>("general")
+export function SettingsView({ initialSection }: { initialSection?: string } = {}) {
+  // Map a deep-link section to the right tab so callers can jump straight to it.
+  const initialTab: TabId = initialSection === "smarthome" ? "integrations" : "general"
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab)
+
+  // After mount, scroll the requested section into view (e.g. Smart Home card).
+  useEffect(() => {
+    if (!initialSection) return
+    const id =
+      initialSection === "smarthome" ? "settings-section-smart-home" : `settings-section-${initialSection}`
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [initialSection])
 
   return (
     <div className="flex h-full min-h-0">
@@ -53,13 +68,13 @@ export function SettingsView() {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+              className={`flex items-center gap-2.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 activeTab === id
-                  ? "bg-primary/10 text-primary font-medium"
+                  ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
               }`}
             >
-              <Icon className="size-4" />
+              <Icon className="size-[1.05rem]" />
               {label}
             </button>
           ))}
@@ -71,7 +86,7 @@ export function SettingsView() {
             href="https://github.com/sponsors/ericvaish"
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-pink-500/10 hover:text-pink-500"
+            className="group flex items-center gap-2 rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-pink-500/10 hover:text-pink-500"
           >
             <Heart className="size-4 transition-transform group-hover:scale-110" />
             Support
@@ -86,7 +101,7 @@ export function SettingsView() {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors ${
                 activeTab === id
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground/50 hover:text-muted-foreground"
@@ -128,38 +143,11 @@ const ZONE_LABELS: Record<string, { label: string; icon: typeof Icons.LayoutGrid
 }
 
 function GeneralTab() {
-  const { theme, setTheme } = useTheme()
   const { scale, setScale, presets } = useScale()
+  const { padding, setPadding, min: padMin, max: padMax } = usePagePadding()
 
   return (
     <div className="space-y-8">
-      {/* Appearance */}
-      <section>
-        <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Appearance
-        </Label>
-        <div className="mt-3 flex gap-2">
-          {[
-            { value: "light", icon: Sun, label: "Light" },
-            { value: "dark", icon: Moon, label: "Dark" },
-            { value: "system", icon: Monitor, label: "System" },
-          ].map(({ value, icon: Icon, label }) => (
-            <button
-              key={value}
-              onClick={(e) => animatedSetTheme(setTheme, value, e.currentTarget)}
-              className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs transition-all ${
-                theme === value
-                  ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
-                  : "border-border text-muted-foreground hover:bg-muted/30"
-              }`}
-            >
-              <Icon className="size-4" />
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
-
       {/* Display Scale */}
       <section>
         <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -174,7 +162,7 @@ function GeneralTab() {
             <button
               key={value}
               onClick={() => setScale(value)}
-              className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs transition-all ${
+              className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-2.5 text-xs transition-all ${
                 scale === value
                   ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
                   : "border-border text-muted-foreground hover:bg-muted/30"
@@ -190,8 +178,32 @@ function GeneralTab() {
         </div>
       </section>
 
+      {/* Page edge padding */}
+      <section>
+        <div className="flex items-center justify-between">
+          <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Page Padding
+          </Label>
+          <span className="font-mono text-xs text-muted-foreground/50">{padding}px</span>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Space between the dashboard shell and the browser edges, applied on all four sides.
+        </p>
+        <Slider
+          min={padMin}
+          max={padMax}
+          step={1}
+          value={[padding]}
+          onValueChange={([v]) => setPadding(v)}
+          className="mt-3"
+        />
+      </section>
+
       {/* Location & Timezone */}
       <LocationTimezoneSettings />
+
+      {/* Wallpaper */}
+      <WallpaperSection />
     </div>
   )
 }
@@ -237,8 +249,9 @@ function IntegrationsTab() {
           const hasSettings = category === "Calendar" || category === "Smart Home"
           if (externalItems.length === 0 && !hasSettings) return null
 
+          const sectionId = `settings-section-${category.toLowerCase().replace(/\s+/g, "-")}`
           return (
-            <div key={category}>
+            <div key={category} id={sectionId} className="scroll-mt-4">
               <h3 className="mb-3 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
                 {category}
               </h3>
@@ -453,7 +466,7 @@ function LocationTimezoneSettings() {
       </div>
 
       {/* Mode tabs */}
-      <div className="mt-3 flex gap-1 rounded-lg border border-border/30 p-0.5">
+      <div className="mt-3 flex gap-1 rounded-full border border-border/30 p-0.5">
         {([
           { id: "city" as LocTzMode, label: "Search City", icon: Icons.MapPin },
           { id: "timezone" as LocTzMode, label: "Timezone Only", icon: Icons.Clock },
@@ -461,7 +474,7 @@ function LocationTimezoneSettings() {
           <button
             key={id}
             onClick={() => setMode(id)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all ${
               mode === id
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground/50 hover:text-muted-foreground"
@@ -483,7 +496,7 @@ function LocationTimezoneSettings() {
               placeholder="Search for your city..."
               value={cityQuery}
               onChange={(e) => handleCitySearch(e.target.value)}
-              className="h-11 w-full rounded-xl border border-border/40 bg-transparent pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/30 focus:border-primary/30"
+              className="h-11 w-full rounded-full border border-border/40 bg-transparent pl-9 pr-4 text-sm outline-none placeholder:text-muted-foreground/30 focus:border-primary/30"
             />
             {searching && (
               <Icons.Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground/40" />
@@ -535,7 +548,7 @@ function LocationTimezoneSettings() {
               placeholder="Search timezones..."
               value={tzSearch}
               onChange={(e) => setTzSearch(e.target.value)}
-              className="h-11 w-full rounded-xl border border-border/40 bg-transparent pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/30 focus:border-primary/30"
+              className="h-11 w-full rounded-full border border-border/40 bg-transparent pl-9 pr-4 text-sm outline-none placeholder:text-muted-foreground/30 focus:border-primary/30"
             />
           </div>
 
@@ -683,7 +696,7 @@ function MascotSettings() {
           <section>
             <button
               onClick={() => setShowEditor((p) => !p)}
-              className="flex w-full items-center justify-between rounded-lg border border-border/50 px-3 py-2.5 text-left transition-all hover:border-border hover:bg-muted/20"
+              className="flex w-full items-center justify-between rounded-full border border-border/50 px-4 py-2.5 text-left transition-all hover:border-border hover:bg-muted/20"
             >
               <div className="flex items-center gap-2">
                 <Icons.Paintbrush className="size-4 text-cyan-400/70" />

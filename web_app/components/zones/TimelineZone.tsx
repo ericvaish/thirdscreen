@@ -91,6 +91,7 @@ import { EventDetailDialog } from "./timeline/EventDetailDialog"
 import { EventListPanel } from "./timeline/EventListPanel"
 import { ViewModeDropdown } from "./timeline/ViewModeDropdown"
 import { CalendarAccountsContent } from "./timeline/CalendarAccountsContent"
+import { cn } from "@/lib/utils"
 
 
 export function TimelineZone() {
@@ -865,12 +866,41 @@ export function TimelineZone() {
     <div ref={zoneRef} className="zone-surface zone-timeline flex h-full flex-col">
       {/* Header */}
       <div className={`flex shrink-0 items-center gap-1 px-3 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        {/* Left: title */}
-        <div ref={titleRef} className="flex shrink-0 items-center gap-1.5">
+        {/* Left: view mode + sun arc */}
+        <div ref={titleRef} className="flex shrink-0 items-center gap-1">
           <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-timeline-accent" icon={<CalendarDays className="size-4" />}>
-            Schedule
-          </ZoneLabel>
+          {compactLevel === 0 && (
+            <>
+              <div className="ts-inner-glass flex items-center rounded-full p-0.5">
+                {(["day", "week", "month"] as ViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => handleViewChange(mode)}
+                    className={cn(
+                      "flex size-10 items-center justify-center rounded-full font-mono text-xs font-bold uppercase tracking-wider transition-all active:scale-95",
+                      viewMode === mode
+                        ? "bg-[color-mix(in_oklab,currentColor_18%,transparent)]"
+                        : "opacity-50 hover:opacity-100",
+                    )}
+                  >
+                    {mode === "day" ? "D" : mode === "week" ? "W" : "M"}
+                  </button>
+                ))}
+              </div>
+              {viewMode === "day" && (
+                <button
+                  onClick={toggleSunArc}
+                  className={cn(
+                    "ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95",
+                    showSunArc && "ring-1 ring-amber-400/40 text-amber-400",
+                  )}
+                  title="Toggle daylight arc"
+                >
+                  <Sun className="size-4" />
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         {/* Center: date navigation - flexes to fill available space */}
@@ -878,7 +908,7 @@ export function TimelineZone() {
           <div className="flex items-center gap-1">
             <button
               onClick={goBack}
-              className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+              className="ts-inner-glass flex size-11 shrink-0 items-center justify-center rounded-full transition-colors active:scale-95"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -886,8 +916,8 @@ export function TimelineZone() {
             {/* Date label / calendar picker */}
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
-                <button className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border/25 bg-muted/15 px-3 text-xs font-semibold whitespace-nowrap text-foreground/80 transition-colors hover:border-border/40 hover:bg-muted/30">
-                  <CalendarDays className="size-3.5 shrink-0 text-muted-foreground/50" />
+                <button className="ts-inner-glass flex h-11 items-center justify-center gap-1.5 rounded-full px-4 text-xs font-semibold whitespace-nowrap transition-colors">
+                  <CalendarDays className="size-3.5 shrink-0 opacity-70" />
                   {headerDateLabel}
                 </button>
               </PopoverTrigger>
@@ -912,7 +942,7 @@ export function TimelineZone() {
 
             <button
               onClick={goForward}
-              className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+              className="ts-inner-glass flex size-11 shrink-0 items-center justify-center rounded-full transition-colors active:scale-95"
             >
               <ChevronRight className="size-4" />
             </button>
@@ -941,44 +971,16 @@ export function TimelineZone() {
 
         {/* Right: view mode switcher + actions (progressively collapsed) */}
         <div ref={rightActionsRef} className="flex shrink-0 items-center gap-1">
-          {/* Level 0 (wide): all buttons visible separately */}
+          {/* Level 0 (wide): D/W/M + Sun arc moved to left section; only cog + add here */}
           {compactLevel === 0 && (
             <>
-              {viewMode === "day" && (
-                <button
-                  onClick={toggleSunArc}
-                  className={`flex size-11 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
-                    showSunArc
-                      ? "border-amber-400/30 bg-amber-400/10 text-amber-400"
-                      : "border-border/25 bg-muted/15 text-muted-foreground/40 hover:border-amber-400/30 hover:text-amber-400"
-                  }`}
-                  title="Toggle daylight arc"
-                >
-                  <Sun className="size-4" />
-                </button>
-              )}
-              <div className="flex items-center rounded-lg border border-border/25 bg-muted/15 p-0.5">
-                {(["day", "week", "month"] as ViewMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => handleViewChange(mode)}
-                    className={`flex size-10 items-center justify-center rounded-md font-mono text-xs font-bold uppercase tracking-wider transition-all active:scale-95 ${
-                      viewMode === mode
-                        ? "bg-[var(--zone-timeline-accent)]/20 text-[var(--zone-timeline-accent)] shadow-sm"
-                        : "text-muted-foreground/40 hover:bg-muted/20 hover:text-muted-foreground/70"
-                    }`}
-                  >
-                    {mode === "day" ? "D" : mode === "week" ? "W" : "M"}
-                  </button>
-                ))}
-              </div>
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    className="ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95"
                     title="Connect calendars"
                   >
-                    <CalendarCog className="size-3.5" />
+                    <CalendarCog className="size-4" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-64">
@@ -993,7 +995,7 @@ export function TimelineZone() {
               </Popover>
               <button
                 onClick={() => handleDialogChange(true)}
-                className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                className="ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95"
                 title="Add event"
               >
                 <Plus className="size-4" />
@@ -1013,10 +1015,10 @@ export function TimelineZone() {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    className="ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95"
                     title="Connect calendars"
                   >
-                    <CalendarCog className="size-3.5" />
+                    <CalendarCog className="size-4" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-64">
@@ -1031,7 +1033,7 @@ export function TimelineZone() {
               </Popover>
               <button
                 onClick={() => handleDialogChange(true)}
-                className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                className="ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95"
                 title="Add event"
               >
                 <Plus className="size-4" />
@@ -1051,7 +1053,7 @@ export function TimelineZone() {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                    className="ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95"
                     title="More actions"
                   >
                     <MoreHorizontal className="size-4" />
@@ -1092,7 +1094,7 @@ export function TimelineZone() {
             <Popover>
               <PopoverTrigger asChild>
                 <button
-                  className="flex size-11 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/50 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
+                  className="ts-inner-glass flex size-11 items-center justify-center rounded-full transition-colors active:scale-95"
                   title="Schedule options"
                 >
                   <MoreHorizontal className="size-4" />

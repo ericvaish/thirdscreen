@@ -663,24 +663,102 @@ export function localListRssFeeds(): LocalRssFeed[] {
   return read<LocalRssFeed[]>("rss_feeds", [])
 }
 
-export function localAddRssFeed(data: { url: string }): LocalRssFeed {
+export function localAddRssFeed(data: {
+  url: string
+  title?: string | null
+  siteUrl?: string | null
+  items?: Array<{
+    guid: string
+    title: string
+    link: string | null
+    pubDate: string | null
+    summary: string | null
+  }>
+}): LocalRssFeed {
   const feeds = read<LocalRssFeed[]>("rss_feeds", [])
   const feed: LocalRssFeed = {
     id: uid(),
     url: data.url,
-    title: null,
-    siteUrl: null,
-    lastFetchedAt: null,
+    title: data.title ?? null,
+    siteUrl: data.siteUrl ?? null,
+    lastFetchedAt: data.items ? now() : null,
     createdAt: now(),
   }
   feeds.push(feed)
   write("rss_feeds", feeds)
+
+  if (data.items && data.items.length) {
+    const articles = read<LocalRssArticle[]>("rss_articles", [])
+    for (const item of data.items) {
+      if (!item.guid) continue
+      articles.push({
+        id: uid(),
+        feedId: feed.id,
+        guid: item.guid,
+        title: item.title,
+        link: item.link,
+        pubDate: item.pubDate,
+        summary: item.summary,
+        createdAt: now(),
+      })
+    }
+    write("rss_articles", articles)
+  }
+
   return feed
 }
 
 export function localDeleteRssFeed(id: string): void {
   write("rss_feeds", read<LocalRssFeed[]>("rss_feeds", []).filter((f) => f.id !== id))
   write("rss_articles", read<LocalRssArticle[]>("rss_articles", []).filter((a) => a.feedId !== id))
+}
+
+export function localMergeRssArticles(
+  feedId: string,
+  items: Array<{
+    guid: string
+    title: string
+    link: string | null
+    pubDate: string | null
+    summary: string | null
+  }>,
+): number {
+  const articles = read<LocalRssArticle[]>("rss_articles", [])
+  const existing = new Set(articles.filter((a) => a.feedId === feedId).map((a) => a.guid))
+  let added = 0
+  for (const item of items) {
+    if (!item.guid || existing.has(item.guid)) continue
+    articles.push({
+      id: uid(),
+      feedId,
+      guid: item.guid,
+      title: item.title,
+      link: item.link,
+      pubDate: item.pubDate,
+      summary: item.summary,
+      createdAt: now(),
+    })
+    added++
+  }
+  if (added) write("rss_articles", articles)
+  return added
+}
+
+export function localTouchRssFeed(
+  feedId: string,
+  title: string | null,
+  siteUrl: string | null,
+): void {
+  const feeds = read<LocalRssFeed[]>("rss_feeds", [])
+  const idx = feeds.findIndex((f) => f.id === feedId)
+  if (idx === -1) return
+  feeds[idx] = {
+    ...feeds[idx],
+    title: title ?? feeds[idx].title,
+    siteUrl: siteUrl ?? feeds[idx].siteUrl,
+    lastFetchedAt: now(),
+  }
+  write("rss_feeds", feeds)
 }
 
 export function localListRssArticles(limit?: number): LocalRssArticle[] {

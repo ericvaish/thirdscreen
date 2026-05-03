@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import {
-  LayoutGrid, List, CalendarDays, Clock, ListChecks, StickyNote,
+  LayoutGrid, List, Plus, Check, CalendarDays, Clock, ListChecks, StickyNote,
   Activity, Music, Target, Home, CloudSun, Rss,
 } from "lucide-react"
 import { useDashboard } from "./DashboardContext"
@@ -43,9 +43,9 @@ export function ZonePicker() {
           variant="ghost"
           size="icon-xs"
           className="text-muted-foreground hover:text-foreground"
-          title="Show/hide zones"
+          title="Add or remove zones"
         >
-          <LayoutGrid className="size-4" />
+          <Plus className="size-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent side="bottom" align="end" sideOffset={8} collisionPadding={16} className="w-80 max-h-[calc(100vh-5rem)] overflow-y-auto p-0">
@@ -103,22 +103,60 @@ export function ZonePicker() {
                 return (
                   <button
                     key={zoneId}
-                    onClick={() => toggleZone(zoneId)}
-                    className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs transition-all ${
-                      visible
-                        ? "border-border/40 bg-muted/20 hover:bg-muted/40"
-                        : "border-transparent bg-muted/5 opacity-40 hover:opacity-70"
-                    }`}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      toggleZone(zoneId)
+                    }}
+                    aria-pressed={visible}
+                    title={visible ? `${meta.label} — click to hide` : `${meta.label} — click to show`}
+                    className="group relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-xs transition-all hover:scale-[1.03] active:scale-[0.97]"
+                    style={{
+                      borderColor: visible ? meta.accent : "color-mix(in oklch, var(--border), transparent 50%)",
+                      backgroundColor: visible
+                        ? `color-mix(in oklch, ${meta.accent}, transparent 85%)`
+                        : "color-mix(in oklch, var(--muted), transparent 80%)",
+                      opacity: visible ? 1 : 0.55,
+                    }}
                   >
+                    {/* On/off badge top-right */}
                     <div
-                      className="flex size-8 items-center justify-center rounded-lg"
+                      className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border-2 transition-all"
                       style={{
-                        backgroundColor: visible ? `color-mix(in oklch, ${meta.accent}, transparent 85%)` : undefined,
+                        backgroundColor: visible ? meta.accent : "var(--background)",
+                        borderColor: visible ? meta.accent : "color-mix(in oklch, var(--border), transparent 30%)",
                       }}
                     >
-                      <meta.icon className="size-4" style={{ color: visible ? meta.accent : undefined }} />
+                      {visible && <Check className="size-3 text-white" strokeWidth={3} />}
                     </div>
-                    <span className="font-medium">{meta.label}</span>
+
+                    <div
+                      className="flex size-8 items-center justify-center rounded-lg transition-colors"
+                      style={{
+                        backgroundColor: visible
+                          ? `color-mix(in oklch, ${meta.accent}, transparent 75%)`
+                          : "color-mix(in oklch, var(--muted), transparent 50%)",
+                      }}
+                    >
+                      <meta.icon
+                        className="size-4"
+                        style={{
+                          color: visible ? meta.accent : "var(--muted-foreground)",
+                          opacity: visible ? 1 : 0.5,
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="font-medium"
+                      style={{
+                        color: visible ? undefined : "var(--muted-foreground)",
+                        textDecoration: visible ? undefined : "line-through",
+                        textDecorationThickness: "1.5px",
+                      }}
+                    >
+                      {meta.label}
+                    </span>
                   </button>
                 )
               })}

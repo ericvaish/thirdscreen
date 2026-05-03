@@ -424,7 +424,7 @@ function ModelSelector({
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-10 mb-1.5 w-52 rounded-xl border border-border/30 bg-card/95 p-1.5 shadow-xl backdrop-blur-xl">
+        <div className="ts-pill-glass absolute bottom-full left-0 z-10 mb-1.5 w-52 rounded-xl p-1.5 shadow-xl">
           {browserModels.map((model) => {
             const cached = cacheStatus[model.id] ?? false
             const isSelected = model.id === selectedModelId
@@ -634,7 +634,7 @@ function ChatPopover({
     return (
       <div
         style={popoverStyle}
-        className="flex flex-col overflow-hidden rounded-2xl border border-border/30 bg-card/95 shadow-2xl backdrop-blur-xl"
+        className="ts-pill-glass flex flex-col overflow-hidden rounded-2xl shadow-2xl"
       >
         <ModelManager
           onBack={() => setShowModelManager(false)}
@@ -649,7 +649,7 @@ function ChatPopover({
   return (
     <div
       style={popoverStyle}
-      className="flex flex-col overflow-hidden rounded-2xl border border-border/30 bg-card/95 shadow-2xl backdrop-blur-xl"
+      className="ts-pill-glass flex flex-col overflow-hidden rounded-2xl shadow-2xl"
     >
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/20 px-4 py-3">

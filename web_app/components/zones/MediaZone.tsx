@@ -1,13 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
+import { useRegisterZoneActions, type ZoneAction } from "@/lib/zone-actions"
 import {
   Play,
   Pause,
   SkipBack,
   SkipForward,
   Music,
-  Unplug,
   Minus,
   Plus,
   Monitor,
@@ -25,6 +26,8 @@ import {
   VolumeX,
   Volume1,
   Heart,
+  Copy,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -44,7 +47,6 @@ import {
   localPlaybackControl,
   localSeekPlayback,
   localTransferPlayback,
-  clearLocalSpotifyTokens,
   getLocalDevices,
   localSetShuffle,
   localSetRepeat,
@@ -109,6 +111,35 @@ export function MediaZone() {
     const stored = localStorage.getItem("lyrics-font-size")
     if (stored) setLyricsSize(parseInt(stored, 10))
   }, [])
+
+  const zoneActions = useMemo<ZoneAction[]>(
+    () => [
+      {
+        id: "lyrics-smaller",
+        label: `Lyrics smaller (${lyricsSize}px)`,
+        icon: <Minus className="size-3.5" />,
+        onSelect: () => {
+          const next = Math.max(11, lyricsSize - 2)
+          setLyricsSize(next)
+          localStorage.setItem("lyrics-font-size", String(next))
+        },
+        disabled: lyricsSize <= 11,
+      },
+      {
+        id: "lyrics-larger",
+        label: `Lyrics larger (${lyricsSize}px)`,
+        icon: <Plus className="size-3.5" />,
+        onSelect: () => {
+          const next = Math.min(32, lyricsSize + 2)
+          setLyricsSize(next)
+          localStorage.setItem("lyrics-font-size", String(next))
+        },
+        disabled: lyricsSize >= 32,
+      },
+    ],
+    [lyricsSize],
+  )
+  useRegisterZoneActions("media", zoneActions)
 
   // Fetch connection status
   const fetchState = useCallback(async () => {
@@ -468,16 +499,6 @@ export function MediaZone() {
     sendSeek(ms)
   }
 
-  const disconnect = async () => {
-    if (isLocal) {
-      clearLocalSpotifyTokens()
-    } else {
-      await fetch("/api/spotify", { method: "DELETE" })
-    }
-    fetchState()
-    toast.success("Disconnected from Spotify")
-  }
-
   // ── Render ────────────────────────────────────────────────────────────
 
   if (status.state === "loading") {
@@ -518,55 +539,6 @@ export function MediaZone() {
       className="zone-surface zone-media flex h-full flex-col transition-[background] duration-1000"
       style={zoneBg}
     >
-      <div className={`relative flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-center gap-2">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-media-accent" icon={<Music className="size-4" />}>
-            Now Playing
-          </ZoneLabel>
-        </div>
-        <div className="flex items-center gap-0.5">
-          {/* Lyrics size: inline -/+ */}
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => {
-              const next = Math.max(11, lyricsSize - 2)
-              setLyricsSize(next)
-              localStorage.setItem("lyrics-font-size", String(next))
-            }}
-            className="text-muted-foreground/40 hover:text-foreground/70"
-            title="Decrease lyrics size"
-          >
-            <Minus className="size-3" />
-          </Button>
-          <span className="min-w-[1.5rem] text-center font-mono text-xs text-muted-foreground/50">
-            {lyricsSize}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => {
-              const next = Math.min(32, lyricsSize + 2)
-              setLyricsSize(next)
-              localStorage.setItem("lyrics-font-size", String(next))
-            }}
-            className="text-muted-foreground/40 hover:text-foreground/70"
-            title="Increase lyrics size"
-          >
-            <Plus className="size-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={disconnect}
-            className="text-muted-foreground/40 hover:text-destructive"
-            title="Disconnect Spotify"
-          >
-            <Unplug className="size-3" />
-          </Button>
-        </div>
-      </div>
 
       {!playback ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
@@ -577,33 +549,20 @@ export function MediaZone() {
           <p className="max-w-52 text-center text-xs text-muted-foreground/30">
             Play something on Spotify, or pick a device
           </p>
-          <div className="relative">
-            <Button
-              size="sm"
-              onClick={() => {
-                setDevicePickerOpen((v) => !v)
-                if (!devicePickerOpen) fetchDevices()
-              }}
-              className="gap-1.5"
-              style={{ background: "var(--zone-media-accent)" }}
-            >
-              <MonitorSpeaker className="size-3" />
-              Choose Device
-            </Button>
-            {devicePickerOpen && (
-              <DevicePicker
-                devices={devices}
-                loading={devicesLoading}
-                onSelect={transferToDevice}
-                onClose={() => setDevicePickerOpen(false)}
-              />
-            )}
-          </div>
+          <ChooseDeviceTrigger
+            open={devicePickerOpen}
+            setOpen={setDevicePickerOpen}
+            fetchDevices={fetchDevices}
+            devices={devices}
+            loading={devicesLoading}
+            onSelect={transferToDevice}
+            sendVolume={sendVolume}
+          />
         </div>
       ) : (
         <>
           {/* Track info: album art + title/artist + like */}
-          <div className="shrink-0 px-4 pt-1">
+          <div className="shrink-0 px-4 pt-4">
             <div className="flex items-center gap-3">
               {playback.albumArt && (
                 <img
@@ -646,7 +605,7 @@ export function MediaZone() {
           </div>
 
           {/* Playback controls: shuffle | prev | play/pause | next | repeat */}
-          <div className="flex shrink-0 items-center justify-center gap-2 px-4 py-1.5">
+          <div className="flex shrink-0 items-center justify-center gap-2 px-4 py-1.5 [&_button[data-size=icon-xs]]:!rounded-full [&_button[data-size=icon-sm]]:!rounded-full">
             <Button
               variant="ghost"
               size="icon-xs"
@@ -713,6 +672,16 @@ export function MediaZone() {
                 <Repeat className="size-3.5" />
               )}
             </Button>
+            <DeviceVolumeTrigger
+              open={devicePickerOpen}
+              setOpen={setDevicePickerOpen}
+              fetchDevices={fetchDevices}
+              devices={devices}
+              loading={devicesLoading}
+              onSelect={transferToDevice}
+              volume={playback.volumePercent ?? 50}
+              sendVolume={sendVolume}
+            />
           </div>
 
           {/* Progress bar: full width, interactive seek */}
@@ -733,14 +702,14 @@ export function MediaZone() {
                     {/* Track */}
                     <div className="absolute top-1/2 h-1.5 w-full -translate-y-1/2 overflow-hidden rounded-full bg-border/30 transition-[height] group-active/seek:h-2">
                       <div
-                        className="h-full rounded-full"
-                        style={{ width: `${pct}%`, background: "var(--zone-media-accent)" }}
+                        className="h-full rounded-full bg-foreground/80"
+                        style={{ width: `${pct}%` }}
                       />
                     </div>
                     {/* Thumb (visible on hover/drag) */}
                     <div
-                      className="pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 shadow-md transition-opacity group-active/seek:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/seek:opacity-100"
-                      style={{ left: `${pct}%`, background: "var(--zone-media-accent)" }}
+                      className="pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/80 opacity-20 shadow-md transition-opacity group-active/seek:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/seek:opacity-100"
+                      style={{ left: `${pct}%` }}
                     />
                   </div>
                   <div className="-mt-1 flex items-center justify-between">
@@ -754,53 +723,6 @@ export function MediaZone() {
                 </>
               )
             })()}
-          </div>
-
-          {/* Volume + device row */}
-          <div className="relative z-30 flex shrink-0 items-center gap-2 px-4 pb-1">
-            <div className="flex flex-1 items-center gap-1.5">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => sendVolume(playback.volumePercent === 0 ? 50 : 0)}
-                className="shrink-0 text-muted-foreground/40 hover:text-foreground/70"
-                title={playback.volumePercent === 0 ? "Unmute" : "Mute"}
-              >
-                {playback.volumePercent === 0 || playback.volumePercent === null ? (
-                  <VolumeX className="size-3.5" />
-                ) : playback.volumePercent < 50 ? (
-                  <Volume1 className="size-3.5" />
-                ) : (
-                  <Volume2 className="size-3.5" />
-                )}
-              </Button>
-              <VolumeSlider
-                value={playback.volumePercent ?? 50}
-                onChange={sendVolume}
-              />
-            </div>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => {
-                  setDevicePickerOpen((v) => !v)
-                  if (!devicePickerOpen) fetchDevices()
-                }}
-                className="text-muted-foreground/40 hover:text-foreground/70"
-                title="Choose playback device"
-              >
-                <MonitorSpeaker className="size-3.5" />
-              </Button>
-              {devicePickerOpen && (
-                <DevicePicker
-                  devices={devices}
-                  loading={devicesLoading}
-                  onSelect={transferToDevice}
-                  onClose={() => setDevicePickerOpen(false)}
-                />
-              )}
-            </div>
           </div>
 
           {/* Lyrics */}
@@ -870,7 +792,7 @@ function VolumeSlider({
   return (
     <div
       ref={barRef}
-      className="group/vol relative h-6 w-full max-w-24 cursor-pointer touch-none select-none"
+      className="group/vol relative h-6 w-full cursor-pointer touch-none select-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -913,33 +835,71 @@ function getDeviceIcon(type: string) {
   }
 }
 
-function DevicePicker({
+function DevicesAndVolumePicker({
   devices,
   loading,
   onSelect,
   onClose,
+  volume,
+  onVolumeChange,
+  triggerRef,
 }: {
   devices: SpotifyDevice[]
   loading: boolean
   onSelect: (deviceId: string) => void
   onClose: () => void
+  volume: number
+  onVolumeChange: (vol: number) => void
+  triggerRef: React.RefObject<HTMLElement | null>
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  // Position above the trigger button using its bounding rect (so the popup
+  // escapes any overflow:hidden parents like the zone card).
+  useEffect(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const update = () => {
+      const r = trigger.getBoundingClientRect()
+      const PANEL_W = 256
+      const top = r.top - 8 // gap above the button; we anchor by bottom below
+      const left = Math.min(
+        Math.max(8, r.right - PANEL_W),
+        window.innerWidth - PANEL_W - 8,
+      )
+      setPos({ top, left })
+    }
+    update()
+    window.addEventListener("resize", update)
+    window.addEventListener("scroll", update, true)
+    return () => {
+      window.removeEventListener("resize", update)
+      window.removeEventListener("scroll", update, true)
+    }
+  }, [triggerRef])
 
   useEffect(() => {
     const handler = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        ref.current && !ref.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
         onClose()
       }
     }
     document.addEventListener("pointerdown", handler)
     return () => document.removeEventListener("pointerdown", handler)
-  }, [onClose])
+  }, [onClose, triggerRef])
 
-  return (
+  if (typeof document === "undefined" || !pos) return null
+
+  return createPortal(
     <div
       ref={ref}
-      className="absolute right-0 bottom-full z-50 mb-1.5 w-56 rounded-lg border border-border/30 bg-card/95 shadow-xl backdrop-blur-md"
+      className="ts-deep-glass fixed z-[300] w-64 rounded-xl shadow-xl"
+      style={{ top: pos.top, left: pos.left, transform: "translateY(-100%)" }}
     >
       <div className="flex items-center justify-between border-b border-border/20 px-3 py-2">
         <span className="text-xs font-semibold text-foreground/70">Connect to a device</span>
@@ -992,7 +952,114 @@ function DevicePicker({
           })
         )}
       </div>
-    </div>
+      <div className="flex items-center gap-2 border-t border-border/20 px-3 py-2.5">
+        <button
+          onClick={() => onVolumeChange(volume === 0 ? 50 : 0)}
+          className="shrink-0 text-muted-foreground/60 hover:text-foreground/80"
+          title={volume === 0 ? "Unmute" : "Mute"}
+        >
+          {volume === 0 ? (
+            <VolumeX className="size-3.5" />
+          ) : volume < 50 ? (
+            <Volume1 className="size-3.5" />
+          ) : (
+            <Volume2 className="size-3.5" />
+          )}
+        </button>
+        <div className="flex-1">
+          <VolumeSlider value={volume} onChange={onVolumeChange} />
+        </div>
+        <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground/60">
+          {Math.round(volume)}
+        </span>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+// ── Trigger wrappers (own a ref so the picker can position itself) ─────────
+
+function ChooseDeviceTrigger({
+  open, setOpen, fetchDevices, devices, loading, onSelect, sendVolume,
+}: {
+  open: boolean
+  setOpen: (fn: (v: boolean) => boolean) => void
+  fetchDevices: () => void
+  devices: SpotifyDevice[]
+  loading: boolean
+  onSelect: (deviceId: string) => void
+  sendVolume: (vol: number) => void
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        onClick={() => {
+          setOpen((v) => !v)
+          if (!open) fetchDevices()
+        }}
+        className="ts-inner-glass inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors"
+      >
+        <MonitorSpeaker className="size-3.5" />
+        Choose Device
+      </button>
+      {open && (
+        <DevicesAndVolumePicker
+          devices={devices}
+          loading={loading}
+          onSelect={onSelect}
+          onClose={() => setOpen(() => false)}
+          volume={50}
+          onVolumeChange={sendVolume}
+          triggerRef={triggerRef}
+        />
+      )}
+    </>
+  )
+}
+
+function DeviceVolumeTrigger({
+  open, setOpen, fetchDevices, devices, loading, onSelect, volume, sendVolume,
+}: {
+  open: boolean
+  setOpen: (fn: (v: boolean) => boolean) => void
+  fetchDevices: () => void
+  devices: SpotifyDevice[]
+  loading: boolean
+  onSelect: (deviceId: string) => void
+  volume: number
+  sendVolume: (vol: number) => void
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        variant="ghost"
+        size="icon-xs"
+        onClick={() => {
+          setOpen((v) => !v)
+          if (!open) fetchDevices()
+        }}
+        className="text-muted-foreground/40 hover:text-foreground/70"
+        title="Devices & volume"
+      >
+        <MonitorSpeaker className="size-3.5" />
+      </Button>
+      {open && (
+        <DevicesAndVolumePicker
+          devices={devices}
+          loading={loading}
+          onSelect={onSelect}
+          onClose={() => setOpen(() => false)}
+          volume={volume}
+          onVolumeChange={sendVolume}
+          triggerRef={triggerRef}
+        />
+      )}
+    </>
   )
 }
 
@@ -1001,15 +1068,21 @@ function DevicePicker({
 function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComplete: () => void }) {
   const { isSignedIn } = useAuth()
   const popupCheckRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [waitingExternal, setWaitingExternal] = useState(false)
 
   useEffect(() => {
     return () => {
       if (popupCheckRef.current) clearInterval(popupCheckRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
     }
   }, [])
 
-  const connect = async () => {
-    if (!clientId) return
+  // Build the auth URL. `pairCode` is embedded in `state` so the callback
+  // page can post tokens back to /api/spotify/pair when there's no opener
+  // (i.e. the user finishes auth in a different browser or device).
+  async function buildAuthUrl(pairCode: string | null) {
+    if (!clientId) return null
 
     const { codeVerifier, codeChallenge } = await generatePKCE()
 
@@ -1018,8 +1091,9 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
     const callbackPath = isLocal ? "/spotify-callback" : "/api/spotify/callback"
     const redirectUri = `${redirectOrigin}${callbackPath}`
 
-    // Include opener origin so the callback page can postMessage back correctly
-    const state = btoa(JSON.stringify({ v: codeVerifier, r: redirectUri, o: openerOrigin }))
+    const state = btoa(
+      JSON.stringify({ v: codeVerifier, r: redirectUri, o: openerOrigin, p: pairCode }),
+    )
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -1031,10 +1105,60 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
       state,
     })
 
+    return `${SPOTIFY_AUTH_URL}?${params}`
+  }
+
+  function generatePairCode() {
+    // 16 random hex chars — enough entropy, short enough to URL-encode cleanly.
+    const bytes = new Uint8Array(8)
+    crypto.getRandomValues(bytes)
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+  }
+
+  // Poll the rendezvous until tokens arrive or we time out. On success we
+  // forward the tokens through the existing same-window postMessage handler
+  // so the parent's listener can save them just like the popup flow.
+  function startPolling(pairCode: string) {
+    if (pollRef.current) clearInterval(pollRef.current)
+    setWaitingExternal(true)
+    const startedAt = Date.now()
+    const TIMEOUT = 10 * 60 * 1000 // 10 min, matches server TTL
+
+    pollRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > TIMEOUT) {
+        clearInterval(pollRef.current!)
+        pollRef.current = null
+        setWaitingExternal(false)
+        toast.error("Spotify pairing timed out")
+        return
+      }
+      try {
+        const res = await fetch(`/api/spotify/pair?code=${encodeURIComponent(pairCode)}`)
+        const data = await res.json()
+        if (!data.pending && data.tokens) {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+          setWaitingExternal(false)
+          window.postMessage(
+            { type: "spotify-auth", success: true, tokens: data.tokens },
+            window.location.origin,
+          )
+          onComplete()
+        }
+      } catch {
+        // ignore transient poll failures
+      }
+    }, 2000)
+  }
+
+  const connect = async () => {
+    const url = await buildAuthUrl(null)
+    if (!url) return
+
     const popup = window.open(
-      `${SPOTIFY_AUTH_URL}?${params}`,
+      url,
       "spotify-auth",
-      "width=500,height=700,left=200,top=100"
+      "width=500,height=700,left=200,top=100",
     )
 
     if (popup) {
@@ -1047,6 +1171,28 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
         }
       }, 500)
     }
+  }
+
+  const copyAuthLink = async () => {
+    const pairCode = generatePairCode()
+    const url = await buildAuthUrl(pairCode)
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success("Auth link copied — open it in any browser")
+    } catch {
+      // Fallback: show the link in a prompt for manual copy
+      window.prompt("Copy this link and open it in any browser:", url)
+    }
+    startPolling(pairCode)
+  }
+
+  const cancelExternal = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    setWaitingExternal(false)
   }
 
   return (
@@ -1066,15 +1212,40 @@ function SpotifyAuth({ clientId, onComplete }: { clientId: string | null; onComp
             <p className="text-xs text-muted-foreground">
               Connect your Spotify account
             </p>
-            <Button
-              size="sm"
-              onClick={connect}
-              className="gap-1.5"
-              style={{ background: "var(--zone-media-accent)" }}
-            >
-              <Music className="size-3" />
-              Connect Spotify
-            </Button>
+            {waitingExternal ? (
+              <>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-block size-2 animate-pulse rounded-full" style={{ background: "var(--zone-media-accent)" }} />
+                  Waiting for sign-in in another browser…
+                </div>
+                <Button size="sm" variant="ghost" onClick={cancelExternal}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={connect}
+                  className="gap-1.5"
+                  style={{ background: "var(--zone-media-accent)" }}
+                >
+                  <Music className="size-3" />
+                  Connect Spotify
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={copyAuthLink}
+                  className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  title="Copy a one-time auth link to finish sign-in in another browser or device"
+                >
+                  <Copy className="size-3" />
+                  Copy link for another browser
+                  <ExternalLink className="size-3 opacity-60" />
+                </Button>
+              </div>
+            )}
             {isLocal && !isSignedIn && (
               <p className="text-xs text-muted-foreground/30">
                 Saved in local storage only

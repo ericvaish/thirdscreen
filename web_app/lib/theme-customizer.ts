@@ -10,7 +10,7 @@ export type ThemeZone = (typeof ZONE_KEYS)[number]
 
 export type GradientStyle = "glow" | "border" | "flat"
 export type CardBackground = "default" | "oled" | "lighter" | "tinted"
-export type ZoneLabelStyle = "line" | "icon"
+export type ZoneLabelStyle = "line" | "icon" | "hidden"
 
 export interface ThemeCustomization {
   zoneAccents: Partial<Record<ThemeZone, number | null>> // OKLCH hue 0-360
@@ -24,7 +24,7 @@ export const DEFAULT_THEME: ThemeCustomization = {
   zoneAccents: {},
   cardBackground: "default",
   zoneGradients: {},
-  zoneLabelStyle: "line",
+  zoneLabelStyle: "hidden",
   preset: null,
 }
 
@@ -175,7 +175,7 @@ export function applyTheme(theme: ThemeCustomization) {
   }
 
   // Zone label style (line vs icon)
-  root.setAttribute("data-zone-label", theme.zoneLabelStyle ?? "line")
+  root.setAttribute("data-zone-label", theme.zoneLabelStyle ?? "hidden")
 
   // Card background mode
   switch (theme.cardBackground) {

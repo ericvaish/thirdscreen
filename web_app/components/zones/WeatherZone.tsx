@@ -1,14 +1,16 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import {
   CloudSun, Sun, Cloud, CloudRain, CloudLightning, CloudSnow, CloudFog,
-  CloudDrizzle, Droplets, Wind,
+  CloudDrizzle, Droplets, Wind, MapPin, Search,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useDashboard } from "@/components/dashboard/DashboardContext"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { ZoneLabel } from "@/components/dashboard/ZoneLabel"
-import { useWeather, wmoToDescription, wmoToIconCode } from "@/lib/weather"
+import { useWeather, wmoToDescription, wmoToIconCode, refreshWeather } from "@/lib/weather"
+import { getGeo, setManualGeo } from "@/components/zones/StatusBar"
 
 const WMO_ICONS: Record<string, typeof Sun> = {
   "01": Sun, "02": CloudSun, "03": Cloud, "04": Cloud,
@@ -21,8 +23,54 @@ const MIN_HOUR_SLOT_PX = 36
 export function WeatherZone() {
   const { editMode } = useDashboard()
   const weather = useWeather()
+  const zoneRef = useRef<HTMLDivElement>(null)
   const hourlyRef = useRef<HTMLDivElement>(null)
   const [hourCount, setHourCount] = useState(12)
+  const [zoneHeight, setZoneHeight] = useState(0)
+
+  // Track whether we have any location (browser-granted or manually set).
+  // null = unknown (still checking), true = have location, false = need prompt.
+  const [hasLocation, setHasLocation] = useState<boolean | null>(null)
+  const [granting, setGranting] = useState(false)
+
+  const checkLocation = useCallback(async () => {
+    const geo = await getGeo()
+    setHasLocation(!!geo)
+  }, [])
+
+  useEffect(() => {
+    checkLocation()
+  }, [checkLocation])
+
+  const handleGrantLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setHasLocation(false)
+      return
+    }
+    setGranting(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setManualGeo({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          city: "",
+        })
+        setHasLocation(true)
+        setGranting(false)
+        refreshWeather()
+      },
+      () => {
+        setGranting(false)
+      },
+      { timeout: 8000 },
+    )
+  }, [])
+
+  const openLocationSettings = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("ts:open-settings", { detail: { section: "general" } }),
+    )
+  }, [])
 
   useEffect(() => {
     const el = hourlyRef.current
@@ -38,6 +86,20 @@ export function WeatherZone() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [weather])
+
+  useEffect(() => {
+    const el = zoneRef.current
+    if (!el) return
+    setZoneHeight(el.clientHeight)
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setZoneHeight(entry.contentRect.height)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const showHourly = zoneHeight === 0 || zoneHeight >= 280
+  const showDaily = zoneHeight === 0 || zoneHeight >= 200
 
   const CurrentIcon = weather ? (WMO_ICONS[wmoToIconCode(weather.weatherCode)] ?? CloudSun) : Sun
 
@@ -64,23 +126,38 @@ export function WeatherZone() {
   )
 
   return (
-    <div className="zone-surface zone-weather flex h-full flex-col">
-      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-center gap-1.5">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-weather-accent" icon={<CloudSun className="size-4" />}>
-            Weather
-          </ZoneLabel>
-        </div>
-        {weather && (
-          <span className="text-xs text-muted-foreground/50">{weather.city}</span>
-        )}
-      </div>
+    <div ref={zoneRef} className="zone-surface zone-weather flex h-full flex-col">
 
       {!weather ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <CloudSun className="size-8" style={{ color: "var(--zone-weather-accent)", opacity: 0.2 }} />
-        </div>
+        hasLocation === false ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+            <CloudSun className="size-8 opacity-60" />
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Allow location access or pick a city to see your weather.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={handleGrantLocation}
+                disabled={granting}
+                className="ts-inner-glass inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors disabled:opacity-60"
+              >
+                <MapPin className="size-3.5" />
+                {granting ? "Requesting…" : "Grant Location"}
+              </button>
+              <button
+                onClick={openLocationSettings}
+                className="ts-inner-glass inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors"
+              >
+                <Search className="size-3.5" />
+                Enter City
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <CloudSun className="size-8 animate-pulse" style={{ color: "var(--zone-weather-accent)", opacity: 0.2 }} />
+          </div>
+        )
       ) : (
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-3">
           <div className="flex items-center gap-3 py-2">
@@ -102,20 +179,23 @@ export function WeatherZone() {
             </div>
           </div>
 
-          <div ref={hourlyRef} className="mt-1 flex gap-0 overflow-hidden border-y border-border/10 py-2">
-            {hourly.map((h, i) => {
-              const HIcon = WMO_ICONS[wmoToIconCode(h.code)] ?? Cloud
-              return (
-                <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-                  <span className="font-mono text-xs text-muted-foreground/40">{h.time}</span>
-                  <HIcon className="size-3.5 text-muted-foreground/60" />
-                  <span className="font-mono text-xs font-medium tabular-nums">{h.temp}°</span>
-                </div>
-              )
-            })}
-          </div>
+          {showHourly && (
+            <div ref={hourlyRef} className="mt-1 flex shrink-0 gap-0 overflow-hidden border-y border-border/10 py-2">
+              {hourly.map((h, i) => {
+                const HIcon = WMO_ICONS[wmoToIconCode(h.code)] ?? Cloud
+                return (
+                  <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
+                    <span className="font-mono text-xs text-muted-foreground/40">{h.time}</span>
+                    <HIcon className="size-3.5 text-muted-foreground/60" />
+                    <span className="font-mono text-xs font-medium tabular-nums">{h.temp}°</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-          <div className="mt-2 flex flex-1 flex-col justify-evenly">
+          {showDaily && (
+          <div className="mt-2 flex min-h-0 flex-1 flex-col justify-evenly overflow-hidden">
             {daily.map((d) => {
               const DIcon = WMO_ICONS[wmoToIconCode(d.code)] ?? Cloud
               const totalSpan = dailyRange.max - dailyRange.min || 1
@@ -143,6 +223,7 @@ export function WeatherZone() {
               )
             })}
           </div>
+          )}
         </div>
       )}
     </div>

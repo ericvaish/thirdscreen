@@ -1,7 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { useRegisterZoneActions, type ZoneAction } from "@/lib/zone-actions"
+import {
+  WIDGET_SIZES,
+  WIDGET_SIZE_LABELS,
+  ZONE_ALLOWED_SIZES,
+  setZoneSize,
+  type WidgetSize,
+} from "@/lib/grid-layout"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { ZoneLabel } from "@/components/dashboard/ZoneLabel"
 import { Settings, CalendarDays, Clock, Thermometer } from "lucide-react"
@@ -13,11 +21,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { useWeather } from "@/lib/weather"
 
@@ -25,31 +31,61 @@ import { useWeather } from "@/lib/weather"
 
 type ClockStyle = "digital" | "analog"
 type ClockFormat = "12h" | "24h"
-type ClockFit = "fill" | "center"
-
 interface ClockSettings {
   style: ClockStyle
   format: ClockFormat
-  fit: ClockFit
   showSeconds: boolean
   showDate: boolean
   showNextEvent: boolean
   showWeather: boolean
-  padding: number // 0-30 percent
-  dateSizeRatio: number // 0.1-0.4
+  showCalendar: boolean
 }
 
 const DEFAULT_SETTINGS: ClockSettings = {
   style: "digital",
   format: "12h",
-  fit: "fill",
   showSeconds: true,
   showDate: true,
   showNextEvent: true,
   showWeather: true,
-  padding: 0,
-  dateSizeRatio: 0.18,
+  showCalendar: false,
 }
+
+// ── Per-size layout presets ─────────────────────────────────────────────────
+// Each widget size has a hand-tuned layout:
+//   S   (2×2): time + date + temperature, vertically stacked, no calendar.
+//   M   (4×2): S layout on the left half + calendar on the right half.
+//   L   (4×4): S layout on the left half + calendar on the right half (taller).
+//   XL  (8×4): S layout on the left half + calendar on the right half (huge).
+//   TOWER / BANNER fall back to S.
+
+type ClockLayout = "stack" | "split"
+
+interface LayoutPreset {
+  layout: ClockLayout
+  /** Show next-event line. Off by default — user-visible toggle still applies. */
+  allowNextEvent: boolean
+  /** Show calendar. Toggle is forced on for split layouts and off for stack. */
+  allowCalendar: boolean
+}
+
+const SIZE_PRESETS: Record<WidgetSize, LayoutPreset> = {
+  S:      { layout: "stack", allowNextEvent: false, allowCalendar: false },
+  M:      { layout: "split", allowNextEvent: false, allowCalendar: true  },
+  L:      { layout: "split", allowNextEvent: true,  allowCalendar: true  },
+  XL:     { layout: "split", allowNextEvent: true,  allowCalendar: true  },
+  BANNER: { layout: "stack", allowNextEvent: false, allowCalendar: false },
+  TOWER:  { layout: "stack", allowNextEvent: true,  allowCalendar: false },
+}
+
+const FALLBACK_PRESET: LayoutPreset = SIZE_PRESETS.M
+
+function getPreset(size: WidgetSize | undefined): LayoutPreset {
+  return (size && SIZE_PRESETS[size]) ?? FALLBACK_PRESET
+}
+
+// Minimum block dim — keeps content readable on tiny widgets.
+const MIN_BLOCK_PX = 80
 
 function loadSettings(): ClockSettings {
   try {
@@ -163,6 +199,7 @@ function ClockDisplay({
   containerHeight,
   nextEvent,
   weather,
+  gridSize,
 }: {
   time: Date
   settings: ClockSettings
@@ -170,21 +207,99 @@ function ClockDisplay({
   containerHeight: number
   nextEvent: { title: string; minutesUntil: number } | null
   weather: { temp: number } | null
+  gridSize?: WidgetSize
+}) {
+  const preset = getPreset(gridSize)
+  // Date and weather are always shown (they're part of the core S layout).
+  // Next-event is opt-in per size and respects the user toggle.
+  const showDate = settings.showDate
+  const showWeather = settings.showWeather
+  const showNextEvent = settings.showNextEvent && preset.allowNextEvent
+  // Calendar is dictated by size, not user toggle: split layouts always show it.
+  const showCalendar = preset.allowCalendar
+
+  if (preset.layout === "split" && showCalendar) {
+    // Two blocks side-by-side, each filling its half of the container.
+    const blockW = Math.max(MIN_BLOCK_PX, containerWidth / 2)
+    const blockH = Math.max(MIN_BLOCK_PX, containerHeight)
+    return (
+      <div className="flex h-full w-full">
+        <div style={{ width: blockW, height: blockH }} className="flex items-center justify-center">
+          <ClockBlock
+            time={time}
+            settings={settings}
+            blockW={blockW}
+            blockH={blockH}
+            nextEvent={showNextEvent ? nextEvent : null}
+            weather={showWeather ? weather : null}
+            showDate={showDate}
+          />
+        </div>
+        <div style={{ width: blockW, height: blockH }} className="flex items-center justify-center">
+          <MiniCalendar
+            date={time}
+            accentColor="var(--zone-clock-accent)"
+            blockW={blockW}
+            blockH={blockH}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Single block fills the entire container.
+  const blockW = Math.max(MIN_BLOCK_PX, containerWidth)
+  const blockH = Math.max(MIN_BLOCK_PX, containerHeight)
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      <ClockBlock
+        time={time}
+        settings={settings}
+        blockW={blockW}
+        blockH={blockH}
+        nextEvent={showNextEvent ? nextEvent : null}
+        weather={showWeather ? weather : null}
+        showDate={showDate}
+      />
+    </div>
+  )
+}
+
+// ── Square clock block ──────────────────────────────────────────────────────
+// Renders the time (digital or analog) + date + secondary info, all sized as
+// fractions of the block side length so the content scales in clean steps.
+
+function ClockBlock({
+  time,
+  settings,
+  blockW,
+  blockH,
+  nextEvent,
+  weather,
+  showDate,
+}: {
+  time: Date
+  settings: ClockSettings
+  blockW: number
+  blockH: number
+  nextEvent: { title: string; minutesUntil: number } | null
+  weather: { temp: number } | null
+  showDate: boolean
 }) {
   const hours = time.getHours()
   const minutes = time.getMinutes()
   const seconds = time.getSeconds()
-
-  const paddingFactor = 1 - settings.padding / 100
-  const effectiveW = containerWidth * paddingFactor
-  const effectiveH = containerHeight * paddingFactor
+  const minDim = Math.min(blockW, blockH)
 
   if (settings.style === "analog") {
-    const clockSize = Math.max(40, Math.min(effectiveW, effectiveH) * 0.85)
-    const secondarySize = Math.max(12, clockSize * 0.09)
-
+    // Analog face stays square — sized to the shorter block dimension.
+    const clockSize = minDim * 0.78
+    const secondarySize = Math.max(11, minDim * 0.07)
     return (
-      <div className="flex flex-col items-center justify-center gap-2">
+      <div
+        className="flex flex-col items-center justify-center"
+        style={{ width: blockW, height: blockH, gap: minDim * 0.04 }}
+      >
         <AnalogClock
           size={clockSize}
           hours={hours}
@@ -193,50 +308,48 @@ function ClockDisplay({
           showSeconds={settings.showSeconds}
           accentColor="var(--zone-clock-accent)"
         />
-        {settings.showDate && (
+        {showDate && (
           <p className="font-mono tracking-wide text-muted-foreground/50" style={{ fontSize: secondarySize }}>
             {time.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
           </p>
         )}
-        <SecondaryInfo
-          nextEvent={settings.showNextEvent ? nextEvent : null}
-          weather={settings.showWeather ? weather : null}
-          size={secondarySize}
-        />
+        <SecondaryInfo nextEvent={nextEvent} weather={weather} size={secondarySize} />
       </div>
     )
   }
 
-  // Digital
-  // Count how many secondary lines are shown to budget vertical space
-  const secondaryLines = (settings.showDate ? 1 : 0) + (settings.showNextEvent || settings.showWeather ? 1 : 0)
-  const isFill = settings.fit === "fill"
-  // Space Grotesk "1:00" measures ~3.2 char-widths. "12:00" ~4.0.
-  // The AM/PM + seconds sidebar adds ~1.2 char-widths. Total ~4.5-5.2.
-  // In fill mode we use the tight estimate so digits nearly touch edges.
+  // Digital — pick the largest font that fits both width and height of the block.
+  // Time text is ~5 chars wide ("12:34"), with a small AM/PM column adding ~0.30em.
   const hasAmPm = settings.format === "12h"
-  const hasSidebar = hasAmPm || settings.showSeconds
-  // Space Grotesk digit width is ~0.6em. "2:28" = 4 chars * 0.6 + colon 0.3 = 2.7em.
-  // AM/PM sidebar is rendered at 0.22em font size, so ~0.5em wide.
-  // Total: ~3.2em for time + sidebar. Use this to compute max font size from width.
-  const timeEm = 2.7 + (hasSidebar ? 0.6 : 0)
-  const sizeFromWidth = effectiveW / (isFill ? timeEm : timeEm * 1.3)
-  // lineHeight is ~1.0 for the time, so the font size IS the height of the digits.
-  // Budget: almost all vertical space for time, minus secondary lines.
-  const verticalBudget = isFill ? 0.92 - secondaryLines * 0.15 : 0.60 - secondaryLines * 0.10
-  const sizeFromHeight = effectiveH * Math.max(0.4, verticalBudget)
-  const fontSize = Math.max(24, Math.min(sizeFromWidth, sizeFromHeight))
-  const secondarySize = Math.max(12, fontSize * settings.dateSizeRatio)
-  const ampmSize = Math.max(14, fontSize * 0.22)
-  const secondsSize = Math.max(12, fontSize * 0.2)
+  const showSeconds = settings.showSeconds
+  const sideColumnEm = hasAmPm || showSeconds ? 0.35 : 0
+  // Approx text width factor: 5 digits at ~0.55em each + side column
+  const widthFactor = 5 * 0.55 + sideColumnEm
+  // Height taken below the time: date (~0.45em) + secondary (~0.55em) + gaps
+  const linesBelow = (showDate ? 0.55 : 0) + ((nextEvent || weather) ? 0.6 : 0)
+  const heightFactor = 1 + linesBelow
+
+  // Fit the time text in the available rectangle, with a little padding.
+  const padW = blockW * 0.92
+  const padH = blockH * 0.92
+  const fontFromWidth = padW / widthFactor
+  const fontFromHeight = padH / heightFactor
+  const fontSize = Math.max(24, Math.min(fontFromWidth, fontFromHeight))
+
+  const secondarySize = Math.max(11, fontSize * 0.18)
+  const ampmSize = fontSize * 0.22
+  const secondsSize = fontSize * 0.20
 
   const ampm = hours >= 12 ? "PM" : "AM"
-  const displayTime = settings.format === "12h"
+  const displayTime = hasAmPm
     ? `${hours % 12 || 12}:${String(minutes).padStart(2, "0")}`
     : `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
 
   return (
-    <div className="flex flex-col items-center justify-center">
+    <div
+      className="flex flex-col items-center justify-center"
+      style={{ width: blockW, height: blockH }}
+    >
       <div className="flex items-baseline gap-[0.08em]" style={{ fontSize }}>
         <span
           className="font-[family-name:var(--font-display)] font-bold tabular-nums tracking-tight text-foreground"
@@ -245,7 +358,7 @@ function ClockDisplay({
           {displayTime}
         </span>
         <div className="flex flex-col items-start" style={{ gap: secondsSize * 0.15 }}>
-          {settings.format === "12h" && (
+          {hasAmPm && (
             <span
               className="font-mono font-semibold tabular-nums text-[var(--zone-clock-accent)]"
               style={{ fontSize: ampmSize, lineHeight: 1 }}
@@ -253,7 +366,7 @@ function ClockDisplay({
               {ampm}
             </span>
           )}
-          {settings.showSeconds && (
+          {showSeconds && (
             <span
               className="font-mono tabular-nums text-muted-foreground/40"
               style={{ fontSize: secondsSize, lineHeight: 1 }}
@@ -264,20 +377,99 @@ function ClockDisplay({
         </div>
       </div>
 
-      {settings.showDate && (
+      {showDate && (
         <p
-          className="mt-[0.3em] font-mono tracking-wide text-muted-foreground/50"
+          className="mt-[0.4em] font-mono tracking-wide text-muted-foreground/50"
           style={{ fontSize: secondarySize }}
         >
           {time.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
         </p>
       )}
 
-      <SecondaryInfo
-        nextEvent={settings.showNextEvent ? nextEvent : null}
-        weather={settings.showWeather ? weather : null}
-        size={secondarySize}
-      />
+      <SecondaryInfo nextEvent={nextEvent} weather={weather} size={secondarySize} />
+    </div>
+  )
+}
+
+// ── Mini calendar (month view) ──────────────────────────────────────────────
+
+function MiniCalendar({
+  date,
+  accentColor,
+  blockW,
+  blockH,
+}: {
+  date: Date
+  accentColor: string
+  blockW: number
+  blockH: number
+}) {
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const today = date.getDate()
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+  const cells: (number | null)[] = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  while (cells.length % 7 !== 0) cells.push(null)
+  const rows = cells.length / 7
+
+  // Calendar fills the block rectangle (with a small inset). Cell width and
+  // height are derived independently so the calendar uses all available space.
+  const insetX = blockW * 0.06
+  const insetY = blockH * 0.08
+  const innerW = blockW - insetX * 2
+  const innerH = blockH - insetY * 2
+  const colGap = 4
+  const rowGap = 4
+  const cellW = (innerW - colGap * 6) / 7
+  const headerH = Math.max(14, Math.min(cellW * 0.55, innerH * 0.12))
+  const rowH = (innerH - headerH - rowGap * (rows + 1)) / rows
+  const cellH = Math.max(16, rowH)
+  const fontSize = Math.max(11, Math.min(cellW * 0.42, cellH * 0.55))
+  const headers = ["S", "M", "T", "W", "T", "F", "S"]
+  const gridCols = `repeat(7, minmax(0, 1fr))`
+
+  return (
+    <div className="font-mono shrink-0" style={{ width: innerW, height: innerH }}>
+      <div className="grid" style={{ gridTemplateColumns: gridCols, columnGap: colGap }}>
+        {headers.map((h, i) => (
+          <div
+            key={`h-${i}`}
+            className="flex items-center justify-center overflow-hidden text-muted-foreground/40"
+            style={{ height: headerH, fontSize: fontSize * 0.85, minWidth: 0 }}
+          >
+            {h}
+          </div>
+        ))}
+      </div>
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: gridCols, columnGap: colGap, rowGap, marginTop: rowGap }}
+      >
+        {cells.map((d, i) => {
+          const isToday = d === today
+          return (
+            <div
+              key={i}
+              className="flex items-center justify-center overflow-hidden rounded tabular-nums transition-colors"
+              style={{
+                height: cellH,
+                fontSize,
+                minWidth: 0,
+                color: isToday ? "white" : d ? "var(--foreground)" : "transparent",
+                backgroundColor: isToday ? accentColor : undefined,
+                opacity: d ? 1 : 0,
+                fontWeight: isToday ? 700 : 400,
+              }}
+            >
+              {d ?? ""}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -314,6 +506,13 @@ function SecondaryInfo({ nextEvent, weather, size }: {
 
 // ── Settings dialog ────────────────────────────────────────────────────────
 
+function getZoneGridAspect(size: WidgetSize | undefined): number | null {
+  if (!size) return null
+  const dims = WIDGET_SIZES[size]
+  if (!dims) return null
+  return dims.w / dims.h
+}
+
 function ClockSettingsDialog({
   settings,
   onChange,
@@ -322,6 +521,8 @@ function ClockSettingsDialog({
   weather,
   zonePxW,
   zonePxH,
+  gridSize,
+  onChangeGridSize,
 }: {
   settings: ClockSettings
   onChange: (s: ClockSettings) => void
@@ -330,6 +531,8 @@ function ClockSettingsDialog({
   weather: { temp: number } | null
   zonePxW: number
   zonePxH: number
+  gridSize?: WidgetSize
+  onChangeGridSize?: (size: WidgetSize) => void
 }) {
   const update = useCallback(
     (patch: Partial<ClockSettings>) => {
@@ -352,10 +555,13 @@ function ClockSettingsDialog({
     </button>
   )
 
-  // Compute preview dimensions that match the zone's actual pixel aspect ratio
+  // Preview aspect ratio: prefer the quantized grid size (S/M/L/XL/Banner/Tower)
+  // over the raw pixel measurement, so the preview reflects the exact ratio
+  // the widget will be displayed at on the dashboard.
   const previewMaxW = 500
   const previewMaxH = 400
-  const zoneAspect = zonePxW / Math.max(zonePxH, 1)
+  const gridAspect = getZoneGridAspect(gridSize)
+  const zoneAspect = gridAspect ?? zonePxW / Math.max(zonePxH, 1)
   let previewW: number
   let previewH: number
   if (zoneAspect > previewMaxW / previewMaxH) {
@@ -382,6 +588,7 @@ function ClockSettingsDialog({
               containerHeight={previewH}
               nextEvent={nextEvent}
               weather={weather}
+              gridSize={gridSize}
             />
           </div>
         </div>
@@ -423,50 +630,32 @@ function ClockSettingsDialog({
               </section>
             )}
 
-            {/* Layout */}
-            <section>
-              <SectionLabel>Layout</SectionLabel>
-              <div className="mt-1.5 flex gap-1.5">
-                <OptionButton active={settings.fit === "fill"} onClick={() => update({ fit: "fill" })}>
-                  Fill
-                </OptionButton>
-                <OptionButton active={settings.fit === "center"} onClick={() => update({ fit: "center" })}>
-                  Center
-                </OptionButton>
-              </div>
-            </section>
-
-            {/* Padding */}
-            <section>
-              <div className="flex items-center justify-between">
-                <SectionLabel>Padding</SectionLabel>
-                <span className="font-mono text-xs text-muted-foreground/40">{settings.padding}%</span>
-              </div>
-              <Slider
-                min={0}
-                max={30}
-                step={1}
-                value={[settings.padding]}
-                onValueChange={([v]) => update({ padding: v })}
-                className="mt-1.5"
-              />
-            </section>
-
-            {/* Date size ratio (digital only) */}
-            {settings.style === "digital" && (
+            {/* Size (aspect ratio) */}
+            {onChangeGridSize && (
               <section>
-                <div className="flex items-center justify-between">
-                  <SectionLabel>Date Size</SectionLabel>
-                  <span className="font-mono text-xs text-muted-foreground/40">{Math.round(settings.dateSizeRatio * 100)}%</span>
+                <SectionLabel>Size</SectionLabel>
+                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                  {ZONE_ALLOWED_SIZES.clock.map((size) => {
+                    const dims = WIDGET_SIZES[size]
+                    const isActive = gridSize === size
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => onChangeGridSize(size)}
+                        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs font-semibold transition-all active:scale-[0.98] ${
+                          isActive
+                            ? "border-[var(--zone-clock-accent)]/40 bg-[var(--zone-clock-accent)]/10 text-[var(--zone-clock-accent)]"
+                            : "border-border/20 bg-muted/10 text-muted-foreground hover:border-border/30 hover:bg-muted/15"
+                        }`}
+                      >
+                        <span>{WIDGET_SIZE_LABELS[size]}</span>
+                        <span className="font-mono text-[0.6875rem] opacity-60">
+                          {dims.w}×{dims.h}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
-                <Slider
-                  min={10}
-                  max={40}
-                  step={1}
-                  value={[Math.round(settings.dateSizeRatio * 100)]}
-                  onValueChange={([v]) => update({ dateSizeRatio: v / 100 })}
-                  className="mt-1.5"
-                />
               </section>
             )}
 
@@ -477,7 +666,13 @@ function ClockSettingsDialog({
               <SectionLabel>Show</SectionLabel>
               <ToggleRow label="Seconds" checked={settings.showSeconds} onChange={(v) => update({ showSeconds: v })} />
               <ToggleRow label="Date" checked={settings.showDate} onChange={(v) => update({ showDate: v })} />
-              <ToggleRow label="Next event" checked={settings.showNextEvent} onChange={(v) => update({ showNextEvent: v })} />
+              <ToggleRow
+                label="Next event"
+                checked={settings.showNextEvent}
+                onChange={(v) => update({ showNextEvent: v })}
+                disabled={!getPreset(gridSize).allowNextEvent}
+                hint="Next event needs a Large or Extra Large size"
+              />
               <ToggleRow label="Weather" checked={settings.showWeather} onChange={(v) => update({ showWeather: v })} />
             </section>
 
@@ -496,11 +691,26 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+  disabled,
+  hint,
+}: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+  hint?: string
+}) {
   return (
-    <div className="flex items-center justify-between">
+    <div
+      className={`flex items-center justify-between ${disabled ? "opacity-40" : ""}`}
+      title={disabled ? hint : undefined}
+    >
       <span className="text-xs text-foreground/70">{label}</span>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked && !disabled} onCheckedChange={onChange} disabled={disabled} />
     </div>
   )
 }
@@ -508,7 +718,32 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
 // ── ClockZone ──────────────────────────────────────────────────────────────
 
 export function ClockZone() {
-  const { editMode } = useDashboard()
+  const { editMode, layout, onLayoutChange } = useDashboard()
+  const clockGridSize = layout?.zones.find((z) => z.id === "clock")?.size
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const handleChangeGridSize = useCallback(
+    (size: WidgetSize) => {
+      if (!layout || !onLayoutChange) return
+      onLayoutChange(setZoneSize(layout, "clock", size))
+    },
+    [layout, onLayoutChange],
+  )
+
+  // Right-click menu actions: just an Open Settings entry that toggles the
+  // dialog (the dialog itself contains all the configuration fields).
+  const zoneActions = useMemo<ZoneAction[]>(
+    () => [
+      {
+        id: "settings",
+        label: "Clock settings…",
+        icon: <Settings className="size-3.5" />,
+        onSelect: () => setSettingsOpen(true),
+      },
+    ],
+    [],
+  )
+  useRegisterZoneActions("clock", zoneActions)
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ w: 200, h: 150 })
@@ -535,18 +770,26 @@ export function ClockZone() {
     return () => clearInterval(id)
   }, [])
 
-  // Track content area size (excludes header)
-  useEffect(() => {
-    const outer = containerRef.current
+  // Track content area size. Observe the content node directly (not the outer
+  // zone-surface) so the rect we measure matches what we observe — and use a
+  // useLayoutEffect so the initial measurement happens before paint, avoiding
+  // a frame of broken layout from the (200, 150) default.
+  useLayoutEffect(() => {
     const content = contentRef.current
-    if (!outer || !content) return
-    const ro = new ResizeObserver(() => {
+    if (!content) return
+    const measure = () => {
       const rect = content.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
-        setContainerSize({ w: rect.width, h: rect.height })
+        setContainerSize((prev) =>
+          prev.w === rect.width && prev.h === rect.height
+            ? prev
+            : { w: rect.width, h: rect.height },
+        )
       }
-    })
-    ro.observe(outer)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(content)
     return () => ro.disconnect()
   }, [])
 
@@ -577,34 +820,19 @@ export function ClockZone() {
       ref={containerRef}
       className="zone-surface zone-clock flex h-full flex-col"
     >
-      {/* Header: title on left, settings on right */}
-      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-center gap-1.5">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-clock-accent" icon={<Clock className="size-4" />}>
-            Clock
-          </ZoneLabel>
-        </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
-              title="Clock settings"
-            >
-              <Settings className="size-3.5" />
-            </button>
-          </DialogTrigger>
-          <ClockSettingsDialog
-            settings={settings}
-            onChange={handleSettingsChange}
-            time={time}
-            nextEvent={nextEvent}
-            weather={weather}
-            zonePxW={containerSize.w}
-            zonePxH={containerSize.h}
-          />
-        </Dialog>
-      </div>
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <ClockSettingsDialog
+          settings={settings}
+          onChange={handleSettingsChange}
+          time={time}
+          nextEvent={nextEvent}
+          weather={weather}
+          zonePxW={containerSize.w}
+          zonePxH={containerSize.h}
+          gridSize={clockGridSize}
+          onChangeGridSize={layout && onLayoutChange ? handleChangeGridSize : undefined}
+        />
+      </Dialog>
 
       <div ref={contentRef} className="flex min-h-0 flex-1 items-center justify-center">
         <ClockDisplay
@@ -614,6 +842,7 @@ export function ClockZone() {
           containerHeight={containerSize.h}
           nextEvent={nextEvent}
           weather={weather}
+          gridSize={clockGridSize}
         />
       </div>
     </div>

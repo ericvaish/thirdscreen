@@ -1,18 +1,28 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { usePagePadding } from "@/lib/use-page-padding"
 import { StatusBar } from "@/components/zones/StatusBar"
 import { SettingsView } from "./SettingsView"
 import { GridDashboard, type MinSizes } from "./GridDashboard"
 import { DashboardContext } from "./DashboardContext"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
+// Lightweight wrapper for the header menu-bar icons. Replaces native `title=`
+// browser tooltips with a glass-styled tooltip that matches the rest of the UI.
+function IconTooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 import {
   Settings,
   ArrowLeft,
   Grid3x3,
-  Sun,
-  Moon,
-  Monitor,
   Maximize,
   Minimize,
   RotateCcw,
@@ -29,8 +39,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useTheme } from "next-themes"
-import { animatedSetTheme } from "@/components/ui/animated-theme-toggler"
 import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
 import { DataMergeDialog } from "./DataMergeDialog"
 import {
@@ -43,20 +51,22 @@ import {
   setActiveDashboardId,
 } from "@/lib/data-layer"
 import { toast } from "sonner"
-import { ThemeCustomizer } from "./ThemeCustomizer"
 import { ZonePicker } from "./ZonePicker"
 import { useScale } from "@/components/scale-provider"
 import { MascotProvider } from "@/lib/mascot"
 import { MascotOverlay } from "@/components/MascotOverlay"
 import { AIChatBubble } from "@/components/AIChatBubble"
 import { NotificationBell } from "@/components/NotificationBell"
+import { WallpaperProvider } from "@/components/WallpaperProvider"
+import { useAdaptiveContrast } from "@/lib/use-adaptive-contrast"
+import { useWallpaperImage } from "@/lib/wallpaper-context"
+import { AdaptiveSurface } from "@/components/AdaptiveSurface"
 import { CountdownTimerProvider } from "@/lib/countdown-timer"
 import {
-  GRID_COLS,
   DEFAULT_DASHBOARD_LAYOUT,
   isValidLayout,
+  migrateLayout,
   createDefaultDashboardConfig,
-  ensureAllZones,
   DASHBOARD_LIMITS,
   type DashboardLayout,
   type DashboardConfig,
@@ -64,77 +74,6 @@ import {
 } from "@/lib/grid-layout"
 
 type View = "dashboard" | "privacy" | "terms"
-
-const THEME_OPTIONS = [
-  { label: "Dark", value: "dark", icon: Moon },
-  { label: "Light", value: "light", icon: Sun },
-  { label: "System", value: "system", icon: Monitor },
-] as const
-
-// ── Theme Picker ──────────────────────────────────────────────────────────
-
-function ThemePicker({
-  theme,
-  setTheme,
-  mounted,
-}: {
-  theme: string | undefined
-  setTheme: (v: string) => void
-  mounted: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("pointerdown", handleClick)
-    return () => document.removeEventListener("pointerdown", handleClick)
-  }, [open])
-
-  if (!mounted) return null
-
-  const current = (theme ?? "system") as "dark" | "light" | "system"
-  const CurrentIcon =
-    THEME_OPTIONS.find((o) => o.value === current)?.icon ?? Monitor
-
-  return (
-    <div ref={ref} className="relative">
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={() => setOpen(!open)}
-        className="text-muted-foreground hover:text-foreground"
-        title="Theme"
-      >
-        <CurrentIcon className="size-4" />
-      </Button>
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-lg border border-border/30 bg-background/95 p-1.5 shadow-xl backdrop-blur-xl">
-          {THEME_OPTIONS.map(({ label, value, icon: Icon }) => (
-            <button
-              key={value}
-              onClick={(e) => {
-                animatedSetTheme(setTheme, value, e.currentTarget)
-                setOpen(false)
-              }}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs transition-colors ${
-                current === value
-                  ? "bg-primary/10 font-semibold text-foreground"
-                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
-              }`}
-            >
-              <Icon className="size-3.5" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Scale Picker ───────────────────────────────────────────────────────────
 
@@ -161,15 +100,16 @@ function ScalePicker({
 
   return (
     <div ref={ref} className="relative">
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={() => setOpen(!open)}
-        className="text-muted-foreground hover:text-foreground"
-        title="Display scale"
-      >
-        <ZoomIn className="size-4" />
-      </Button>
+      <IconTooltip label="Display scale">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => setOpen(!open)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <ZoomIn className="size-4" />
+        </Button>
+      </IconTooltip>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-lg border border-border/30 bg-background/95 p-1.5 shadow-xl backdrop-blur-xl">
           {presets.map(({ label, value }) => (
@@ -200,7 +140,29 @@ function ScalePicker({
 export function Dashboard() {
   const [view, setView] = useState<View>("dashboard")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
+  const [settingsSection, setSettingsSection] = useState<string | undefined>(undefined)
+  // Apply the persisted page-edge padding to the document on mount.
+  usePagePadding()
+
+  // Adaptive header contrast — sample wallpaper pixels behind the header pill,
+  // pick black/white text accordingly. Proof of concept; can be applied to other
+  // chrome elements (status bar, etc.) the same way.
+  const headerRef = useRef<HTMLElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null)
+  const wallpaperImageUrl = useWallpaperImage()
+  useAdaptiveContrast(headerRef, wallpaperImageUrl)
+  useAdaptiveContrast(footerRef, wallpaperImageUrl)
+
+  // Allow other zones to deep-link into Settings (e.g. SmartHomeZone connect button).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ section?: string }>).detail
+      setSettingsSection(detail?.section)
+      setSettingsOpen(true)
+    }
+    window.addEventListener("ts:open-settings", handler)
+    return () => window.removeEventListener("ts:open-settings", handler)
+  }, [])
   const { scale, setScale, presets } = useScale()
   // Orientation-aware layouts: portrait and landscape each get their own saved layout
   type Orientation = "portrait" | "landscape"
@@ -214,7 +176,7 @@ export function Dashboard() {
   const [activeDashboardId, setActiveDashboardIdState] = useState<string>("")
 
   const activeDashboard = dashboardConfigs.find((d) => d.id === activeDashboardId) ?? dashboardConfigs[0]
-  const layout = ensureAllZones(
+  const layout = migrateLayout(
     activeDashboard
       ? orientation === "portrait" ? activeDashboard.layoutPortrait : activeDashboard.layoutLandscape
       : DEFAULT_DASHBOARD_LAYOUT
@@ -249,13 +211,13 @@ export function Dashboard() {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result as string)
-        // Support both { orientation, layout } and raw layout objects
         const uploadedLayout = parsed.layout ?? parsed
-        if (!isValidLayout(uploadedLayout)) {
+        const migrated = migrateLayout(uploadedLayout)
+        if (!isValidLayout(migrated)) {
           toast.error("Invalid layout file")
           return
         }
-        setLayout(uploadedLayout)
+        setLayout(migrated)
         toast.success("Layout loaded — click Save to persist")
       } catch {
         toast.error("Failed to parse layout file")
@@ -379,24 +341,43 @@ export function Dashboard() {
   }, [dashboardConfigs, activeDashboardId, switchDashboard])
 
   const toggleZone = useCallback((zoneId: ZoneId) => {
-    const current = activeDashboard?.hiddenZones ?? []
-    const next = current.includes(zoneId)
-      ? current.filter((z) => z !== zoneId)
-      : [...current, zoneId]
-
-    setDashboardConfigs((prev) =>
-      prev.map((d) => d.id === activeDashboardId ? { ...d, hiddenZones: next } : d)
-    )
-    dlUpdateDashboard(activeDashboardId, { hiddenZones: next }).catch(() => {})
-  }, [activeDashboardId, activeDashboard?.hiddenZones])
+    setDashboardConfigs((prev) => {
+      const target = prev.find((d) => d.id === activeDashboardId)
+      if (!target) return prev
+      const current = target.hiddenZones ?? []
+      const next = current.includes(zoneId)
+        ? current.filter((z) => z !== zoneId)
+        : [...current, zoneId]
+      dlUpdateDashboard(activeDashboardId, { hiddenZones: next }).catch(() => {})
+      return prev.map((d) =>
+        d.id === activeDashboardId ? { ...d, hiddenZones: next } : d,
+      )
+    })
+  }, [activeDashboardId])
 
   const canCreateMore = dashboardConfigs.length < DASHBOARD_LIMITS.max
 
+  // Debounce-persist layout changes (resize, reorder, add/remove) to the
+  // backing store so the user doesn't have to hit Save manually. Without
+  // this, only the in-memory React state was updated and a refresh wiped
+  // the change.
+  const layoutSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleLayoutChange = useCallback(
     (newLayout: DashboardLayout) => {
       setLayout(newLayout)
+      if (!activeDashboardId) return
+      if (layoutSaveTimer.current) clearTimeout(layoutSaveTimer.current)
+      const data = orientation === "portrait"
+        ? { layoutPortrait: newLayout }
+        : { layoutLandscape: newLayout }
+      const id = activeDashboardId
+      layoutSaveTimer.current = setTimeout(() => {
+        dlUpdateDashboard(id, data).catch((err) => {
+          console.error("[Layout] Auto-save failed:", err)
+        })
+      }, 400)
     },
-    [setLayout],
+    [setLayout, activeDashboardId, orientation],
   )
 
   const handleMinSizesChange = useCallback(
@@ -413,18 +394,26 @@ export function Dashboard() {
   }, [setLayout])
 
   return (
+    <TooltipProvider delayDuration={200}>
     <CountdownTimerProvider>
     <MascotProvider>
-    <div className="flex h-dvh flex-col overflow-hidden bg-background">
+    <WallpaperProvider />
+    <div
+      className="flex h-dvh w-screen flex-col gap-2 overflow-hidden"
+      style={{ padding: "var(--page-padding, 24px)" }}
+    >
       {/* Local storage notice for anonymous users */}
       {mounted && authLoaded && !isSignedIn && <LocalStorageNotice />}
 
       {/* Merge local data to cloud when user signs in */}
       {mounted && <DataMergeDialog />}
 
-      {/* Header */}
-      <header className="relative z-[100] h-14 shrink-0 border-b border-border/20 bg-background/80 backdrop-blur-xl">
-        <div className="flex h-full items-center justify-between px-4">
+      {/* Header — floating pill with adaptive icon color */}
+      <header
+        ref={headerRef}
+        className="ts-pill-glass ts-adaptive-fg relative z-[100] h-14 shrink-0 overflow-visible rounded-full"
+      >
+        <div className="flex h-full items-center justify-between px-1.5">
           <div className="flex items-center gap-2">
             {view !== "dashboard" ? (
               <>
@@ -442,7 +431,10 @@ export function Dashboard() {
                 </h1>
               </>
             ) : (
-              <a href="/" className="flex items-center gap-2">
+              <a
+                href="/"
+                className="ts-pill-glass-hover flex h-11 items-center gap-2 rounded-full px-4 transition-all"
+              >
                 <img
                   src="/logo.png"
                   alt="Third Screen"
@@ -454,73 +446,69 @@ export function Dashboard() {
               </a>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 [&_button[data-size=icon-xs]]:!rounded-full [&_button[data-size=icon-sm]]:!rounded-full [&_button[data-size=icon]]:!rounded-full">
             {view === "dashboard" && (
               <>
                 <NotificationBell />
-                <ThemePicker theme={theme} setTheme={setTheme} mounted={mounted} />
                 {/* Display scale picker */}
                 <ScalePicker scale={scale} setScale={setScale} presets={presets} />
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={toggleFullscreen}
-                  className="text-muted-foreground hover:text-foreground"
-                  title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                >
-                  {isFullscreen ? (
-                    <Minimize className="size-4" />
-                  ) : (
-                    <Maximize className="size-4" />
-                  )}
-                </Button>
+                <IconTooltip label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={toggleFullscreen}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    {isFullscreen ? (
+                      <Minimize className="size-4" />
+                    ) : (
+                      <Maximize className="size-4" />
+                    )}
+                  </Button>
+                </IconTooltip>
                 {editMode ? (
-                  <div className="flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={resetLayout}
-                      className="text-muted-foreground hover:text-foreground"
-                      title="Reset to default layout"
-                    >
-                      <RotateCcw className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => saveLayoutToServer(layout)}
-                      className="text-muted-foreground hover:text-primary"
-                      title="Save layout"
-                    >
-                      <Save className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => {
-                        const data = JSON.stringify({ orientation, layout }, null, 2)
-                        const blob = new Blob([data], { type: "application/json" })
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement("a")
-                        a.href = url
-                        a.download = `layout-${orientation}.json`
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }}
-                      className="text-muted-foreground hover:text-primary"
-                      title="Download layout as JSON"
-                    >
-                      <Download className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => uploadRef.current?.click()}
-                      className="text-muted-foreground hover:text-primary"
-                      title="Upload layout from JSON"
-                    >
-                      <Upload className="size-4" />
-                    </Button>
+                  <div className="ts-inner-glass flex items-center gap-0.5 rounded-full p-0.5">
+                    <IconTooltip label="Reset to default layout">
+                      <button
+                        onClick={resetLayout}
+                        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground active:scale-95"
+                      >
+                        <RotateCcw className="size-4" />
+                      </button>
+                    </IconTooltip>
+                    <IconTooltip label="Save layout">
+                      <button
+                        onClick={() => saveLayoutToServer(layout)}
+                        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-primary active:scale-95"
+                      >
+                        <Save className="size-4" />
+                      </button>
+                    </IconTooltip>
+                    <IconTooltip label="Download layout as JSON">
+                      <button
+                        onClick={() => {
+                          const data = JSON.stringify({ orientation, layout }, null, 2)
+                          const blob = new Blob([data], { type: "application/json" })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement("a")
+                          a.href = url
+                          a.download = `layout-${orientation}.json`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-primary active:scale-95"
+                      >
+                        <Download className="size-4" />
+                      </button>
+                    </IconTooltip>
+                    <IconTooltip label="Upload layout from JSON">
+                      <button
+                        onClick={() => uploadRef.current?.click()}
+                        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-primary active:scale-95"
+                      >
+                        <Upload className="size-4" />
+                      </button>
+                    </IconTooltip>
                     <input
                       ref={uploadRef}
                       type="file"
@@ -528,49 +516,46 @@ export function Dashboard() {
                       className="hidden"
                       onChange={handleUploadLayout}
                     />
+                    <IconTooltip label="Done editing">
+                      <button
+                        onClick={() => setEditMode(false)}
+                        className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-primary transition-colors hover:bg-primary/25 active:scale-95"
+                      >
+                        <Grid3x3 className="size-4" />
+                      </button>
+                    </IconTooltip>
+                  </div>
+                ) : (
+                  <IconTooltip label="Edit layout">
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       size="icon-xs"
-                      onClick={() => setEditMode(false)}
-                      className="text-primary"
-                      title="Done editing"
+                      onClick={() => setEditMode(true)}
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       <Grid3x3 className="size-4" />
                     </Button>
-                  </div>
-                ) : (
+                  </IconTooltip>
+                )}
+                <ZonePicker />
+                <IconTooltip label="Settings">
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => setEditMode(true)}
-                    className="text-muted-foreground hover:text-foreground"
-                    title="Edit layout"
+                    onClick={() => setSettingsOpen(!settingsOpen)}
+                    className={settingsOpen ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
                   >
-                    <Grid3x3 className="size-4" />
+                    <Settings className="size-4" />
                   </Button>
-                )}
-                <ThemeCustomizer />
-                <ZonePicker />
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => setSettingsOpen(!settingsOpen)}
-                  className={settingsOpen ? "text-foreground" : "text-muted-foreground hover:text-foreground"}
-                >
-                  <Settings className="size-4" />
-                </Button>
+                </IconTooltip>
               </>
             )}
             {mounted &&
               authLoaded &&
               (isSignedIn ? (
-                <UserButton
-                  appearance={{
-                    elements: {
-                      avatarBox: "size-9",
-                    },
-                  }}
-                />
+                <div className="flex size-11 items-center justify-center [&_.cl-userButtonTrigger]:!size-11 [&_.cl-userButtonTrigger]:!p-0 [&_.cl-userButtonTrigger]:!rounded-full [&_.cl-userButtonTrigger]:!flex [&_.cl-userButtonTrigger]:!items-center [&_.cl-userButtonTrigger]:!justify-center [&_.cl-userButtonBox]:!size-11 [&_.cl-userButtonBox]:!p-0 [&_.cl-userButtonBox]:!gap-0 [&_.cl-userButtonBox]:!flex [&_.cl-userButtonBox]:!items-center [&_.cl-userButtonBox]:!justify-center [&_.cl-userButtonOuterIdentifier]:!hidden [&_.cl-userButtonAvatarBox]:!size-9 [&_.cl-avatarBox]:!size-9">
+                  <UserButton />
+                </div>
               ) : (
                 <SignInButton mode="modal">
                   <Button
@@ -601,35 +586,53 @@ export function Dashboard() {
         deleteDashboard: handleDeleteDashboard,
         canCreateMore,
       }}>
-        {view === "dashboard" ? (
-          <GridDashboard
-            editMode={editMode}
-            layout={layout}
-            onLayoutChange={handleLayoutChange}
-            minSizes={minSizes}
-            onMinSizesChange={handleMinSizesChange}
-          />
-        ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
-            {view === "privacy" && <PrivacyContent />}
-            {view === "terms" && <TermsContent />}
-          </div>
-        )}
+        <main
+          className="ts-outer-glass relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
+          style={{ borderRadius: "var(--outer-radius)" }}
+        >
+          {view === "dashboard" ? (
+            <GridDashboard
+              editMode={editMode}
+              layout={layout}
+              onLayoutChange={handleLayoutChange}
+              minSizes={minSizes}
+              onMinSizesChange={handleMinSizesChange}
+            />
+          ) : (
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+              {view === "privacy" && <PrivacyContent />}
+              {view === "terms" && <TermsContent />}
+            </div>
+          )}
+        </main>
 
         {/* Settings dialog */}
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <Dialog
+          open={settingsOpen}
+          onOpenChange={(open) => {
+            setSettingsOpen(open)
+            if (!open) setSettingsSection(undefined)
+          }}
+        >
           <DialogContent className="flex flex-col overflow-hidden p-0 top-[calc(50%+1.75rem)] translate-y-[-50%]" style={{ maxWidth: "min(1060px, 92vw)", width: "min(1060px, 92vw)", height: "min(820px, calc(100vh - 3rem))" }}>
-            <DialogHeader className="shrink-0 border-b border-border/20 px-6 py-4">
-              <DialogTitle className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight">
-                Settings
-              </DialogTitle>
-            </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <SettingsView />
-            </div>
+            <AdaptiveSurface className="flex h-full min-h-0 flex-col">
+              <DialogHeader className="shrink-0 border-b border-border/20 px-6 py-4">
+                <DialogTitle className="font-[family-name:var(--font-display)] text-sm font-bold tracking-tight">
+                  Settings
+                </DialogTitle>
+              </DialogHeader>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <SettingsView key={settingsSection ?? "default"} initialSection={settingsSection} />
+              </div>
+            </AdaptiveSurface>
           </DialogContent>
         </Dialog>
-        <div className="relative z-50 h-11 shrink-0 overflow-visible">
+
+        {/* Footer — floating pill with adaptive icon color */}
+        <div
+          ref={footerRef}
+          className="ts-pill-glass ts-adaptive-fg relative z-50 h-11 shrink-0 overflow-visible rounded-full"
+        >
           <StatusBar />
         </div>
       </DashboardContext>
@@ -638,6 +641,7 @@ export function Dashboard() {
     <AIChatBubble />
     </MascotProvider>
     </CountdownTimerProvider>
+    </TooltipProvider>
   )
 }
 

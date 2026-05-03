@@ -88,44 +88,18 @@ export function TasksZone() {
 
   return (
     <div className="zone-surface zone-tasks flex h-full flex-col">
-      {/* Header */}
-      <div className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}>
-        <div className="flex items-center gap-1.5">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-tasks-accent" icon={<ListChecks className="size-4" />}>
-            Tasks
-          </ZoneLabel>
-          {active.length > 0 && (
-            <span className="rounded-full bg-[var(--zone-tasks-accent)]/15 px-1.5 py-0.5 font-mono text-xs font-bold text-[var(--zone-tasks-accent)]">
-              {active.length}
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* Add task */}
-      <div className="shrink-0 border-b border-border/20 px-3 py-2">
-        <div className="flex items-center gap-2">
-          <Plus className="size-3 shrink-0 text-muted-foreground/40" />
-          <Input
-            ref={inputRef}
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTodo()}
-            placeholder="Add a task..."
-            className="h-11 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
-          />
-        </div>
-      </div>
-
-      {/* Task list - only this scrolls */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Task list — scrolls under the floating quick-add bar. */}
+      <div
+        className="min-h-0 flex-1 overflow-y-auto"
+        style={{ scrollPaddingBottom: "64px" }}
+      >
         {sorted.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-xs text-muted-foreground/40">No tasks yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-border/10">
+          <div className="flex flex-col gap-0.5 pt-1 pb-14">
             {active.map((todo) => (
               <TaskRow
                 key={todo.id}
@@ -169,6 +143,31 @@ export function TasksZone() {
           </div>
         )}
       </div>
+
+      {/* Add task — floats over the list. Items scroll UNDER it. The
+          pill's own glass is the only visual separation. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-3 pb-2">
+        <div className="pointer-events-auto flex w-full items-center gap-2">
+          <div className="ts-inner-glass flex h-10 min-w-0 flex-1 items-center rounded-full px-4">
+            <Input
+              ref={inputRef}
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addTodo()}
+              placeholder="Add a task…"
+              className="h-full rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+            />
+          </div>
+          <button
+            onClick={addTodo}
+            disabled={!newTitle.trim()}
+            className="ts-inner-glass flex size-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
+            title="Add task"
+          >
+            <Plus className="size-4" />
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -183,17 +182,17 @@ function TaskRow({
   onDelete: (id: string) => void
 }) {
   return (
-    <div className="group flex min-h-11 items-center gap-2.5 px-4 py-0 transition-colors hover:bg-foreground/[0.03]">
+    <div className="group mx-1 flex min-h-11 items-center gap-2 rounded-lg px-1 transition-colors hover:bg-[color-mix(in_oklab,currentColor_8%,transparent)]">
       <button
         onClick={() => onToggle(todo)}
-        className="flex size-11 shrink-0 items-center justify-center transition-all"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full transition-colors"
       >
         {todo.completed ? (
-          <div className="flex size-4 items-center justify-center rounded" style={{ background: "var(--zone-tasks-accent)" }}>
-            <Check className="size-2.5 text-white" />
+          <div className="ts-inner-glass flex size-4 items-center justify-center rounded-md">
+            <Check className="size-2.5" />
           </div>
         ) : (
-          <div className="size-4 rounded border border-[var(--zone-tasks-accent)]/60" />
+          <div className="size-4 rounded-md border-2 border-current/50" />
         )}
       </button>
       <span
@@ -211,9 +210,10 @@ function TaskRow({
       )}
       <button
         onClick={() => onDelete(todo.id)}
-        className="flex size-11 shrink-0 items-center justify-center"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full opacity-50 transition-colors hover:text-destructive hover:opacity-100"
+        title="Delete task"
       >
-        <Trash2 className="size-3 text-muted-foreground/30 hover:text-destructive" />
+        <Trash2 className="size-3.5" />
       </button>
     </div>
   )
@@ -221,25 +221,25 @@ function TaskRow({
 
 function JiraIssueRow({ issue }: { issue: JiraIssue }) {
   return (
-    <div className="group flex min-h-11 items-center gap-2.5 px-4 py-0 transition-colors hover:bg-foreground/[0.03]">
-      <div className="flex size-11 shrink-0 items-center justify-center">
+    <div className="group mx-1 flex min-h-11 items-center gap-2 rounded-lg px-1 transition-colors hover:bg-[color-mix(in_oklab,currentColor_8%,transparent)]">
+      <div className="flex size-9 shrink-0 items-center justify-center">
         {issue.statusCategory === "in_progress" ? (
           <CircleDot className="size-4 text-blue-500/70" />
         ) : (
-          <Circle className="size-4 text-muted-foreground/30" />
+          <Circle className="size-4 opacity-50" />
         )}
       </div>
       <div className="min-w-0 flex-1">
         <span className="text-xs">{issue.summary}</span>
-        <span className="ml-1.5 font-mono text-xs text-muted-foreground/40">{issue.key}</span>
+        <span className="ml-1.5 font-mono text-xs opacity-50">{issue.key}</span>
       </div>
       <a
         href={issue.htmlLink}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex size-11 shrink-0 items-center justify-center hover-reveal"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full opacity-50 transition-colors hover:opacity-100"
       >
-        <ExternalLink className="size-3 text-muted-foreground/30 hover:text-foreground" />
+        <ExternalLink className="size-3.5" />
       </a>
     </div>
   )

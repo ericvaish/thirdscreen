@@ -583,22 +583,46 @@ export async function listRssFeeds() {
   return api("/api/news?action=feeds")
 }
 
+interface ParseResponse {
+  ok: boolean
+  error?: string
+  title: string | null
+  siteUrl: string | null
+  items: Array<{
+    guid: string
+    title: string
+    link: string | null
+    pubDate: string | null
+    summary: string | null
+  }>
+}
+
+async function parseFeed(url: string): Promise<ParseResponse | null> {
+  try {
+    return await api<ParseResponse>("/api/news", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "parse", url }),
+    })
+  } catch {
+    return null
+  }
+}
+
 export async function addRssFeed(data: { url: string }) {
   // Always go through API for server-side RSS parsing
   if (isLocal) {
-    // In local mode, still need server to parse RSS (CORS).
-    // Store feed locally after server parses it.
-    try {
-      const result = await api("/api/news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      return result
-    } catch {
-      // Fallback: store just the URL locally without parsing
-      return local.localAddRssFeed(data)
+    // In local mode the server only parses (CORS); storage is local.
+    const parsed = await parseFeed(data.url)
+    if (!parsed?.ok) {
+      throw new Error(parsed?.error ?? "Could not parse RSS feed")
     }
+    return local.localAddRssFeed({
+      url: data.url,
+      title: parsed.title ?? null,
+      siteUrl: parsed.siteUrl ?? null,
+      items: parsed.items ?? [],
+    })
   }
   if (isElectron) return ipc("db:rss:add", data)
   return api("/api/news", {
@@ -627,18 +651,56 @@ export async function listRssArticles(limit?: number) {
   return api(`/api/news${params}`)
 }
 
-export async function refreshRssFeeds() {
-  // Always needs server for RSS parsing
-  try {
-    const result = await api("/api/news", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "refresh" }),
-    })
-    return result
-  } catch {
-    return { newCount: 0 }
+// Throttle refreshes across mounts: at most one network refresh per
+// MIN_REFRESH_INTERVAL, with concurrent calls sharing the same in-flight
+// promise so simultaneous mounts collapse to a single fetch round.
+const MIN_REFRESH_INTERVAL = 10 * 60 * 1000 // 10 minutes
+let inFlightRefresh: Promise<{ newCount: number }> | null = null
+
+export async function refreshRssFeeds(force = false): Promise<{ newCount: number }> {
+  if (inFlightRefresh) return inFlightRefresh
+
+  if (!force) {
+    const last = Number(
+      (typeof window !== "undefined" && window.localStorage.getItem("rss_last_refresh")) || 0,
+    )
+    if (last && Date.now() - last < MIN_REFRESH_INTERVAL) {
+      return { newCount: 0 }
+    }
   }
+
+  inFlightRefresh = (async () => {
+    try {
+      if (isLocal) {
+        const feeds = local.localListRssFeeds()
+        let newCount = 0
+        for (const feed of feeds) {
+          const parsed = await parseFeed(feed.url)
+          if (!parsed?.ok) continue
+          newCount += local.localMergeRssArticles(feed.id, parsed.items ?? [])
+          local.localTouchRssFeed(feed.id, parsed.title ?? null, parsed.siteUrl ?? null)
+        }
+        return { newCount }
+      }
+
+      try {
+        return await api<{ newCount: number }>("/api/news", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "refresh" }),
+        })
+      } catch {
+        return { newCount: 0 }
+      }
+    } finally {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("rss_last_refresh", String(Date.now()))
+      }
+      inFlightRefresh = null
+    }
+  })()
+
+  return inFlightRefresh
 }
 
 // ── Custom Mascot Characters ──────────────────────────────────────────────

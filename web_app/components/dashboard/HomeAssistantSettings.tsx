@@ -129,6 +129,7 @@ export function HomeAssistantSettings() {
       setConnectionInfo({ locationName: data.locationName ?? "", version: data.version ?? "" })
       setPhase("connected")
       toast.success(`Connected to ${data.locationName ?? "Home Assistant"}`)
+      window.dispatchEvent(new CustomEvent("ts:ha-config-changed"))
       fetchEntities()
     } catch {
       toast.error("Could not reach Home Assistant")
@@ -154,6 +155,7 @@ export function HomeAssistantSettings() {
     setSelectedEntities(new Set())
     setEntities([])
     setPhase("setup")
+    window.dispatchEvent(new CustomEvent("ts:ha-config-changed"))
     toast.success("Disconnected from Home Assistant")
   }
 
@@ -175,6 +177,7 @@ export function HomeAssistantSettings() {
         body: JSON.stringify({ selectedEntities: arr }),
       })
     } catch {}
+    window.dispatchEvent(new CustomEvent("ts:ha-config-changed"))
   }
 
   const selectAll = async () => {
@@ -189,6 +192,7 @@ export function HomeAssistantSettings() {
         body: JSON.stringify({ selectedEntities: arr }),
       })
     } catch {}
+    window.dispatchEvent(new CustomEvent("ts:ha-config-changed"))
   }
 
   const selectNone = async () => {
@@ -201,6 +205,7 @@ export function HomeAssistantSettings() {
         body: JSON.stringify({ selectedEntities: [] }),
       })
     } catch {}
+    window.dispatchEvent(new CustomEvent("ts:ha-config-changed"))
   }
 
   // ── Render ──────────────────────────────────────────────────────────────

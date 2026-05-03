@@ -1,9 +1,26 @@
-// ── Grid layout types and utilities ──────────────────────────────────────────
+// ── Grid layout: Apple-widget-style fixed-size system ───────────────────────
+//
+// The dashboard is a fixed-column grid (default 8 cols) of square cells.
+// Each zone picks one of a small set of fixed sizes (S/M/L/XL).
+// Positions are computed by a bin-packer — the user never drags into free space.
+// Reordering is done by drag-and-drop into another zone's slot; everything
+// reflows automatically.
 
-// Layout uses percentage values (0-100) for x, y, w, h.
-// Rendered as percentages of container width/height.
-export const GRID_COLS = 100
-export const GRID_ROWS = 100
+// Fixed pixel size for one grid unit. Cards stay the same physical size
+// regardless of screen width — the number of columns that fit adapts instead.
+export const CELL_SIZE_PX = 110
+
+// Minimum columns the grid will render at (prevents collapse on tiny windows).
+export const MIN_GRID_COLS = 4
+
+// Reference column count used by widget definitions (e.g. BANNER spans this).
+// Actual rendered columns = floor(containerWidth / CELL_SIZE_PX), clamped to
+// at least MIN_GRID_COLS. Widgets wider than the rendered grid get clamped.
+export const GRID_COLS = 16
+
+// Bump this whenever the layout shape changes — older saved layouts get
+// migrated back to defaults.
+export const GRID_VERSION = 2
 
 export const ZONE_IDS = [
   "timeline",
@@ -20,67 +37,161 @@ export const ZONE_IDS = [
 
 export type ZoneId = (typeof ZONE_IDS)[number]
 
+// ── Widget sizes ────────────────────────────────────────────────────────────
+
+export type WidgetSize = "S" | "M" | "L" | "XL" | "BANNER" | "TOWER"
+
+export interface WidgetDimensions {
+  w: number // width in grid cells
+  h: number // height in grid cells
+}
+
+export const WIDGET_SIZES: Record<WidgetSize, WidgetDimensions> = {
+  S:      { w: 2,  h: 2 }, // small square
+  M:      { w: 4,  h: 2 }, // medium / wide
+  L:      { w: 4,  h: 4 }, // large square
+  XL:     { w: 8,  h: 4 }, // extra-wide
+  BANNER: { w: 16, h: 2 }, // full-width banner
+  TOWER:  { w: 2,  h: 8 }, // tall tower
+}
+
+export const WIDGET_SIZE_ORDER: WidgetSize[] = ["S", "M", "L", "XL", "BANNER", "TOWER"]
+
+export const WIDGET_SIZE_LABELS: Record<WidgetSize, string> = {
+  S:      "Small",
+  M:      "Medium",
+  L:      "Large",
+  XL:     "Extra Large",
+  BANNER: "Banner",
+  TOWER:  "Tower",
+}
+
+// Per-zone allowed sizes. Keeps the picker tidy (e.g. timeline only makes
+// sense as a wide banner). All zones support at least M and L by default.
+// BANNER (16x2) and TOWER (2x8) are reserved for the schedule/timeline zone —
+// the only one whose content meaningfully benefits from those extreme aspect
+// ratios. Other zones get the standard S/M/L/XL set.
+export const ZONE_ALLOWED_SIZES: Record<ZoneId, WidgetSize[]> = {
+  timeline:  ["S", "M", "L", "XL", "BANNER", "TOWER"],
+  clock:     ["S", "M", "L", "XL"],
+  tasks:     ["S", "M", "L", "XL"],
+  notes:     ["S", "M", "L", "XL"],
+  vitals:    ["M"],
+  media:     ["S", "M", "L", "XL"],
+  habits:    ["S", "M", "L", "XL"],
+  smarthome: ["S", "M", "L", "XL"],
+  weather:   ["S", "M", "L", "XL"],
+  news:      ["S", "M", "L", "XL"],
+}
+
+export interface ZoneEntry {
+  id: ZoneId
+  size: WidgetSize
+}
+
+// Packed position — derived from layout, not stored.
 export interface ZonePosition {
-  x: number // column start (0-indexed, 0-11)
-  y: number // row start (0-indexed)
-  w: number // width in columns
-  h: number // height in rows
+  x: number // cell column (0-indexed)
+  y: number // cell row (0-indexed)
+  w: number // width in cells
+  h: number // height in cells
 }
 
-export type DashboardLayout = Record<ZoneId, ZonePosition>
-
-// ── Minimum sizes per zone ──────────────────────────────────────────────────
-
-// Min sizes as percentage of container (multiples of 5% grid)
-export const ZONE_MIN_SIZES: Record<ZoneId, { minW: number; minH: number }> = {
-  timeline:  { minW: 10, minH: 10 },
-  clock:     { minW: 10, minH: 10 },
-  tasks:     { minW: 10, minH: 10 },
-  notes:     { minW: 10, minH: 10 },
-  vitals:    { minW: 10, minH: 10 },
-  media:     { minW: 10, minH: 10 },
-  habits:    { minW: 15, minH: 10 },
-  smarthome: { minW: 15, minH: 15 },
-  weather:   { minW: 15, minH: 20 },
-  news:      { minW: 15, minH: 10 },
+// The layout is an *ordered* list of zones. Order determines packing priority.
+export interface DashboardLayout {
+  version: number
+  zones: ZoneEntry[]
 }
 
-// Default layout as percentages (0-100)
-// All values are multiples of LCM(2,3,5)=30 or simple fractions to align with any snap grid
+// ── Defaults ────────────────────────────────────────────────────────────────
+
 export function getDefaultLayout(): DashboardLayout {
   return {
-    timeline:  { x: 0,  y: 0,  w: 100, h: 15 },
-    tasks:     { x: 0,  y: 15, w: 36,  h: 40 },
-    clock:     { x: 36, y: 15, w: 18,  h: 20 },
-    notes:     { x: 36, y: 35, w: 18,  h: 30 },
-    media:     { x: 0,  y: 55, w: 36,  h: 45 },
-    vitals:    { x: 54, y: 15, w: 22,  h: 50 },
-    habits:    { x: 76, y: 15, w: 24,  h: 50 },
-    smarthome: { x: 54, y: 65, w: 24,  h: 35 },
-    weather:   { x: 78, y: 65, w: 22,  h: 35 },
-    news:      { x: 36, y: 65, w: 18,  h: 35 },
+    version: GRID_VERSION,
+    zones: [
+      { id: "timeline",  size: "XL" },
+      { id: "tasks",     size: "L"  },
+      { id: "vitals",    size: "M"  },
+      { id: "clock",     size: "S"  },
+      { id: "notes",     size: "M"  },
+      { id: "media",     size: "L"  },
+      { id: "weather",   size: "M"  },
+      { id: "smarthome", size: "M"  },
+      { id: "habits",    size: "M"  },
+      { id: "news",      size: "M"  },
+    ],
   }
-}
-
-// Snap a layout to a given grid step
-export function snapLayout(layout: DashboardLayout, snapW: number, snapH: number): DashboardLayout {
-  const snap = (v: number, step: number) => Math.round(v / step) * step
-  const result = {} as Record<string, ZonePosition>
-  for (const id of ZONE_IDS) {
-    const pos = layout[id]
-    if (pos) {
-      result[id] = {
-        x: snap(pos.x, snapW),
-        y: snap(pos.y, snapH),
-        w: snap(pos.w, snapW),
-        h: snap(pos.h, snapH),
-      }
-    }
-  }
-  return result as DashboardLayout
 }
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = getDefaultLayout()
+
+// ── Bin packing ─────────────────────────────────────────────────────────────
+//
+// Greedy top-left packer. For each zone (in order) find the topmost row, then
+// leftmost column, where the widget fits without overlap.
+
+export function packLayout(
+  layout: DashboardLayout,
+  cols: number = GRID_COLS,
+  hiddenZones: ZoneId[] = [],
+): Record<ZoneId, ZonePosition> {
+  const occupied: boolean[][] = []
+  const result = {} as Record<ZoneId, ZonePosition>
+
+  const fits = (x: number, y: number, w: number, h: number): boolean => {
+    if (x + w > cols) return false
+    for (let row = y; row < y + h; row++) {
+      for (let col = x; col < x + w; col++) {
+        if (occupied[row]?.[col]) return false
+      }
+    }
+    return true
+  }
+
+  const mark = (x: number, y: number, w: number, h: number) => {
+    for (let row = y; row < y + h; row++) {
+      if (!occupied[row]) occupied[row] = new Array(cols).fill(false)
+      for (let col = x; col < x + w; col++) {
+        occupied[row][col] = true
+      }
+    }
+  }
+
+  for (const entry of layout.zones) {
+    if (hiddenZones.includes(entry.id)) continue
+    const dims = WIDGET_SIZES[entry.size]
+    // Clamp width to available columns so wide widgets (BANNER=16) still
+    // render on narrow screens. Height is preserved.
+    const w = Math.min(dims.w, cols)
+    const h = dims.h
+    let placed = false
+    let y = 0
+    while (!placed) {
+      for (let x = 0; x <= cols - w; x++) {
+        if (fits(x, y, w, h)) {
+          mark(x, y, w, h)
+          result[entry.id] = { x, y, w, h }
+          placed = true
+          break
+        }
+      }
+      if (!placed) y++
+      if (y > 500) break // safety
+    }
+  }
+
+  return result
+}
+
+// Total rows used by a packed layout (for sizing the grid container).
+export function getPackedRows(positions: Record<string, ZonePosition>): number {
+  let max = 0
+  for (const id in positions) {
+    const p = positions[id]
+    if (p.y + p.h > max) max = p.y + p.h
+  }
+  return max
+}
 
 // ── Multi-dashboard types ──────────────────────────────────────────────────
 
@@ -108,178 +219,87 @@ export function createDefaultDashboardConfig(id: string): DashboardConfig {
 
 export const DASHBOARD_LIMITS = { max: 10 } as const
 
-// ── RGL conversion ──────────────────────────────────────────────────────────
-
-export interface RGLLayoutItem {
-  i: string
-  x: number
-  y: number
-  w: number
-  h: number
-  minW?: number
-  minH?: number
-  resizeHandles?: string[]
-}
-
-const ALL_HANDLES = ["sw", "nw", "se", "ne"]
-
-export function dashboardLayoutToRGL(
-  layout: DashboardLayout,
-): RGLLayoutItem[] {
-  return ZONE_IDS.map((id) => {
-    const pos = layout[id]
-    const mins = ZONE_MIN_SIZES[id]
-    return {
-      i: id,
-      x: pos.x,
-      y: pos.y,
-      w: pos.w,
-      h: pos.h,
-      minW: mins.minW,
-      minH: mins.minH,
-      resizeHandles: ALL_HANDLES,
-    }
-  })
-}
-
-export function rglToDashboardLayout(
-  rglLayout: RGLLayoutItem[],
-): DashboardLayout {
-  const result = { ...DEFAULT_DASHBOARD_LAYOUT }
-  for (const item of rglLayout) {
-    const id = item.i as ZoneId
-    if (ZONE_IDS.includes(id)) {
-      result[id] = { x: item.x, y: item.y, w: item.w, h: item.h }
-    }
-  }
-  return result
-}
-
-// ── Ensure all zones present ────────────────────────────────────────────────
-// Fills in missing zone positions from defaults. Called when loading saved
-// layouts that predate newly added zones (e.g. "smarthome").
-
-export function ensureAllZones(layout: DashboardLayout): DashboardLayout {
-  const result = { ...layout }
-  for (const id of ZONE_IDS) {
-    if (!result[id]) {
-      result[id] = DEFAULT_DASHBOARD_LAYOUT[id]
-    }
-  }
-  return result
-}
-
-// ── Validation ──────────────────────────────────────────────────────────────
+// ── Validation & migration ──────────────────────────────────────────────────
 
 export function isValidLayout(value: unknown): value is DashboardLayout {
   if (!value || typeof value !== "object") return false
   const obj = value as Record<string, unknown>
-  return ZONE_IDS.every((id) => {
-    const pos = obj[id]
-    if (!pos || typeof pos !== "object") return false
-    const p = pos as Record<string, unknown>
+  if (obj.version !== GRID_VERSION) return false
+  if (!Array.isArray(obj.zones)) return false
+  return obj.zones.every((z) => {
+    if (!z || typeof z !== "object") return false
+    const e = z as Record<string, unknown>
     return (
-      typeof p.x === "number" &&
-      typeof p.y === "number" &&
-      typeof p.w === "number" &&
-      typeof p.h === "number"
+      typeof e.id === "string" &&
+      ZONE_IDS.includes(e.id as ZoneId) &&
+      typeof e.size === "string" &&
+      e.size in WIDGET_SIZES
     )
   })
 }
 
-// ── Migration from old GridLayout format ────────────────────────────────────
-
-interface OldGridLayout {
-  timelineEnd: number
-  sidebarStart: number
-  taskEnd: number
-  mediaEnd: number
-}
-
-function isOldLayout(value: unknown): value is OldGridLayout {
-  if (!value || typeof value !== "object") return false
-  const obj = value as Record<string, unknown>
-  return (
-    typeof obj.timelineEnd === "number" &&
-    typeof obj.sidebarStart === "number" &&
-    typeof obj.taskEnd === "number" &&
-    typeof obj.mediaEnd === "number"
-  )
-}
-
-function isPartialLayout(value: unknown): value is Partial<DashboardLayout> {
-  if (!value || typeof value !== "object") return false
-  const obj = value as Record<string, unknown>
-  // At least one valid zone position exists
-  return ZONE_IDS.some((id) => {
-    const pos = obj[id]
-    if (!pos || typeof pos !== "object") return false
-    const p = pos as Record<string, unknown>
-    return typeof p.x === "number" && typeof p.y === "number" && typeof p.w === "number" && typeof p.h === "number"
+// Backfills any newly added zones into a layout (e.g. when ZONE_IDS grows),
+// and coerces any zone whose stored size is no longer in its allowed set
+// (e.g. BANNER/TOWER on non-timeline zones) down to its largest allowed size.
+export function ensureAllZones(layout: DashboardLayout): DashboardLayout {
+  const present = new Set(layout.zones.map((z) => z.id))
+  const missing: ZoneEntry[] = []
+  for (const id of ZONE_IDS) {
+    if (!present.has(id)) {
+      const allowed = ZONE_ALLOWED_SIZES[id]
+      const fallback: WidgetSize = allowed.includes("M") ? "M" : allowed[0]
+      missing.push({ id, size: fallback })
+    }
+  }
+  const coerced = layout.zones.map((z) => {
+    const allowed = ZONE_ALLOWED_SIZES[z.id]
+    if (!allowed || allowed.includes(z.size)) return z
+    const fallback: WidgetSize = allowed.includes("XL")
+      ? "XL"
+      : allowed.includes("L")
+        ? "L"
+        : allowed.includes("M")
+          ? "M"
+          : allowed[0]
+    return { ...z, size: fallback }
   })
+  if (missing.length === 0 && coerced.every((z, i) => z === layout.zones[i])) {
+    return layout
+  }
+  return { ...layout, zones: [...coerced, ...missing] }
 }
 
+// Anything that isn't the new shape gets reset to defaults. This is a
+// destructive migration — old percentage-based layouts cannot be sensibly
+// translated to the fixed-size grid, so we start fresh.
 export function migrateLayout(stored: unknown): DashboardLayout {
-  // Check grid version first -- if outdated, always return fresh defaults
-  if (stored && typeof stored === "object") {
-    const obj = stored as Record<string, unknown>
-    const savedVersion = typeof obj._gridVersion === "number" ? obj._gridVersion : 0
-    if (savedVersion < GRID_VERSION) {
-      return DEFAULT_DASHBOARD_LAYOUT
-    }
-  }
+  if (isValidLayout(stored)) return ensureAllZones(stored)
+  return getDefaultLayout()
+}
 
-  // Handle saved layouts that are missing newly added zones (e.g., "clock")
-  if (!isValidLayout(stored) && isPartialLayout(stored)) {
-    const merged = { ...DEFAULT_DASHBOARD_LAYOUT }
-    for (const id of ZONE_IDS) {
-      const pos = (stored as Record<string, unknown>)[id] as Record<string, unknown> | undefined
-      if (pos && typeof pos.x === "number" && typeof pos.y === "number" && typeof pos.w === "number" && typeof pos.h === "number") {
-        merged[id] = { x: pos.x, y: pos.y, w: pos.w, h: pos.h }
-      }
-    }
-    return merged
-  }
+// ── Reorder helpers ─────────────────────────────────────────────────────────
 
-  if (isValidLayout(stored)) {
-    return stored
+export function moveZoneToIndex(
+  layout: DashboardLayout,
+  zoneId: ZoneId,
+  targetIndex: number,
+): DashboardLayout {
+  const fromIndex = layout.zones.findIndex((z) => z.id === zoneId)
+  if (fromIndex === -1 || fromIndex === targetIndex) return layout
+  const next = [...layout.zones]
+  const [item] = next.splice(fromIndex, 1)
+  const insertAt = Math.max(0, Math.min(next.length, targetIndex))
+  next.splice(insertAt, 0, item)
+  return { ...layout, zones: next }
+}
+
+export function setZoneSize(
+  layout: DashboardLayout,
+  zoneId: ZoneId,
+  size: WidgetSize,
+): DashboardLayout {
+  return {
+    ...layout,
+    zones: layout.zones.map((z) => (z.id === zoneId ? { ...z, size } : z)),
   }
-  if (isOldLayout(stored)) {
-    const { timelineEnd, sidebarStart, taskEnd, mediaEnd } = stored
-    const sideW = 12 - sidebarStart + 1
-    const mainW = sidebarStart - 1
-    return {
-      timeline: { x: 0, y: 0, w: 12, h: timelineEnd },
-      clock: { x: 0, y: 0, w: 3, h: 3 }, // fallback position for migrated layouts
-      tasks: {
-        x: 0,
-        y: timelineEnd,
-        w: mainW,
-        h: taskEnd - timelineEnd,
-      },
-      media: {
-        x: 0,
-        y: taskEnd,
-        w: mainW,
-        h: mediaEnd - taskEnd,
-      },
-      notes: {
-        x: 0,
-        y: mediaEnd,
-        w: mainW,
-        h: GRID_ROWS - mediaEnd,
-      },
-      vitals: {
-        x: sidebarStart - 1,
-        y: timelineEnd,
-        w: sideW,
-        h: GRID_ROWS - timelineEnd,
-      },
-      habits: { x: 76, y: 15, w: 24, h: 50 },
-      smarthome: { x: 54, y: 65, w: 46, h: 35 },
-      weather: { x: 78, y: 65, w: 22, h: 35 },
-      news: { x: 36, y: 65, w: 18, h: 35 },
-    }
-  }
-  return DEFAULT_DASHBOARD_LAYOUT
 }

@@ -32,11 +32,13 @@ export default function SpotifyCallbackPage() {
       let codeVerifier: string
       let redirectUri: string
       let openerOrigin: string
+      let pairCode: string | null = null
       try {
         const decoded = JSON.parse(atob(stateParam))
         codeVerifier = decoded.v
         redirectUri = decoded.r
         openerOrigin = decoded.o
+        pairCode = decoded.p ?? null
       } catch {
         finish(false, "Invalid state parameter")
         return
@@ -76,25 +78,37 @@ export default function SpotifyCallbackPage() {
 
         const tokens = await res.json()
 
-        // Send tokens back to opener so it can save to its own localStorage
+        const tokenPayload = {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_in: tokens.expires_in,
+        }
+
+        // Same-browser flow: postMessage straight back to the opener.
         if (window.opener) {
           window.opener.postMessage(
-            {
-              type: "spotify-auth",
-              success: true,
-              tokens: {
-                access_token: tokens.access_token,
-                refresh_token: tokens.refresh_token,
-                expires_in: tokens.expires_in,
-              },
-            },
-            openerOrigin
+            { type: "spotify-auth", success: true, tokens: tokenPayload },
+            openerOrigin,
           )
+        }
+
+        // Cross-browser flow: hand the tokens off via the pairing rendezvous
+        // so a different browser/device that started the flow can pick them up.
+        if (pairCode) {
+          try {
+            await fetch("/api/spotify/pair", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code: pairCode, tokens: tokenPayload }),
+            })
+          } catch {}
         }
 
         setMessage("Connected to Spotify!")
         setDone(true)
-        setTimeout(() => window.close(), 1200)
+        // Only auto-close if a popup opened us; otherwise leave the page so
+        // the user can confirm visually before closing the tab themselves.
+        if (window.opener) setTimeout(() => window.close(), 1200)
       } catch {
         finish(false, "Token exchange failed")
       }

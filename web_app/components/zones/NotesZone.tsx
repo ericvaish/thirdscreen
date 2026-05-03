@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Pin,
   PinOff,
@@ -16,10 +16,19 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { NoteItem } from "@/lib/types"
 import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { useRegisterZoneActions, type ZoneAction } from "@/lib/zone-actions"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { ZoneLabel } from "@/components/dashboard/ZoneLabel"
 import {
@@ -29,6 +38,7 @@ import {
   deleteNote as deleteNoteApi,
   listLinks,
   createLink,
+  deleteLink as deleteLinkApi,
 } from "@/lib/data-layer"
 import { useDataFetch } from "@/lib/use-data-fetch"
 
@@ -58,6 +68,7 @@ export function NotesZone() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState("")
   const [viewMode, setViewMode] = useState<NotesView>("list")
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -67,17 +78,39 @@ export function NotesZone() {
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
-  const addNote = async () => {
+  const addNote = async (initialContent = "") => {
     try {
       const created = (await createNote({
         cardId: CARD_ID,
-        content: "",
+        content: initialContent,
       })) as NoteItem
       setNotes((prev) => [created, ...(prev ?? [])])
-      setSelectedId(created.id)
-      setEditContent("")
+      if (initialContent === "") {
+        setSelectedId(created.id)
+        setEditContent("")
+      }
+      return created
     } catch {
       toast.error("Failed to create note")
+    }
+  }
+
+  // Quick-add input at the bottom — auto-routes to addLink if the text is a URL.
+  const [quickInput, setQuickInput] = useState("")
+  const isLikelyUrl = (s: string) => /^https?:\/\/\S+$/i.test(s.trim())
+  const submitQuickInput = async () => {
+    const value = quickInput.trim()
+    if (!value) return
+    setQuickInput("")
+    if (isLikelyUrl(value)) {
+      try {
+        await createLink({ cardId: CARD_ID, url: value })
+        refetchLinks()
+      } catch {
+        toast.error("Failed to save link")
+      }
+    } else {
+      await addNote(value)
     }
   }
 
@@ -106,7 +139,15 @@ export function NotesZone() {
     }
   }
 
-  const deleteNote = async (id: string) => {
+  // Opens the confirmation dialog. Actual deletion happens in confirmDelete.
+  const deleteNote = (id: string) => {
+    setPendingDeleteId(id)
+  }
+
+  const confirmDelete = async () => {
+    const id = pendingDeleteId
+    if (!id) return
+    setPendingDeleteId(null)
     setNotes((prev) => (prev ?? []).filter((n) => n.id !== id))
     if (selectedId === id) setSelectedId(null)
     try {
@@ -116,26 +157,66 @@ export function NotesZone() {
     }
   }
 
-  const addLink = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formEl = e.currentTarget
-    const form = new FormData(formEl)
-    const url = form.get("url") as string
-    if (!url) return
+  const pendingDeleteNote = pendingDeleteId
+    ? (notes ?? []).find((n) => n.id === pendingDeleteId) ?? null
+    : null
+  const pendingDeletePreview = (() => {
+    if (!pendingDeleteNote) return ""
+    const text = (pendingDeleteNote.content ?? "").trim()
+    if (!text) return "(empty note)"
+    return text.length > 80 ? text.slice(0, 80) + "…" : text
+  })()
 
+
+  const deleteLink = async (id: string) => {
+    setLinks((prev) => prev?.filter((l) => l.id !== id))
     try {
-      await createLink({ cardId: CARD_ID, url })
-      refetchLinks()
-      formEl.reset()
+      await deleteLinkApi(id)
     } catch {
-      toast.error("Failed to save link")
+      toast.error("Failed to delete link")
+      refetchLinks()
     }
   }
 
-  const handleViewChange = (mode: NotesView) => {
+  const handleViewChange = useCallback((mode: NotesView) => {
     setViewMode(mode)
     localStorage.setItem("notes-view-mode", mode)
-  }
+  }, [])
+
+  // Register the right-click context-menu actions for this zone.
+  const zoneActions = useMemo<ZoneAction[]>(
+    () => [
+      {
+        id: "add",
+        label: "Add note",
+        icon: <Plus className="size-3.5" />,
+        onSelect: () => { addNote() },
+      },
+      {
+        id: "view",
+        label: "View",
+        icon: <LayoutList className="size-3.5" />,
+        options: [
+          {
+            id: "list",
+            label: "List",
+            active: viewMode === "list",
+            onSelect: () => handleViewChange("list"),
+          },
+          {
+            id: "grid",
+            label: "Cards",
+            active: viewMode === "grid",
+            onSelect: () => handleViewChange("grid"),
+          },
+        ],
+      },
+    ],
+    // addNote is stable enough; viewMode triggers rebuild for active state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [viewMode, handleViewChange],
+  )
+  useRegisterZoneActions("notes", zoneActions)
 
   // Sort: pinned first, then by date
   const sorted = [...notes].sort((a, b) => {
@@ -159,18 +240,14 @@ export function NotesZone() {
         >
           <div className="flex items-center gap-1.5">
             <ZoneDragHandle />
-            <Button
-              variant="ghost"
-              size="icon-xs"
+            <button
               onClick={() => setSelectedId(null)}
-              className="text-muted-foreground/50 hover:text-foreground"
+              className="ts-inner-glass flex size-9 items-center justify-center rounded-full opacity-80 transition-colors hover:opacity-100"
+              title="Back to notes"
             >
               <ArrowLeft className="size-4" />
-            </Button>
-            <span
-              className="font-[family-name:var(--font-display)] text-xs font-bold tracking-tight"
-              style={{ color: "var(--zone-notes-accent)" }}
-            >
+            </button>
+            <span className="font-[family-name:var(--font-display)] text-xs font-bold tracking-tight">
               {selectedNote.content?.split("\n")[0]?.slice(0, 30) ||
                 "Untitled"}
             </span>
@@ -178,17 +255,17 @@ export function NotesZone() {
           <div className="flex items-center">
             <button
               onClick={() => togglePin(selectedNote)}
-              className="flex size-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-primary"
+              className="flex size-11 items-center justify-center rounded-full opacity-50 transition-colors hover:opacity-100"
             >
               {selectedNote.pinned ? (
-                <Pin className="size-3.5 text-primary" />
+                <Pin className="size-3.5" />
               ) : (
                 <PinOff className="size-3.5" />
               )}
             </button>
             <button
               onClick={() => deleteNote(selectedNote.id)}
-              className="flex size-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-destructive"
+              className="flex size-11 items-center justify-center rounded-full opacity-50 transition-colors hover:text-destructive hover:opacity-100"
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -214,76 +291,41 @@ export function NotesZone() {
 
   return (
     <div className="zone-surface zone-notes flex h-full flex-col">
-      {/* Header */}
+      {/* Content — scrolls under the floating quick-add bar. The pill is
+          translucent (ts-inner-glass) so list items remain partially
+          visible through it. scroll-padding-bottom keeps the user able
+          to scroll the last row above the pill when there's more content
+          than fits, without adding always-on visible padding. */}
       <div
-        className={`flex shrink-0 items-center justify-between px-3 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}
+        className="ts-always-scrollbar min-h-0 flex-1 overflow-y-auto"
+        style={{ scrollPaddingBottom: "64px" }}
       >
-        <div className="flex items-center gap-2">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-notes-accent" icon={<StickyNote className="size-4" />}>
-            Notes
-          </ZoneLabel>
-        </div>
-        <div className="flex items-center gap-0.5">
-          {/* View toggle */}
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="icon-xs"
-            onClick={() => handleViewChange("list")}
-            className={
-              viewMode === "list"
-                ? "text-foreground"
-                : "text-muted-foreground/30"
-            }
-            title="List view"
-          >
-            <LayoutList className="size-3.5" />
-          </Button>
-          <Button
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="icon-xs"
-            onClick={() => handleViewChange("grid")}
-            className={
-              viewMode === "grid"
-                ? "text-foreground"
-                : "text-muted-foreground/30"
-            }
-            title="Card view"
-          >
-            <LayoutGrid className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={addNote}
-            className="text-muted-foreground/50 hover:text-foreground"
-          >
-            <Plus className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
         {sorted.length === 0 && links.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-xs text-muted-foreground/40">No notes yet</p>
           </div>
         ) : viewMode === "list" ? (
           /* ── List view ──────────────────────────────────────────── */
-          <div className="divide-y divide-border/10">
+          <div className="divide-y divide-border/10 pt-1 pb-14">
             {sorted.map((note) => (
               <div
                 key={note.id}
-                className="group flex items-center gap-1 px-4 py-1 transition-colors hover:bg-foreground/[0.02]"
-              >
-                <button
-                  className="min-h-11 flex-1 cursor-pointer text-left flex items-center"
-                  onClick={() => {
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setSelectedId(note.id)
+                  setEditContent(note.content)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
                     setSelectedId(note.id)
                     setEditContent(note.content)
-                  }}
-                >
+                  }
+                }}
+                className="group mx-1 flex min-h-11 cursor-pointer items-center gap-1 rounded-lg px-1 py-1 transition-colors"
+              >
+                <div className="flex flex-1 items-center">
                   <p
                     className={cn(
                       "line-clamp-1 text-xs",
@@ -292,21 +334,21 @@ export function NotesZone() {
                   >
                     {note.content || "Empty note"}
                   </p>
-                </button>
+                </div>
                 <div className="flex shrink-0 items-center">
                   <button
-                    onClick={() => togglePin(note)}
-                    className="flex size-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-primary"
+                    onClick={(e) => { e.stopPropagation(); togglePin(note) }}
+                    className="flex size-11 items-center justify-center rounded-full opacity-50 transition-colors hover:opacity-100"
                   >
                     {note.pinned ? (
-                      <Pin className="size-2.5 text-primary" />
+                      <Pin className="size-2.5" />
                     ) : (
-                      <PinOff className="size-2.5 text-muted-foreground/30" />
+                      <PinOff className="size-2.5" />
                     )}
                   </button>
                   <button
-                    onClick={() => deleteNote(note.id)}
-                    className="flex size-11 items-center justify-center text-muted-foreground/30 transition-colors hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id) }}
+                    className="flex size-11 items-center justify-center rounded-full opacity-50 transition-colors hover:text-destructive hover:opacity-100"
                   >
                     <Trash2 className="size-2.5" />
                   </button>
@@ -317,24 +359,35 @@ export function NotesZone() {
             {/* Links */}
             {links.length > 0 &&
               links.map((link) => (
-                <a
+                <div
                   key={link.id}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex min-h-11 items-center gap-2 px-4 py-1.5 text-xs transition-colors hover:bg-foreground/[0.02]"
+                  className="group mx-1 flex min-h-11 items-center gap-1 rounded-lg px-1 text-xs transition-colors"
                 >
-                  <LinkIcon className="size-3 shrink-0 text-muted-foreground/40" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {link.title || new URL(link.url).hostname}
-                  </span>
-                  <ExternalLink className="size-2.5 shrink-0 text-muted-foreground/30 group-hover:text-primary" />
-                </a>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5"
+                  >
+                    <LinkIcon className="size-3 shrink-0 opacity-50" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {link.title || new URL(link.url).hostname}
+                    </span>
+                    <ExternalLink className="size-2.5 shrink-0 opacity-50" />
+                  </a>
+                  <button
+                    onClick={() => deleteLink(link.id)}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-full opacity-50 transition-colors hover:text-destructive hover:opacity-100"
+                    title="Delete link"
+                  >
+                    <Trash2 className="size-2.5" />
+                  </button>
+                </div>
               ))}
           </div>
         ) : (
           /* ── Grid/card view ─────────────────────────────────────── */
-          <div className="grid grid-cols-2 gap-2 p-3">
+          <div className="grid grid-cols-2 gap-2 p-3 pb-14">
             {sorted.map((note) => (
               <div
                 key={note.id}
@@ -352,15 +405,13 @@ export function NotesZone() {
                   }
                 }}
                 className={cn(
-                  "group relative flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-all hover:border-border/40 hover:bg-foreground/[0.02]",
-                  note.pinned
-                    ? "border-primary/20 bg-primary/[0.03]"
-                    : "border-border/15",
+                  "ts-inner-glass group relative flex cursor-pointer flex-col rounded-2xl p-3 text-left transition-all",
+                  note.pinned && "ring-1 ring-current/30",
                 )}
               >
                 {/* Pin indicator */}
                 {note.pinned && (
-                  <Pin className="absolute top-2 right-2 size-2.5 text-primary/50" />
+                  <Pin className="absolute top-2 right-2 size-2.5 opacity-60" />
                 )}
                 {/* Title -- first line */}
                 <p className="line-clamp-1 text-[0.6875rem] font-semibold text-foreground/80">
@@ -395,20 +446,73 @@ export function NotesZone() {
         )}
       </div>
 
-      {/* Add link - pinned to bottom */}
-      <form
-        onSubmit={addLink}
-        className="shrink-0 border-t border-border/20 px-3 py-1.5"
-      >
-        <div className="flex items-center gap-2">
-          <LinkIcon className="size-3 shrink-0 text-muted-foreground/40" />
-          <Input
-            name="url"
-            placeholder="Paste a link..."
-            className="h-11 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
-          />
+      {/* Quick add — floats over the list at the bottom. Items scroll
+          UNDER it. No backdrop fade; the input pill's own glass is the
+          only visual separation. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-3 pb-2">
+        <div className="pointer-events-auto flex w-full items-center gap-2">
+          <div className="ts-inner-glass flex h-10 min-w-0 flex-1 items-center rounded-full px-4">
+            <Input
+              value={quickInput}
+              onChange={(e) => setQuickInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  submitQuickInput()
+                }
+              }}
+              placeholder="Add a note or paste a link…"
+              className="h-full rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+            />
+          </div>
+          <button
+            onClick={submitQuickInput}
+            disabled={!quickInput.trim()}
+            className="ts-inner-glass flex size-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
+            title={isLikelyUrl(quickInput) ? "Save link" : "Add note"}
+          >
+            <Plus className="size-4" />
+          </button>
         </div>
-      </form>
+      </div>
+
+      <Dialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteId(null)
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this note?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingDeletePreview && (
+            <div className="rounded-md border border-border/30 bg-muted/30 px-3 py-2 text-xs italic text-muted-foreground">
+              {pendingDeletePreview}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPendingDeleteId(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+              autoFocus
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

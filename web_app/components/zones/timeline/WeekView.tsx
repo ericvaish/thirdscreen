@@ -43,10 +43,8 @@ export function WeekView({
           <button
             key={key}
             onClick={() => onSelectDay(day)}
-            className={`group relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border transition-colors ${
-              isSelected
-                ? "border-[var(--zone-timeline-accent)]/40 bg-[var(--zone-timeline-accent)]/5"
-                : "border-border/10 hover:border-border/25 hover:bg-muted/20"
+            className={`ts-inner-glass group relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl transition-colors ${
+              isSelected ? "ring-1 ring-current/40" : ""
             }`}
           >
             {/* Day header */}
@@ -57,7 +55,7 @@ export function WeekView({
               <div
                 className={`mx-auto flex size-5 items-center justify-center rounded-full font-mono text-xs font-medium ${
                   isDayToday
-                    ? "bg-amber-400 text-black"
+                    ? "ts-inner-glass ring-1 ring-current/40"
                     : "text-foreground/70"
                 }`}
               >

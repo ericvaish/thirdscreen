@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { format, subDays, eachDayOfInterval } from "date-fns"
 import { Plus, Trash2, Flame, Check, Settings, Target, LineChart as LineChartIcon, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useDashboard } from "@/components/dashboard/DashboardContext"
+import { useRegisterZoneActions, type ZoneAction } from "@/lib/zone-actions"
 import { ZoneDragHandle } from "@/components/dashboard/ZoneDragHandle"
 import { ZoneLabel } from "@/components/dashboard/ZoneLabel"
 import {
@@ -105,6 +106,33 @@ export function HabitsZone() {
     localStorage.setItem("habits-chart-style", style)
   }
 
+  const zoneActions = useMemo<ZoneAction[]>(
+    () => [
+      {
+        id: "chart",
+        label: "Chart style",
+        icon: <LineChartIcon className="size-3.5" />,
+        options: [
+          {
+            id: "sparkline",
+            label: "Sparkline",
+            active: chartStyle === "sparkline",
+            onSelect: () => setChart("sparkline"),
+          },
+          {
+            id: "line",
+            label: "Line chart",
+            active: chartStyle === "line",
+            onSelect: () => setChart("line"),
+          },
+        ],
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chartStyle],
+  )
+  useRegisterZoneActions("habits", zoneActions)
+
   const logSet = new Set(
     logs.filter((l) => l.completed).map((l) => `${l.habitId}:${l.date}`),
   )
@@ -177,13 +205,16 @@ export function HabitsZone() {
           return (
             <button
               key={dateStr}
+              data-habit-cell
               onClick={() => handleToggle(habit.id, dateStr)}
-              className="flex flex-1 items-center justify-center py-1"
+              className="group/cell flex flex-1 items-center justify-center bg-transparent py-1 outline-none focus-visible:outline-none"
             >
               <div
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-md border transition-all",
-                  done ? "border-transparent" : "border-foreground/25 hover:border-foreground/40",
+                  "flex size-6 items-center justify-center rounded-full border transition-all",
+                  done
+                    ? "border-transparent"
+                    : "border-foreground/25 group-hover/cell:border-foreground/60 group-hover/cell:bg-foreground/10",
                 )}
                 style={done ? { background: habitColor, opacity: 0.85 } : undefined}
               >
@@ -305,60 +336,6 @@ export function HabitsZone() {
 
   return (
     <div className="zone-surface zone-habits flex h-full flex-col">
-      {/* Header */}
-      <div
-        className={`flex shrink-0 items-center justify-between px-4 py-1.5 ${editMode ? "zone-drag-handle" : ""}`}
-      >
-        <div className="flex items-center gap-1.5">
-          <ZoneDragHandle />
-          <ZoneLabel accentVar="--zone-habits-accent" icon={<Target className="size-4" />}>
-            Habits
-          </ZoneLabel>
-        </div>
-        <div className="flex items-center gap-0.5">
-          {/* Settings popover */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="flex size-9 items-center justify-center rounded-lg border border-border/25 bg-muted/15 text-muted-foreground/40 transition-colors hover:border-border/40 hover:bg-muted/30 hover:text-foreground active:scale-95"
-              >
-                <Settings className="size-3.5" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="bottom" align="end" className="w-48">
-              <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider" style={{ color: ACCENT }}>
-                Chart Style
-              </p>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setChart("sparkline")}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                    chartStyle === "sparkline"
-                      ? "bg-primary/10 text-foreground"
-                      : "text-muted-foreground hover:bg-muted/30",
-                  )}
-                >
-                  <TrendingUp className="size-3.5" />
-                  Sparkline
-                </button>
-                <button
-                  onClick={() => setChart("line")}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                    chartStyle === "line"
-                      ? "bg-primary/10 text-foreground"
-                      : "text-muted-foreground hover:bg-muted/30",
-                  )}
-                >
-                  <LineChartIcon className="size-3.5" />
-                  Line Chart
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
 
       {/* Content */}
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-2">
@@ -374,10 +351,12 @@ export function HabitsZone() {
             <HabitRow key={habit.id} habit={habit} />
           ))}
         </div>
+      </div>
 
-        {/* Inline add row -- always visible */}
+      {/* Add habit — pinned at the bottom: pill input + separate circular + button */}
+      <div className="shrink-0 px-3 py-2">
         <form
-          className="flex items-center gap-1.5 rounded-md px-1 py-0.5"
+          className="flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault()
             if (inlineNewName.trim()) {
@@ -388,21 +367,26 @@ export function HabitsZone() {
             }
           }}
         >
+          <div className="ts-inner-glass flex h-10 min-w-0 flex-1 items-center rounded-full px-4">
+            <Input
+              ref={inlineInputRef}
+              value={inlineNewName}
+              onChange={(e) => setInlineNewName(e.target.value)}
+              placeholder="Add a habit…"
+              className="h-full rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+            />
+          </div>
           <button
             type="submit"
-            className="shrink-0 rounded-md p-1 text-muted-foreground/30 transition-colors hover:text-foreground"
+            disabled={!inlineNewName.trim()}
+            className="ts-inner-glass flex size-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
+            title="Add habit"
           >
-            <Plus className="size-3" />
+            <Plus className="size-4" />
           </button>
-          <Input
-            ref={inlineInputRef}
-            value={inlineNewName}
-            onChange={(e) => setInlineNewName(e.target.value)}
-            placeholder="Add habit"
-            className="h-7 min-w-0 flex-1 rounded-none border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
-          />
         </form>
       </div>
     </div>
   )
 }
+
