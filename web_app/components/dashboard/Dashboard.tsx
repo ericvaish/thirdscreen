@@ -39,7 +39,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useAuth, UserButton, SignInButton } from "@clerk/nextjs"
+import { useAuth } from "@/components/auth/AuthProvider"
+import { UserMenu } from "@/components/auth/UserMenu"
 import { DataMergeDialog } from "./DataMergeDialog"
 import {
   getSettings,
@@ -227,7 +228,7 @@ export function Dashboard() {
     }
     reader.readAsText(file)
   }, [setLayout])
-  const { isSignedIn, isLoaded: authLoaded } = useAuth()
+  const { isSignedIn, isLoaded: authLoaded, signIn } = useAuth()
 
   useEffect(() => setMounted(true), [])
 
@@ -553,19 +554,18 @@ export function Dashboard() {
             {mounted &&
               authLoaded &&
               (isSignedIn ? (
-                <div className="flex size-11 items-center justify-center [&_.cl-userButtonTrigger]:!size-11 [&_.cl-userButtonTrigger]:!p-0 [&_.cl-userButtonTrigger]:!rounded-full [&_.cl-userButtonTrigger]:!flex [&_.cl-userButtonTrigger]:!items-center [&_.cl-userButtonTrigger]:!justify-center [&_.cl-userButtonBox]:!size-11 [&_.cl-userButtonBox]:!p-0 [&_.cl-userButtonBox]:!gap-0 [&_.cl-userButtonBox]:!flex [&_.cl-userButtonBox]:!items-center [&_.cl-userButtonBox]:!justify-center [&_.cl-userButtonOuterIdentifier]:!hidden [&_.cl-userButtonAvatarBox]:!size-9 [&_.cl-avatarBox]:!size-9">
-                  <UserButton />
+                <div className="flex size-11 items-center justify-center">
+                  <UserMenu />
                 </div>
               ) : (
-                <SignInButton mode="modal">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Sign in
-                  </Button>
-                </SignInButton>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => signIn()}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Sign in
+                </Button>
               ))}
           </div>
         </div>
@@ -671,12 +671,12 @@ function PrivacyContent() {
             <li><strong className="text-foreground">Google Chat</strong> - We request access to display recent messages from your spaces.</li>
             <li><strong className="text-foreground">Spotify</strong> - We request access to your playback state to display currently playing music and control playback. We use Spotify OAuth with PKCE.</li>
             <li><strong className="text-foreground">LRCLib</strong> - We fetch song lyrics from LRCLib (lrclib.net), an open-source lyrics database. Only the song title, artist, and album name are sent in the request.</li>
-            <li><strong className="text-foreground">Clerk</strong> - We use Clerk for user authentication. Clerk handles your account data (email, profile) according to their privacy policy.</li>
+            <li><strong className="text-foreground">Google Sign-In</strong> - We use Google OAuth 2.0 to authenticate users. We receive your Google account ID, email, name, and profile picture, which are stored in our database to identify your account.</li>
           </ul>
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">4. Cookies and Local Storage</h2>
-          <p>Third Screen uses browser localStorage to store your dashboard data, UI preferences (theme, layout), and authentication tokens for connected services. We do not use tracking cookies. Clerk may set cookies for session management.</p>
+          <p>Third Screen uses browser localStorage to store your dashboard data, UI preferences (theme, layout), and authentication tokens for connected services. We do not use tracking cookies. We set a single httpOnly session cookie when you sign in.</p>
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">5. Data We Do Not Collect</h2>
@@ -705,7 +705,7 @@ function PrivacyContent() {
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">8. Data Security</h2>
-          <p>We use HTTPS for all data transmission. OAuth tokens are stored server-side with user-scoped access controls. Authentication is handled by Clerk with industry-standard security practices. However, no method of transmission or storage is 100% secure, and we cannot guarantee absolute security.</p>
+          <p>We use HTTPS for all data transmission. OAuth tokens are stored server-side with user-scoped access controls. Authentication uses Google OAuth 2.0 with signed, httpOnly session cookies. However, no method of transmission or storage is 100% secure, and we cannot guarantee absolute security.</p>
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">9. Open Source</h2>
@@ -739,7 +739,7 @@ function TermsContent() {
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">3. Accounts</h2>
-          <p>You may use basic features without an account. Certain features (cloud sync, integrations) require signing in via our authentication provider (Clerk). You are responsible for maintaining the security of your account credentials and for all activity that occurs under your account.</p>
+          <p>You may use basic features without an account. Certain features (cloud sync, integrations) require signing in with your Google account. You are responsible for maintaining the security of your account credentials and for all activity that occurs under your account.</p>
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">4. Pricing</h2>
@@ -762,7 +762,7 @@ function TermsContent() {
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">7. Third-Party Services</h2>
-          <p>Third Screen integrates with third-party services including Google (Calendar, Gmail, Chat), Spotify, Clerk, and LRCLib. Your use of those services is governed by their respective terms and privacy policies. We are not responsible for the availability, accuracy, or conduct of third-party services.</p>
+          <p>Third Screen integrates with third-party services including Google (Sign-In, Calendar, Gmail, Chat), Spotify, and LRCLib. Your use of those services is governed by their respective terms and privacy policies. We are not responsible for the availability, accuracy, or conduct of third-party services.</p>
         </section>
         <section>
           <h2 className="font-semibold text-lg mb-3 text-foreground">8. Account Termination</h2>
@@ -799,6 +799,7 @@ const LS_NOTICE_KEY = "ts_local_storage_notice_dismissed"
 
 function LocalStorageNotice() {
   const [show, setShow] = useState(false)
+  const { signIn } = useAuth()
 
   useEffect(() => {
     if (!localStorage.getItem(LS_NOTICE_KEY)) {
@@ -830,9 +831,12 @@ function LocalStorageNotice() {
           </p>
           <p>
             To keep your data safe and synced across devices,{" "}
-            <SignInButton mode="modal">
-              <button className="font-semibold text-primary underline underline-offset-2 hover:text-primary/80">sign in</button>
-            </SignInButton>{" "}
+            <button
+              onClick={() => signIn()}
+              className="font-semibold text-primary underline underline-offset-2 hover:text-primary/80"
+            >
+              sign in
+            </button>{" "}
             to save everything to the cloud.
           </p>
         </div>

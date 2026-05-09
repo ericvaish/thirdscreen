@@ -39,7 +39,7 @@ import { toast } from "sonner"
 import { generatePKCE } from "@/lib/spotify/pkce"
 import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
 import { isLocal } from "@/lib/data-layer"
-import { useAuth, SignInButton } from "@clerk/nextjs"
+import { useAuth } from "@/components/auth/AuthProvider"
 import {
   getLocalSpotifyTokens,
   saveLocalSpotifyTokens,

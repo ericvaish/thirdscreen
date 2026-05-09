@@ -4,7 +4,7 @@ import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { WallpaperImageProvider } from "@/lib/wallpaper-context"
-import { ClerkThemeProvider } from "@/components/clerk-theme-provider"
+import { AuthProvider } from "@/components/auth/AuthProvider"
 import { ScaleProvider } from "@/components/scale-provider"
 import { NotificationProvider } from "@/lib/notifications"
 import { TimezoneProvider } from "@/lib/timezone"
@@ -95,7 +95,7 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider defaultTheme="dark">
-          <ClerkThemeProvider>
+          <AuthProvider>
             <ScaleProvider>
               <TimezoneProvider>
                 <NotificationProvider>
@@ -106,7 +106,7 @@ export default function RootLayout({
               </TimezoneProvider>
             </ScaleProvider>
             <Toaster position="bottom-right" />
-          </ClerkThemeProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

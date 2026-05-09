@@ -8,7 +8,7 @@ import { generatePKCE } from "@/lib/spotify/pkce"
 import { SPOTIFY_AUTH_URL, SPOTIFY_SCOPES } from "@/lib/spotify/constants"
 import { getLocalSpotifyTokens, clearLocalSpotifyTokens, saveLocalSpotifyTokens } from "@/lib/spotify/local-spotify"
 import { isLocal } from "@/lib/data-layer"
-import { useAuth } from "@clerk/nextjs"
+import { useAuth } from "@/components/auth/AuthProvider"
 
 type Phase = "loading" | "needs-client-id" | "needs-auth" | "connected"
 

@@ -2,7 +2,7 @@
 
 import { Plus, Mail, Trash2, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { SignInButton } from "@clerk/nextjs"
+import { useAuth } from "@/components/auth/AuthProvider"
 
 export function CalendarAccountsContent({
   isSignedIn,
@@ -17,6 +17,7 @@ export function CalendarAccountsContent({
   addGoogleAccount: () => void
   removeCalendarAccount: (id: string) => void
 }) {
+  const { signIn } = useAuth()
   return (
     <>
       <p className="mb-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -82,12 +83,15 @@ export function CalendarAccountsContent({
               Apple Calendar
             </div>
           </div>
-          <SignInButton mode="modal">
-            <Button variant="outline" size="sm" className="w-full text-xs">
-              <LogIn className="size-3" />
-              Sign in to connect
-            </Button>
-          </SignInButton>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => signIn()}
+          >
+            <LogIn className="size-3" />
+            Sign in to connect
+          </Button>
         </>
       )}
     </>

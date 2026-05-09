@@ -1,5 +1,15 @@
 import { sqliteTable, text, integer, real, primaryKey } from "drizzle-orm/sqlite-core"
 
+// Users (Google OAuth) — id is the Google `sub` claim.
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  name: text("name"),
+  avatarUrl: text("avatar_url"),
+  createdAt: integer("created_at").notNull(),
+  lastLoginAt: integer("last_login_at").notNull(),
+})
+
 // Dashboard layout - stores card positions and sizes
 export const cards = sqliteTable("cards", {
   id: text("id").primaryKey(),

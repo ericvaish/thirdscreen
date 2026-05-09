@@ -1,21 +1,17 @@
-import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { getDb } from "@/lib/get-db"
 import { cards } from "@/db/schema"
 import { eq, and } from "drizzle-orm"
+import { readSession } from "@/lib/auth/session"
 
 /**
- * Get the current user ID from Clerk.
+ * Get the current user ID from the session cookie.
  * Returns "" for unauthenticated requests (single-user/self-hosted mode).
  * In multi-tenant hosted mode (STORAGE=turso), use requireAuth() instead.
  */
 export async function getUserId(): Promise<string> {
-  try {
-    const { userId } = await auth()
-    return userId ?? ""
-  } catch {
-    return ""
-  }
+  const session = await readSession()
+  return session?.sub ?? ""
 }
 
 /**
@@ -25,15 +21,11 @@ export async function getUserId(): Promise<string> {
 export async function requireAuth(): Promise<
   [string, null] | [null, NextResponse]
 > {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      return [null, NextResponse.json({ error: "Unauthorized" }, { status: 401 })]
-    }
-    return [userId, null]
-  } catch {
+  const session = await readSession()
+  if (!session?.sub) {
     return [null, NextResponse.json({ error: "Unauthorized" }, { status: 401 })]
   }
+  return [session.sub, null]
 }
 
 /**
@@ -61,7 +53,7 @@ export async function getAuthUserId(): Promise<
  */
 export async function verifyCardOwnership(
   cardId: string,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
   const result = await getDb()
     .select({ id: cards.id })
