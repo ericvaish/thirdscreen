@@ -35,7 +35,6 @@ progress.md
 node_modules/
 docs/glass-segmented-picker.md
 CLAUDE.md
-bun.lock
 *.db
 .wrangler/
 logs/
