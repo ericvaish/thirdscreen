@@ -19,15 +19,19 @@ export const auth0 = new Auth0Client({
   // Send callback failures back to the branded sign-in page instead of the
   // SDK's default plain-text 500.
   async onCallback(error, ctx) {
+    // ctx has no base URL when /auth/callback is hit outside a real login
+    // transaction, and Next's middleware only accepts absolute redirects.
+    const base = ctx.appBaseUrl ?? process.env.APP_BASE_URL
     if (error) {
-      const base = ctx.appBaseUrl ?? ""
       const code = (error as { code?: string }).code ?? "callback_failed"
+      if (!base) {
+        return new NextResponse(`Sign-in failed (${code}).`, { status: 400 })
+      }
       return NextResponse.redirect(
-        `${base}/sign-in?error=${encodeURIComponent(code)}`,
+        new URL(`/sign-in?error=${encodeURIComponent(code)}`, base),
       )
     }
-    return NextResponse.redirect(
-      new URL(ctx.returnTo || "/app", ctx.appBaseUrl).toString(),
-    )
+    // The SDK attaches the session cookie to whatever response comes back.
+    return NextResponse.redirect(new URL(ctx.returnTo || "/app", base))
   },
 })

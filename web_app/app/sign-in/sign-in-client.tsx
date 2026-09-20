@@ -3,11 +3,12 @@
 import { useSearchParams } from "next/navigation"
 
 const ERROR_MESSAGES: Record<string, string> = {
-  missing_state_cookie: "Sign-in session expired. Please try again.",
+  missing_state: "Sign-in session expired. Please try again.",
   invalid_state: "Sign-in session expired. Please try again.",
-  authorization_code_grant_error: "Could not complete sign-in.",
   authorization_error: "Sign-in was cancelled.",
   access_denied: "Sign-in was cancelled.",
+  authorization_code_grant_error: "Could not complete sign-in.",
+  authorization_code_grant_request_error: "Could not complete sign-in.",
   discovery_error: "Could not reach the login service. Please try again.",
   callback_failed: "Sign-in failed. Please try again.",
 }
