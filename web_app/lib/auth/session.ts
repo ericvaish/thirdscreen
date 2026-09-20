@@ -1,48 +1,41 @@
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-import {
-  signSession,
-  verifySession,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE,
-  type SessionPayload,
-} from "./jwt"
+import { auth0 } from "@/lib/auth0"
+
+export interface SessionPayload {
+  sub: string // app user id (the Google account id, see toUserId)
+  email: string
+  name?: string | null
+  picture?: string | null
+}
+
+const GOOGLE_PREFIX = "google-oauth2|"
+
+/**
+ * Map an Auth0 `sub` to the app's user id.
+ *
+ * Before Auth0 the app signed users in with Google directly and stored the
+ * raw Google `sub` as the user id — every row in the database is keyed on it.
+ * Auth0 returns the same value prefixed with the connection name
+ * ("google-oauth2|1234…"), so stripping the prefix keeps existing accounts and
+ * their data attached to the same user.
+ */
+export function toUserId(sub: string): string {
+  return sub.startsWith(GOOGLE_PREFIX)
+    ? sub.slice(GOOGLE_PREFIX.length)
+    : sub
+}
 
 export async function readSession(): Promise<SessionPayload | null> {
   try {
-    const store = await cookies()
-    const token = store.get(SESSION_COOKIE_NAME)?.value
-    if (!token) return null
-    return await verifySession(token)
+    const session = await auth0.getSession()
+    const user = session?.user
+    if (!user?.sub) return null
+    return {
+      sub: toUserId(user.sub),
+      email: user.email ?? "",
+      name: user.name ?? null,
+      picture: user.picture ?? null,
+    }
   } catch {
     return null
   }
-}
-
-export async function setSessionCookie(
-  res: NextResponse,
-  payload: SessionPayload,
-): Promise<void> {
-  const token = await signSession(payload)
-  res.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: token,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  })
-}
-
-export function clearSessionCookie(res: NextResponse): void {
-  res.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  })
 }

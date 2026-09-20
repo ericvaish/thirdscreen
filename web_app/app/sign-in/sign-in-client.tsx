@@ -3,19 +3,22 @@
 import { useSearchParams } from "next/navigation"
 
 const ERROR_MESSAGES: Record<string, string> = {
-  state_mismatch: "Sign-in session expired. Please try again.",
-  token_exchange_failed: "Could not complete sign-in with Google.",
-  userinfo_failed: "Could not fetch your Google profile.",
-  missing_email: "Your Google account did not return an email address.",
-  missing_code: "Sign-in was cancelled.",
+  missing_state_cookie: "Sign-in session expired. Please try again.",
+  invalid_state: "Sign-in session expired. Please try again.",
+  authorization_code_grant_error: "Could not complete sign-in.",
+  authorization_error: "Sign-in was cancelled.",
   access_denied: "Sign-in was cancelled.",
+  discovery_error: "Could not reach the login service. Please try again.",
+  callback_failed: "Sign-in failed. Please try again.",
 }
 
 export function SignInClient() {
   const params = useSearchParams()
   const error = params.get("error")
   const returnTo = params.get("return_to") ?? "/app"
-  const startUrl = `/api/auth/google/start?return_to=${encodeURIComponent(returnTo)}`
+  // connection=google-oauth2 skips the Auth0 account picker and goes
+  // straight to Google, which is the only connection this app uses.
+  const startUrl = `/auth/login?connection=google-oauth2&returnTo=${encodeURIComponent(returnTo)}`
 
   return (
     <div className="mt-6 space-y-3">

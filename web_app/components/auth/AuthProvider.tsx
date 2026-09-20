@@ -62,14 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
-    try {
-      await fetch("/api/auth/signout", { method: "POST" })
-    } catch {
-      // ignore
-    }
     setUser(null)
     if (typeof window !== "undefined") {
-      window.location.href = "/"
+      // Auth0 clears the local session cookie and the tenant session, then
+      // returns to the configured logout URL. The timestamp keeps each
+      // sign-out a unique URL — Chrome will otherwise reuse the previous
+      // logout redirect and the session cookie survives.
+      window.location.href = `/auth/logout?t=${Date.now()}`
     }
   }, [])
 
