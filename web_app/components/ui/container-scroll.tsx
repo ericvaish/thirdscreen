@@ -1,95 +1,38 @@
 "use client"
 
-import { useEffect, useRef, useState, type ReactNode } from "react"
-import { motion, useScroll, useTransform, type MotionValue } from "motion/react"
+import { useRef, type ReactNode } from "react"
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react"
 
 /**
- * Scroll-linked 3D card (Aceternity UI "ContainerScroll"). The card starts
- * tilted back and flattens out as the section scrolls into view, while the
- * title drifts upward.
+ * Scroll-linked 3D frame (adapted from Aceternity UI's "ContainerScroll").
+ * The framed screenshot starts tilted back and flattens out as it scrolls
+ * into view.
+ *
+ * The frame is sized by its content — never by a fixed pixel height — so the
+ * screenshot is always fully visible, and it never scales past 1 so it can't
+ * push a horizontal scrollbar onto the page.
  */
-export function ContainerScroll({
-  titleComponent,
-  children,
-}: {
-  titleComponent: string | ReactNode
-  children: ReactNode
-}) {
+export function ContainerScroll({ children }: { children: ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({ target: containerRef })
-  const [isMobile, setIsMobile] = useState(false)
+  const reduceMotion = useReducedMotion()
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start end", "center center"],
+  })
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
-    checkMobile()
-    window.addEventListener("resize", checkMobile)
-    return () => window.removeEventListener("resize", checkMobile)
-  }, [])
-
-  const scaleDimensions = () => (isMobile ? [0.7, 0.9] : [1.05, 1])
-
-  const rotate = useTransform(scrollYProgress, [0, 1], [20, 0])
-  const scale = useTransform(scrollYProgress, [0, 1], scaleDimensions())
-  const translate = useTransform(scrollYProgress, [0, 1], [0, -100])
+  const rotate = useTransform(scrollYProgress, [0, 1], [18, 0])
+  const scale = useTransform(scrollYProgress, [0, 1], [0.94, 1])
 
   return (
-    <div
-      className="relative flex h-[60rem] items-center justify-center p-2 md:h-[80rem] md:p-20"
-      ref={containerRef}
-    >
-      <div
-        className="relative w-full py-10 md:py-40"
-        style={{ perspective: "1000px" }}
+    <div ref={containerRef} className="[perspective:1400px]">
+      <motion.div
+        style={reduceMotion ? undefined : { rotateX: rotate, scale }}
+        className="glass-card mx-auto w-full max-w-5xl rounded-2xl p-1.5 shadow-[0_2px_6px_rgba(15,23,42,0.06),0_30px_80px_-30px_rgba(15,23,42,0.45)] ring-1 ring-black/10 sm:rounded-[1.75rem] sm:p-2 xl:max-w-6xl 2xl:max-w-[84rem] dark:shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] dark:ring-white/10"
       >
-        <Header translate={translate} titleComponent={titleComponent} />
-        <Card rotate={rotate} translate={translate} scale={scale}>
+        <div className="overflow-hidden rounded-[0.875rem] ring-1 ring-black/5 sm:rounded-[1.375rem] dark:ring-white/10">
           {children}
-        </Card>
-      </div>
+        </div>
+      </motion.div>
     </div>
-  )
-}
-
-export function Header({
-  translate,
-  titleComponent,
-}: {
-  translate: MotionValue<number>
-  titleComponent: string | ReactNode
-}) {
-  return (
-    <motion.div
-      style={{ translateY: translate }}
-      className="mx-auto max-w-5xl text-center"
-    >
-      {titleComponent}
-    </motion.div>
-  )
-}
-
-export function Card({
-  rotate,
-  scale,
-  children,
-}: {
-  rotate: MotionValue<number>
-  scale: MotionValue<number>
-  translate: MotionValue<number>
-  children: ReactNode
-}) {
-  return (
-    <motion.div
-      style={{
-        rotateX: rotate,
-        scale,
-        boxShadow:
-          "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a, 0 233px 65px #00000003",
-      }}
-      className="mx-auto -mt-12 h-[30rem] w-full max-w-5xl rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 shadow-2xl md:h-[40rem] md:p-6"
-    >
-      <div className="h-full w-full overflow-hidden rounded-2xl bg-gray-100 md:rounded-2xl md:p-4 dark:bg-zinc-900">
-        {children}
-      </div>
-    </motion.div>
   )
 }

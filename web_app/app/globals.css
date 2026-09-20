@@ -211,6 +211,15 @@
   }
 }
 
+/* ── Landing page ─────────────────────────────────────────────────────────
+   The dashboard scales the root font size with --ui-scale (20px by default)
+   so widgets stay readable from across the room. The marketing page is read
+   at arm's length and its whole type and spacing scale is drawn against a
+   normal 16px root, so it pins the root back while it's on screen. */
+html:has(.ts-landing) {
+  font-size: 16px;
+}
+
 /* ── Hover-reveal pattern ─────────────────────────────────────────────── */
 /* Use on destructive/secondary actions (delete, pin, dismiss).
    - Hover-capable devices: hidden by default, revealed on parent hover.
