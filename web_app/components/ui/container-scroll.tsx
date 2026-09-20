@@ -32,7 +32,11 @@ export function ContainerScroll({ children }: { children: ReactNode }) {
         style={reduceMotion ? undefined : { rotateX: rotate, scale }}
         className="mx-auto w-full max-w-5xl rounded-[1.5rem] border-4 border-[#6C6C6C] bg-[#222222] p-2 shadow-[0_2px_8px_rgba(15,23,42,0.12),0_30px_80px_-30px_rgba(15,23,42,0.55)] sm:rounded-[2rem] sm:p-4 lg:rounded-[2.25rem] lg:p-5 xl:max-w-6xl 2xl:max-w-[84rem] dark:shadow-[0_30px_80px_-30px_rgba(0,0,0,0.85)]"
       >
-        <div className="overflow-hidden rounded-xl bg-black">{children}</div>
+        {/* Neutral screen behind the shot, so a slow image reads as a blank
+            screen rather than a dead black panel. */}
+        <div className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900">
+          {children}
+        </div>
       </motion.div>
     </div>
   )
